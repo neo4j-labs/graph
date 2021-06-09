@@ -1,16 +1,26 @@
 use std::collections::HashMap;
 
 use crate::{
-    input::{DotGraph, EdgeList},
+    input::{Direction, DotGraph, EdgeList},
     DirectedGraph, Graph, UndirectedGraph,
 };
 
-struct CSR {
+pub struct CSR {
     offsets: Box<[usize]>,
     targets: Box<[usize]>,
 }
 
 impl CSR {
+    #[inline]
+    fn node_count(&self) -> usize {
+        self.offsets.len() - 1
+    }
+
+    #[inline]
+    fn edge_count(&self) -> usize {
+        self.targets.len()
+    }
+
     #[inline]
     fn degree(&self, node: usize) -> usize {
         self.offsets[node + 1] - self.offsets[node]
@@ -24,11 +34,71 @@ impl CSR {
     }
 }
 
+impl From<(&EdgeList, usize, Direction)> for CSR {
+    fn from((edge_list, node_count, direction): (&EdgeList, usize, Direction)) -> Self {
+        let degrees = edge_list.degrees(node_count, direction);
+        let mut offsets = prefix_sum(&degrees);
+        let mut targets = vec![0_usize; offsets[node_count]];
+
+        match direction {
+            Direction::Outgoing => edge_list.iter().for_each(|(s, t)| {
+                targets[offsets[*s]] = *t;
+                offsets[*s] += 1;
+            }),
+            Direction::Incoming => edge_list.iter().for_each(|(s, t)| {
+                targets[offsets[*t]] = *s;
+                offsets[*t] += 1;
+            }),
+            Direction::Undirected => edge_list.iter().for_each(|(s, t)| {
+                targets[offsets[*s]] = *t;
+                offsets[*s] += 1;
+                targets[offsets[*t]] = *s;
+                offsets[*t] += 1;
+            }),
+        }
+
+        // the previous loop moves all offsets one index to the right
+        // we need to correct this to have proper offsets
+        offsets.pop();
+        offsets.insert(0, 0);
+
+        CSR {
+            offsets: offsets.into_boxed_slice(),
+            targets: targets.into_boxed_slice(),
+        }
+    }
+}
+
+fn prefix_sum(degrees: &[usize]) -> Vec<usize> {
+    let mut sums = vec![0; degrees.len() + 1];
+    let mut total = 0;
+
+    for (i, degree) in degrees.iter().enumerate() {
+        sums[i] = total;
+        total += degree;
+    }
+
+    sums[degrees.len()] = total;
+
+    sums
+}
+
 pub struct DirectedCSRGraph {
     node_count: usize,
     edge_count: usize,
     out_edges: CSR,
     in_edges: CSR,
+}
+
+impl DirectedCSRGraph {
+    pub fn new(out_edges: CSR, in_edges: CSR) -> Self {
+        Self {
+            node_count: out_edges.node_count(),
+            edge_count: out_edges.edge_count(),
+            out_edges,
+            in_edges,
+        }
+    }
 }
 
 impl Graph for DirectedCSRGraph {
@@ -60,8 +130,12 @@ impl DirectedGraph for DirectedCSRGraph {
 }
 
 impl From<EdgeList> for DirectedCSRGraph {
-    fn from(_: EdgeList) -> Self {
-        todo!()
+    fn from(edge_list: EdgeList) -> Self {
+        let node_count = edge_list.max_node_id() + 1;
+        let out_edges = CSR::from((&edge_list, node_count, Direction::Outgoing));
+        let in_edges = CSR::from((&edge_list, node_count, Direction::Incoming));
+
+        DirectedCSRGraph::new(out_edges, in_edges)
     }
 }
 
@@ -69,6 +143,16 @@ pub struct UndirectedCSRGraph {
     node_count: usize,
     edge_count: usize,
     edges: CSR,
+}
+
+impl UndirectedCSRGraph {
+    pub fn new(edges: CSR) -> Self {
+        Self {
+            node_count: edges.node_count(),
+            edge_count: edges.edge_count() / 2,
+            edges,
+        }
+    }
 }
 
 impl Graph for UndirectedCSRGraph {
@@ -92,8 +176,11 @@ impl UndirectedGraph for UndirectedCSRGraph {
 }
 
 impl From<EdgeList> for UndirectedCSRGraph {
-    fn from(_: EdgeList) -> Self {
-        todo!()
+    fn from(edge_list: EdgeList) -> Self {
+        let node_count = edge_list.max_node_id() + 1;
+        let edges = CSR::from((&edge_list, node_count, Direction::Undirected));
+
+        UndirectedCSRGraph::new(edges)
     }
 }
 

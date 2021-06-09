@@ -83,4 +83,48 @@ mod tests {
         let _g3: NodeLabeledCSRGraph<UndirectedCSRGraph> =
             read_graph("graph", DotGraphInput).unwrap();
     }
+
+    #[test]
+    fn directed_graph_from_edge_list() {
+        let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
+
+        let g: DirectedCSRGraph = create_graph(edge_list);
+
+        assert_eq!(g.node_count(), 3);
+        assert_eq!(g.edge_count(), 2);
+
+        assert_eq!(g.out_degree(0), 2);
+        assert_eq!(g.out_degree(1), 0);
+        assert_eq!(g.out_degree(2), 0);
+
+        assert_eq!(g.in_degree(0), 0);
+        assert_eq!(g.in_degree(1), 1);
+        assert_eq!(g.in_degree(2), 1);
+
+        assert_eq!(g.out_neighbors(0), &[1, 2]);
+        assert_eq!(g.out_neighbors(1), &[]);
+        assert_eq!(g.out_neighbors(2), &[]);
+
+        assert_eq!(g.in_neighbors(0), &[]);
+        assert_eq!(g.in_neighbors(1), &[0]);
+        assert_eq!(g.in_neighbors(2), &[0]);
+    }
+
+    #[test]
+    fn undirected_graph_from_edge_list() {
+        let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
+
+        let g: UndirectedCSRGraph = create_graph(edge_list);
+
+        assert_eq!(g.node_count(), 3);
+        assert_eq!(g.edge_count(), 2);
+
+        assert_eq!(g.degree(0), 2);
+        assert_eq!(g.degree(1), 1);
+        assert_eq!(g.degree(2), 1);
+
+        assert_eq!(g.neighbors(0), &[1, 2]);
+        assert_eq!(g.neighbors(1), &[0]);
+        assert_eq!(g.neighbors(2), &[0]);
+    }
 }
