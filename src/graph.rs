@@ -62,6 +62,11 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
         offsets.pop();
         offsets.insert(0, 0);
 
+        // sort targets
+        for node in 0..node_count {
+            targets[offsets[node]..offsets[node + 1]].sort_unstable()
+        }
+
         CSR {
             offsets: offsets.into_boxed_slice(),
             targets: targets.into_boxed_slice(),
