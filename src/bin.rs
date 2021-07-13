@@ -16,13 +16,13 @@ fn main() {
     println!("node count = {}", graph.node_count());
     println!("edge count = {}", graph.edge_count());
 
-    let start = Instant::now();
-    let global_count = tc(&graph);
-    println!(
-        "global count = {}, took {} seconds",
-        global_count,
-        start.elapsed().as_secs()
-    );
+    // let start = Instant::now();
+    // let global_count = tc(&graph);
+    // println!(
+    //     "global count = {}, took {} seconds",
+    //     global_count,
+    //     start.elapsed().as_secs()
+    // );
 }
 
 fn tc(graph: &UndirectedCSRGraph) -> usize {

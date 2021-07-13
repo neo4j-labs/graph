@@ -1,9 +1,5 @@
 use atoi::FromRadix10;
-use num_format::{Locale, ToFormattedString};
-use std::{
-    collections::HashMap, convert::TryFrom, fs::File, io::Read, ops::Deref, path::Path,
-    time::Instant,
-};
+use std::{collections::HashMap, convert::TryFrom, fs::File, io::Read, ops::Deref, path::Path};
 
 use linereader::LineReader;
 
@@ -83,40 +79,29 @@ where
 {
     type Error = std::io::Error;
 
-    fn try_from(mut lines: LineReader<R>) -> Result<Self, Self::Error> {
+    fn try_from(mut reader: LineReader<R>) -> Result<Self, Self::Error> {
         let mut edges = Vec::new();
-        let start = Instant::now();
-        let mut batch = lines.next_batch().expect("missing data")?;
+        let mut bytes = 0_u64;
+        let start = std::time::Instant::now();
 
-        loop {
-            if batch.is_empty() {
-                if let Some(next_batch) = lines.next_batch() {
-                    let edge_count = edges.len();
-                    let duration = usize::max(start.elapsed().as_secs() as usize, 1);
-                    let tp = edges.len() / duration;
-                    println!(
-                        "read {} edges ({} edges / second)",
-                        edge_count.to_formatted_string(&Locale::en),
-                        tp.to_formatted_string(&Locale::en)
-                    );
-                    batch = next_batch.expect("missing data");
-                } else {
-                    break;
-                }
+        while let Some(lines) = reader.next_batch() {
+            let mut lines = lines.expect("read error");
+            bytes += lines.len() as u64;
+            while !lines.is_empty() {
+                let (source, pos) = usize::from_radix_10(lines);
+                let (target, pos2) = usize::from_radix_10(&lines[pos + 1..]);
+                edges.push((source, target));
+                lines = &lines[pos + pos2 + 2..];
             }
-
-            let (source, used) = usize::from_radix_10(batch);
-            batch = &batch[used + 1..];
-            let (target, used) = usize::from_radix_10(batch);
-            batch = &batch[used + 1..];
-
-            edges.push((source, target));
         }
 
+        let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
+
         println!(
-            "read {} edges in {} seconds",
+            "Read {} edges in {:.2}s ({:.2} MB/s)",
             edges.len(),
-            start.elapsed().as_secs().to_formatted_string(&Locale::en)
+            elapsed,
+            ((bytes as f64) / elapsed) / (1024.0 * 1024.0)
         );
 
         Ok(EdgeList::new(edges))
