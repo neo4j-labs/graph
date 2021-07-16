@@ -5,7 +5,13 @@ use std::{
     time::Instant,
 };
 
-use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::{
+    iter::{
+        IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+        IntoParallelRefMutIterator, ParallelIterator,
+    },
+    slice::ParallelSliceMut,
+};
 
 use crate::{
     input::{Direction, DotGraph, EdgeList},
@@ -203,6 +209,68 @@ impl UndirectedCSRGraph {
             edge_count: edges.edge_count() / 2,
             edges,
         }
+    }
+
+    pub fn relabel_by_degrees(self) -> Self {
+        let node_count = self.node_count();
+
+        let mut degree_node_pairs = Vec::with_capacity(node_count);
+
+        (0..node_count)
+            .into_par_iter()
+            .map(|node_id| (self.degree(node_id), node_id))
+            .collect_into_vec(&mut degree_node_pairs);
+
+        // sort node-degree pairs descending by degree
+        degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
+
+        let mut degrees = Vec::with_capacity(node_count);
+        degrees.resize_with(node_count, || AtomicUsize::new(0));
+
+        let mut new_ids = Vec::with_capacity(node_count);
+        new_ids.resize_with(node_count, || AtomicUsize::new(0));
+
+        (0..node_count).into_par_iter().for_each(|n| {
+            let (degree, node) = degree_node_pairs[n];
+            degrees[n].store(degree, Ordering::SeqCst);
+            new_ids[node].store(n, Ordering::SeqCst);
+        });
+
+        let degrees = unsafe { transmute::<_, Vec<usize>>(degrees) };
+        let new_ids = unsafe { transmute::<_, Vec<usize>>(new_ids) };
+
+        let offsets = prefix_sum(&degrees);
+        let offsets = unsafe { transmute::<_, Vec<AtomicUsize>>(offsets) };
+
+        let targets = vec![0_usize; offsets[node_count].load(Ordering::SeqCst)];
+        let targets = unsafe { transmute::<_, Vec<AtomicUsize>>(targets) };
+
+        (0..node_count).into_par_iter().for_each(|u| {
+            let new_u = new_ids[u];
+
+            for &v in self.neighbors(u) {
+                let new_v = new_ids[v];
+                let offset = offsets[new_u].fetch_add(1, Ordering::SeqCst);
+                targets[offset].store(new_v, Ordering::SeqCst);
+            }
+        });
+
+        let mut offsets = unsafe { transmute::<_, Vec<usize>>(offsets) };
+        let mut targets = unsafe { transmute::<_, Vec<usize>>(targets) };
+
+        // the previous loop moves all offsets one index to the right
+        // we need to correct this to have proper offsets
+        offsets.pop();
+        offsets.insert(0, 0);
+
+        sort_targets(&offsets, &mut targets);
+
+        let csr = CSR {
+            offsets: offsets.into_boxed_slice(),
+            targets: targets.into_boxed_slice(),
+        };
+
+        UndirectedCSRGraph::new(csr)
     }
 }
 
