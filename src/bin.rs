@@ -16,21 +16,29 @@ fn main() {
     println!("node count = {}", graph.node_count());
     println!("edge count = {}", graph.edge_count());
 
-    // let start = Instant::now();
-    // let global_count = tc(&graph);
-    // println!(
-    //     "global count = {}, took {} seconds",
-    //     global_count,
-    //     start.elapsed().as_secs()
-    // );
+    let start = Instant::now();
+    println!("Start: relabel_by_degree()");
+    let graph = graph.relabel_by_degrees();
+    println!(
+        "Finish: relabel_by_degree() took {} ms",
+        start.elapsed().as_millis()
+    );
+
+    let start = Instant::now();
+    println!("Start: global_triangle_count()");
+    let global_count = global_triangle_count(&graph);
+    println!(
+        "Finish: global_triangle_count = {}, took {} seconds",
+        global_count,
+        start.elapsed().as_secs()
+    );
 }
 
-fn tc(graph: &UndirectedCSRGraph) -> usize {
+fn global_triangle_count(graph: &UndirectedCSRGraph) -> usize {
     (0..graph.node_count())
         .into_par_iter()
         .map(|u| {
-            let mut triangles = 0;
-
+            let mut triangles = 0_usize;
             for &v in graph.neighbors(u) {
                 if v > u {
                     break;
@@ -49,7 +57,6 @@ fn tc(graph: &UndirectedCSRGraph) -> usize {
                     }
                 }
             }
-
             triangles
         })
         .sum()
