@@ -7,15 +7,12 @@ use std::{
     io::Read,
     ops::{Deref, DerefMut},
     path::Path,
-    sync::{
-        atomic::{AtomicUsize, Ordering::SeqCst},
-        Arc, Mutex,
-    },
+    sync::{atomic::Ordering::SeqCst, Arc, Mutex},
 };
 
 use linereader::LineReader;
 
-use crate::InputCapabilities;
+use crate::{AtomicNode, InputCapabilities, Node};
 
 pub struct EdgeListInput;
 
@@ -23,7 +20,7 @@ impl InputCapabilities for EdgeListInput {
     type GraphInput = EdgeList;
 }
 
-pub type Edge = (usize, usize);
+pub type Edge = (Node, Node);
 
 pub struct EdgeList(Box<[Edge]>);
 
@@ -59,31 +56,31 @@ impl EdgeList {
         Self(edges.into_boxed_slice())
     }
 
-    pub(crate) fn max_node_id(&self) -> usize {
+    pub(crate) fn max_node_id(&self) -> Node {
         self.0
             .par_iter()
-            .map(|(s, t)| usize::max(*s, *t))
-            .reduce(|| 0_usize, usize::max)
+            .map(|(s, t)| Node::max(*s, *t))
+            .reduce(|| 0 as Node, Node::max)
     }
 
-    pub(crate) fn degrees(&self, node_count: usize, direction: Direction) -> Vec<AtomicUsize> {
-        let mut degrees = Vec::with_capacity(node_count);
-        degrees.resize_with(node_count, || AtomicUsize::new(0));
+    pub(crate) fn degrees(&self, node_count: Node, direction: Direction) -> Vec<AtomicNode> {
+        let mut degrees = Vec::with_capacity(node_count as usize);
+        degrees.resize_with(node_count as usize, || AtomicNode::new(0));
 
         match direction {
             Direction::Outgoing => self.par_iter().for_each(|(s, _)| {
-                degrees[*s].fetch_add(1, SeqCst);
+                degrees[*s as usize].fetch_add(1, SeqCst);
             }),
             Direction::Incoming => self.par_iter().for_each(|(_, t)| {
-                degrees[*t].fetch_add(1, SeqCst);
+                degrees[*t as usize].fetch_add(1, SeqCst);
             }),
             Direction::Undirected => self.par_iter().for_each(|(s, t)| {
-                degrees[*s].fetch_add(1, SeqCst);
-                degrees[*t].fetch_add(1, SeqCst);
+                degrees[*s as usize].fetch_add(1, SeqCst);
+                degrees[*t as usize].fetch_add(1, SeqCst);
             }),
         }
 
-        // This is safe, since AtomicUsize is guaranteed to have the same memory layout as usize.
+        // This is safe, since AtomicNode is guaranteed to have the same memory layout as Node.
         // unsafe { std::mem::transmute(degrees) }
         degrees
     }
@@ -113,8 +110,8 @@ where
             let mut lines = lines.expect("read error");
             bytes += lines.len() as u64;
             while !lines.is_empty() {
-                let (source, pos) = usize::from_radix_10(lines);
-                let (target, pos2) = usize::from_radix_10(&lines[pos + 1..]);
+                let (source, pos) = Node::from_radix_10(lines);
+                let (target, pos2) = Node::from_radix_10(&lines[pos + 1..]);
                 edges.push((source, target));
                 lines = &lines[pos + pos2 + 2..];
             }
@@ -164,9 +161,9 @@ impl TryFrom<&[u8]> for EdgeList {
                     let mut edges = Vec::new();
                     let mut chunk = &bytes[start..end];
                     while !chunk.is_empty() {
-                        let (source, source_bytes) = usize::from_radix_10(chunk);
+                        let (source, source_bytes) = Node::from_radix_10(chunk);
                         let (target, target_bytes) =
-                            usize::from_radix_10(&chunk[source_bytes + 1..]);
+                            Node::from_radix_10(&chunk[source_bytes + 1..]);
                         edges.push((source, target));
                         chunk = &chunk[source_bytes + target_bytes + 2..];
                     }
@@ -178,20 +175,6 @@ impl TryFrom<&[u8]> for EdgeList {
         });
 
         let edges = Arc::try_unwrap(all_edges).unwrap().into_inner().unwrap();
-
-        // let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
-
-        // println!(
-        //     "Read {} edges in {:.2}s ({:.2} MB/s)",
-        //     all_edges.len(),
-        //     elapsed,
-        //     ((bytes.len() as f64) / elapsed) / (1024.0 * 1024.0)
-        // );
-
-        // let edges = all_edges
-        //     .into_iter()
-        //     .flat_map(|e| e.into_iter())
-        //     .collect::<Vec<_>>();
 
         let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
 

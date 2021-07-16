@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     intrinsics::transmute,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicU32, AtomicUsize, Ordering},
     time::Instant,
 };
 
@@ -15,40 +15,40 @@ use rayon::{
 
 use crate::{
     input::{Direction, DotGraph, EdgeList},
-    DirectedGraph, Graph, UndirectedGraph,
+    AtomicNode, DirectedGraph, Graph, Node, UndirectedGraph,
 };
 
 pub struct CSR {
-    offsets: Box<[usize]>,
-    targets: Box<[usize]>,
+    offsets: Box<[Node]>,
+    targets: Box<[Node]>,
 }
 
 impl CSR {
     #[inline]
-    fn node_count(&self) -> usize {
-        self.offsets.len() - 1
+    fn node_count(&self) -> Node {
+        (self.offsets.len() - 1) as Node
     }
 
     #[inline]
-    fn edge_count(&self) -> usize {
-        self.targets.len()
+    fn edge_count(&self) -> Node {
+        self.targets.len() as Node
     }
 
     #[inline]
-    fn degree(&self, node: usize) -> usize {
-        self.offsets[node + 1] - self.offsets[node]
+    fn degree(&self, node: Node) -> Node {
+        (self.offsets[node as usize + 1] - self.offsets[node as usize]) as Node
     }
 
     #[inline]
-    fn neighbors(&self, node: usize) -> &[usize] {
-        let from = self.offsets[node];
-        let to = self.offsets[node + 1];
+    fn neighbors(&self, node: Node) -> &[Node] {
+        let from = self.offsets[node as usize] as usize;
+        let to = self.offsets[node as usize + 1] as usize;
         &self.targets[from..to]
     }
 }
 
-impl From<(&EdgeList, usize, Direction)> for CSR {
-    fn from((edge_list, node_count, direction): (&EdgeList, usize, Direction)) -> Self {
+impl From<(&EdgeList, Node, Direction)> for CSR {
+    fn from((edge_list, node_count, direction): (&EdgeList, Node, Direction)) -> Self {
         let mut start = Instant::now();
 
         println!("Start: degrees()");
@@ -64,9 +64,9 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
         );
         start = Instant::now();
 
-        let targets_len = offsets[node_count].load(Ordering::SeqCst);
-        let mut targets = Vec::with_capacity(targets_len);
-        targets.resize_with(targets_len, || AtomicUsize::new(0));
+        let targets_len = offsets[node_count as usize].load(Ordering::SeqCst);
+        let mut targets = Vec::with_capacity(targets_len as usize);
+        targets.resize_with(targets_len as usize, || AtomicNode::new(0));
 
         // vec![0_usize; offsets[node_count].load(Ordering::SeqCst)];
 
@@ -76,21 +76,25 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
         println!("Start: targets");
         match direction {
             Direction::Outgoing => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[*s].fetch_add(1, Ordering::SeqCst)].store(*t, Ordering::SeqCst);
+                targets[offsets[*s as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                    .store(*t, Ordering::SeqCst);
             }),
             Direction::Incoming => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[*t].fetch_add(1, Ordering::SeqCst)].store(*s, Ordering::SeqCst);
+                targets[offsets[*t as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                    .store(*s, Ordering::SeqCst);
             }),
             Direction::Undirected => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[*s].fetch_add(1, Ordering::SeqCst)].store(*t, Ordering::SeqCst);
-                targets[offsets[*t].fetch_add(1, Ordering::SeqCst)].store(*s, Ordering::SeqCst);
+                targets[offsets[*s as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                    .store(*t, Ordering::SeqCst);
+                targets[offsets[*t as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                    .store(*s, Ordering::SeqCst);
             }),
         }
         println!("Finish: targets took {} ms", start.elapsed().as_millis());
         start = Instant::now();
 
-        let mut offsets = unsafe { transmute::<_, Vec<usize>>(offsets) };
-        let mut targets = unsafe { transmute::<_, Vec<usize>>(targets) };
+        let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
+        let mut targets = unsafe { transmute::<_, Vec<Node>>(targets) };
 
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
@@ -111,7 +115,7 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
     }
 }
 
-trait UsizeLike
+trait NodeLike
 where
     Self: Sized,
 {
@@ -124,7 +128,7 @@ where
     fn add_ref(&mut self, other: &Self);
 }
 
-impl UsizeLike for usize {
+impl NodeLike for usize {
     #[inline]
     fn zero() -> Self {
         0
@@ -146,7 +150,7 @@ impl UsizeLike for usize {
     }
 }
 
-impl UsizeLike for AtomicUsize {
+impl NodeLike for AtomicUsize {
     #[inline]
     fn zero() -> Self {
         AtomicUsize::new(0)
@@ -168,7 +172,51 @@ impl UsizeLike for AtomicUsize {
     }
 }
 
-fn prefix_sum<T: UsizeLike>(degrees: &[T]) -> Vec<T> {
+impl NodeLike for u32 {
+    #[inline]
+    fn zero() -> Self {
+        0
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn add(&mut self, other: Self) {
+        *self += other;
+    }
+
+    #[inline]
+    fn add_ref(&mut self, other: &Self) {
+        *self += *other;
+    }
+}
+
+impl NodeLike for AtomicU32 {
+    #[inline]
+    fn zero() -> Self {
+        AtomicU32::new(0)
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        AtomicU32::new(self.load(Ordering::SeqCst))
+    }
+
+    #[inline]
+    fn add(&mut self, other: Self) {
+        *self.get_mut() += other.into_inner();
+    }
+
+    #[inline]
+    fn add_ref(&mut self, other: &Self) {
+        *self.get_mut() += other.load(Ordering::SeqCst);
+    }
+}
+
+fn prefix_sum<T: NodeLike>(degrees: &[T]) -> Vec<T> {
     let mut sums = Vec::with_capacity(degrees.len() + 1);
     sums.resize_with(degrees.len() + 1, T::zero);
     let mut total = T::zero();
@@ -183,7 +231,7 @@ fn prefix_sum<T: UsizeLike>(degrees: &[T]) -> Vec<T> {
     sums
 }
 
-fn into_prefix_sum<T: UsizeLike>(degrees: Vec<T>) -> Vec<T> {
+fn into_prefix_sum<T: NodeLike>(degrees: Vec<T>) -> Vec<T> {
     let mut last = degrees.last().unwrap().copied();
     let mut sums = degrees
         .into_iter()
@@ -200,14 +248,14 @@ fn into_prefix_sum<T: UsizeLike>(degrees: Vec<T>) -> Vec<T> {
     sums
 }
 
-fn sort_targets(offsets: &[usize], targets: &mut [usize]) {
+fn sort_targets(offsets: &[Node], targets: &mut [Node]) {
     let node_count = offsets.len() - 1;
     let mut target_chunks = Vec::with_capacity(node_count);
     let mut tail = targets;
     let mut prev_offset = offsets[0];
 
     for &offset in &offsets[1..node_count] {
-        let (list, remainder) = tail.split_at_mut(offset - prev_offset);
+        let (list, remainder) = tail.split_at_mut((offset - prev_offset) as usize);
         target_chunks.push(list);
         tail = remainder;
         prev_offset = offset;
@@ -220,8 +268,8 @@ fn sort_targets(offsets: &[usize], targets: &mut [usize]) {
 }
 
 pub struct DirectedCSRGraph {
-    node_count: usize,
-    edge_count: usize,
+    node_count: Node,
+    edge_count: Node,
     out_edges: CSR,
     in_edges: CSR,
 }
@@ -238,29 +286,29 @@ impl DirectedCSRGraph {
 }
 
 impl Graph for DirectedCSRGraph {
-    fn node_count(&self) -> usize {
+    fn node_count(&self) -> Node {
         self.node_count
     }
 
-    fn edge_count(&self) -> usize {
+    fn edge_count(&self) -> Node {
         self.edge_count
     }
 }
 
 impl DirectedGraph for DirectedCSRGraph {
-    fn out_degree(&self, node: usize) -> usize {
+    fn out_degree(&self, node: Node) -> Node {
         self.out_edges.degree(node)
     }
 
-    fn out_neighbors(&self, node: usize) -> &[usize] {
+    fn out_neighbors(&self, node: Node) -> &[Node] {
         self.out_edges.neighbors(node)
     }
 
-    fn in_degree(&self, node: usize) -> usize {
+    fn in_degree(&self, node: Node) -> Node {
         self.in_edges.degree(node)
     }
 
-    fn in_neighbors(&self, node: usize) -> &[usize] {
+    fn in_neighbors(&self, node: Node) -> &[Node] {
         self.in_edges.neighbors(node)
     }
 }
@@ -276,8 +324,8 @@ impl From<EdgeList> for DirectedCSRGraph {
 }
 
 pub struct UndirectedCSRGraph {
-    node_count: usize,
-    edge_count: usize,
+    node_count: Node,
+    edge_count: Node,
     edges: CSR,
 }
 
@@ -354,21 +402,21 @@ impl UndirectedCSRGraph {
 }
 
 impl Graph for UndirectedCSRGraph {
-    fn node_count(&self) -> usize {
+    fn node_count(&self) -> Node {
         self.node_count
     }
 
-    fn edge_count(&self) -> usize {
+    fn edge_count(&self) -> Node {
         self.edge_count
     }
 }
 
 impl UndirectedGraph for UndirectedCSRGraph {
-    fn degree(&self, node: usize) -> usize {
+    fn degree(&self, node: Node) -> Node {
         self.edges.degree(node)
     }
 
-    fn neighbors(&self, node: usize) -> &[usize] {
+    fn neighbors(&self, node: Node) -> &[Node] {
         self.edges.neighbors(node)
     }
 }
@@ -395,40 +443,40 @@ pub struct NodeLabeledCSRGraph<G> {
 
 impl<G: Graph> Graph for NodeLabeledCSRGraph<G> {
     #[inline]
-    fn node_count(&self) -> usize {
+    fn node_count(&self) -> Node {
         self.graph.node_count()
     }
 
     #[inline]
-    fn edge_count(&self) -> usize {
+    fn edge_count(&self) -> Node {
         self.graph.edge_count()
     }
 }
 
 impl<G: DirectedGraph> DirectedGraph for NodeLabeledCSRGraph<G> {
-    fn out_degree(&self, node: usize) -> usize {
+    fn out_degree(&self, node: Node) -> Node {
         self.graph.out_degree(node)
     }
 
-    fn out_neighbors(&self, node: usize) -> &[usize] {
+    fn out_neighbors(&self, node: Node) -> &[Node] {
         self.graph.out_neighbors(node)
     }
 
-    fn in_degree(&self, node: usize) -> usize {
+    fn in_degree(&self, node: Node) -> Node {
         self.graph.in_degree(node)
     }
 
-    fn in_neighbors(&self, node: usize) -> &[usize] {
+    fn in_neighbors(&self, node: Node) -> &[Node] {
         self.graph.in_neighbors(node)
     }
 }
 
 impl<G: UndirectedGraph> UndirectedGraph for NodeLabeledCSRGraph<G> {
-    fn degree(&self, node: usize) -> usize {
+    fn degree(&self, node: Node) -> Node {
         self.graph.degree(node)
     }
 
-    fn neighbors(&self, node: usize) -> &[usize] {
+    fn neighbors(&self, node: Node) -> &[Node] {
         self.graph.neighbors(node)
     }
 }

@@ -7,43 +7,63 @@ use std::{collections::HashMap, path::Path};
 use input::EdgeList;
 use thiserror::Error;
 
+#[cfg(feature = "size32")]
+pub(crate) type Node = u32;
+#[cfg(feature = "size32")]
+pub(crate) type AtomicNode = std::sync::atomic::AtomicU32;
+#[cfg(feature = "size32")]
+#[inline]
+pub(crate) fn as_usize(node: Node) -> usize {
+    node as usize
+}
+
+#[cfg(not(feature = "size32"))]
+pub(crate) type Node = usize;
+#[cfg(not(feature = "size32"))]
+pub(crate) type AtomicNode = std::sync::atomic::AtomicUsize;
+#[cfg(not(feature = "size32"))]
+#[inline]
+pub(crate) fn as_usize(node: Node) -> usize {
+    node
+}
+
 #[derive(Error, Debug)]
 pub enum Error {}
 
 pub trait Graph {
-    fn node_count(&self) -> usize;
+    fn node_count(&self) -> Node;
 
-    fn edge_count(&self) -> usize;
+    fn edge_count(&self) -> Node;
 }
 
 pub trait UndirectedGraph: Graph {
-    fn degree(&self, node: usize) -> usize;
+    fn degree(&self, node: Node) -> Node;
 
-    fn neighbors(&self, node: usize) -> &[usize];
+    fn neighbors(&self, node: Node) -> &[Node];
 }
 
 pub trait DirectedGraph: Graph {
-    fn out_degree(&self, node: usize) -> usize;
+    fn out_degree(&self, node: Node) -> Node;
 
-    fn out_neighbors(&self, node: usize) -> &[usize];
+    fn out_neighbors(&self, node: Node) -> &[Node];
 
-    fn in_degree(&self, node: usize) -> usize;
+    fn in_degree(&self, node: Node) -> Node;
 
-    fn in_neighbors(&self, node: usize) -> &[usize];
+    fn in_neighbors(&self, node: Node) -> &[Node];
 }
 
 pub trait NodeLabeledGraph: Graph {
-    fn label(&self, node: usize) -> usize;
+    fn label(&self, node: Node) -> Node;
 
-    fn nodes_by_label(&self, label: usize) -> &[usize];
+    fn nodes_by_label(&self, label: Node) -> &[Node];
 
-    fn label_count(&self) -> usize;
+    fn label_count(&self) -> Node;
 
-    fn max_label(&self) -> usize;
+    fn max_label(&self) -> Node;
 
-    fn max_label_frequency(&self) -> usize;
+    fn max_label_frequency(&self) -> Node;
 
-    fn neighbor_label_frequency(&self, node: usize) -> &HashMap<usize, usize>;
+    fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Node, Node>;
 }
 
 pub trait InputCapabilities {
