@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
+
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{
     input::{Direction, DotGraph, EdgeList},
@@ -62,10 +64,7 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
         offsets.pop();
         offsets.insert(0, 0);
 
-        // sort targets
-        for node in 0..node_count {
-            targets[offsets[node]..offsets[node + 1]].sort_unstable()
-        }
+        sort_targets(&offsets, &mut targets);
 
         CSR {
             offsets: offsets.into_boxed_slice(),
@@ -86,6 +85,29 @@ fn prefix_sum(degrees: &[usize]) -> Vec<usize> {
     sums[degrees.len()] = total;
 
     sums
+}
+
+fn sort_targets(offsets: &[usize], targets: &mut [usize]) {
+    let start = Instant::now();
+
+    let node_count = offsets.len() - 1;
+    let mut target_chunks = Vec::with_capacity(node_count);
+    let mut tail = targets;
+    let mut prev_offset = offsets[0];
+
+    for &offset in &offsets[1..node_count] {
+        let (list, remainder) = tail.split_at_mut(offset - prev_offset);
+        target_chunks.push(list);
+        tail = remainder;
+        prev_offset = offset;
+    }
+
+    // do the actual sorting of individual target lists
+    target_chunks
+        .par_iter_mut()
+        .for_each(|list| list.sort_unstable());
+
+    println!("Sorted adjacency lists in {}s", start.elapsed().as_secs());
 }
 
 pub struct DirectedCSRGraph {
