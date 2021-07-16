@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    intrinsics::transmute,
+    mem::transmute,
     sync::atomic::{AtomicU32, AtomicUsize, Ordering},
     time::Instant,
 };
@@ -341,7 +341,7 @@ impl UndirectedCSRGraph {
     pub fn relabel_by_degrees(self) -> Self {
         let node_count = self.node_count();
 
-        let mut degree_node_pairs = Vec::with_capacity(node_count);
+        let mut degree_node_pairs = Vec::with_capacity(node_count as usize);
 
         (0..node_count)
             .into_par_iter()
@@ -351,39 +351,39 @@ impl UndirectedCSRGraph {
         // sort node-degree pairs descending by degree
         degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
 
-        let mut degrees = Vec::with_capacity(node_count);
-        degrees.resize_with(node_count, || AtomicUsize::new(0));
+        let mut degrees = Vec::with_capacity(node_count as usize);
+        degrees.resize_with(node_count as usize, || AtomicNode::new(0));
 
-        let mut new_ids = Vec::with_capacity(node_count);
-        new_ids.resize_with(node_count, || AtomicUsize::new(0));
+        let mut new_ids = Vec::with_capacity(node_count as usize);
+        new_ids.resize_with(node_count as usize, || AtomicNode::new(0));
 
         (0..node_count).into_par_iter().for_each(|n| {
-            let (degree, node) = degree_node_pairs[n];
-            degrees[n].store(degree, Ordering::SeqCst);
-            new_ids[node].store(n, Ordering::SeqCst);
+            let (degree, node) = degree_node_pairs[n as usize];
+            degrees[n as usize].store(degree, Ordering::SeqCst);
+            new_ids[node as usize].store(n, Ordering::SeqCst);
         });
 
-        let degrees = unsafe { transmute::<_, Vec<usize>>(degrees) };
-        let new_ids = unsafe { transmute::<_, Vec<usize>>(new_ids) };
+        let degrees = unsafe { transmute::<_, Vec<Node>>(degrees) };
+        let new_ids = unsafe { transmute::<_, Vec<Node>>(new_ids) };
 
         let offsets = prefix_sum(&degrees);
-        let offsets = unsafe { transmute::<_, Vec<AtomicUsize>>(offsets) };
+        let offsets = unsafe { transmute::<_, Vec<AtomicNode>>(offsets) };
 
-        let targets = vec![0_usize; offsets[node_count].load(Ordering::SeqCst)];
-        let targets = unsafe { transmute::<_, Vec<AtomicUsize>>(targets) };
+        let targets = vec![0 as Node; offsets[node_count as usize].load(Ordering::SeqCst) as usize];
+        let targets = unsafe { transmute::<_, Vec<AtomicNode>>(targets) };
 
         (0..node_count).into_par_iter().for_each(|u| {
-            let new_u = new_ids[u];
+            let new_u = new_ids[u as usize];
 
             for &v in self.neighbors(u) {
-                let new_v = new_ids[v];
-                let offset = offsets[new_u].fetch_add(1, Ordering::SeqCst);
-                targets[offset].store(new_v, Ordering::SeqCst);
+                let new_v = new_ids[v as usize];
+                let offset = offsets[new_u as usize].fetch_add(1, Ordering::SeqCst);
+                targets[offset as usize].store(new_v, Ordering::SeqCst);
             }
         });
 
-        let mut offsets = unsafe { transmute::<_, Vec<usize>>(offsets) };
-        let mut targets = unsafe { transmute::<_, Vec<usize>>(targets) };
+        let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
+        let mut targets = unsafe { transmute::<_, Vec<Node>>(targets) };
 
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
