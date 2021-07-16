@@ -1,6 +1,11 @@
-use std::{collections::HashMap, time::Instant};
+use std::{
+    collections::HashMap,
+    intrinsics::transmute,
+    sync::atomic::{AtomicUsize, Ordering},
+    time::Instant,
+};
 
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{
     input::{Direction, DotGraph, EdgeList},
@@ -46,34 +51,36 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
         start = Instant::now();
 
         println!("Start: prefix_sum()");
-        let mut offsets = prefix_sum(&degrees);
+        let offsets = prefix_sum(&degrees);
         println!(
             "Finish: prefix_sum() took {} ms",
             start.elapsed().as_millis()
         );
         start = Instant::now();
 
-        let mut targets = vec![0_usize; offsets[node_count]];
+        let targets = vec![0_usize; offsets[node_count]];
+
+        let targets = unsafe { transmute::<_, Vec<AtomicUsize>>(targets) };
+        let offsets = unsafe { transmute::<_, Vec<AtomicUsize>>(offsets) };
 
         println!("Start: targets");
         match direction {
-            Direction::Outgoing => edge_list.iter().for_each(|(s, t)| {
-                targets[offsets[*s]] = *t;
-                offsets[*s] += 1;
+            Direction::Outgoing => edge_list.par_iter().for_each(|(s, t)| {
+                targets[offsets[*s].fetch_add(1, Ordering::SeqCst)].store(*t, Ordering::SeqCst);
             }),
-            Direction::Incoming => edge_list.iter().for_each(|(s, t)| {
-                targets[offsets[*t]] = *s;
-                offsets[*t] += 1;
+            Direction::Incoming => edge_list.par_iter().for_each(|(s, t)| {
+                targets[offsets[*t].fetch_add(1, Ordering::SeqCst)].store(*s, Ordering::SeqCst);
             }),
-            Direction::Undirected => edge_list.iter().for_each(|(s, t)| {
-                targets[offsets[*s]] = *t;
-                offsets[*s] += 1;
-                targets[offsets[*t]] = *s;
-                offsets[*t] += 1;
+            Direction::Undirected => edge_list.par_iter().for_each(|(s, t)| {
+                targets[offsets[*s].fetch_add(1, Ordering::SeqCst)].store(*t, Ordering::SeqCst);
+                targets[offsets[*t].fetch_add(1, Ordering::SeqCst)].store(*s, Ordering::SeqCst);
             }),
         }
         println!("Finish: targets took {} ms", start.elapsed().as_millis());
         start = Instant::now();
+
+        let mut offsets = unsafe { transmute::<_, Vec<usize>>(offsets) };
+        let mut targets = unsafe { transmute::<_, Vec<usize>>(targets) };
 
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
