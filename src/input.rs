@@ -5,7 +5,7 @@ use std::{
     convert::TryFrom,
     fs::File,
     io::Read,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     path::Path,
     sync::atomic::{AtomicUsize, Ordering::SeqCst},
 };
@@ -35,6 +35,12 @@ impl Deref for EdgeList {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for EdgeList {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
