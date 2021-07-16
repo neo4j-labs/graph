@@ -57,17 +57,21 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
         start = Instant::now();
 
         println!("Start: prefix_sum()");
-        let offsets = prefix_sum(&degrees);
+        let offsets = into_prefix_sum(degrees);
         println!(
             "Finish: prefix_sum() took {} ms",
             start.elapsed().as_millis()
         );
         start = Instant::now();
 
-        let targets = vec![0_usize; offsets[node_count]];
+        let targets_len = offsets[node_count].load(Ordering::SeqCst);
+        let mut targets = Vec::with_capacity(targets_len);
+        targets.resize_with(targets_len, || AtomicUsize::new(0));
 
-        let targets = unsafe { transmute::<_, Vec<AtomicUsize>>(targets) };
-        let offsets = unsafe { transmute::<_, Vec<AtomicUsize>>(offsets) };
+        // vec![0_usize; offsets[node_count].load(Ordering::SeqCst)];
+
+        // let targets = unsafe { transmute::<_, Vec<AtomicUsize>>(targets) };
+        // let offsets = unsafe { transmute::<_, Vec<AtomicUsize>>(offsets) };
 
         println!("Start: targets");
         match direction {
@@ -107,16 +111,91 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
     }
 }
 
-fn prefix_sum(degrees: &[usize]) -> Vec<usize> {
-    let mut sums = vec![0; degrees.len() + 1];
-    let mut total = 0;
+trait UsizeLike
+where
+    Self: Sized,
+{
+    fn zero() -> Self;
+
+    fn copied(&self) -> Self;
+
+    fn add(&mut self, other: Self);
+
+    fn add_ref(&mut self, other: &Self);
+}
+
+impl UsizeLike for usize {
+    #[inline]
+    fn zero() -> Self {
+        0
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn add(&mut self, other: Self) {
+        *self += other;
+    }
+
+    #[inline]
+    fn add_ref(&mut self, other: &Self) {
+        *self += *other;
+    }
+}
+
+impl UsizeLike for AtomicUsize {
+    #[inline]
+    fn zero() -> Self {
+        AtomicUsize::new(0)
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        AtomicUsize::new(self.load(Ordering::SeqCst))
+    }
+
+    #[inline]
+    fn add(&mut self, other: Self) {
+        *self.get_mut() += other.into_inner();
+    }
+
+    #[inline]
+    fn add_ref(&mut self, other: &Self) {
+        *self.get_mut() += other.load(Ordering::SeqCst);
+    }
+}
+
+fn prefix_sum<T: UsizeLike>(degrees: &[T]) -> Vec<T> {
+    let mut sums = Vec::with_capacity(degrees.len() + 1);
+    sums.resize_with(degrees.len() + 1, T::zero);
+    let mut total = T::zero();
 
     for (i, degree) in degrees.iter().enumerate() {
-        sums[i] = total;
-        total += degree;
+        sums[i] = total.copied();
+        total.add_ref(degree);
     }
 
     sums[degrees.len()] = total;
+
+    sums
+}
+
+fn into_prefix_sum<T: UsizeLike>(degrees: Vec<T>) -> Vec<T> {
+    let mut last = degrees.last().unwrap().copied();
+    let mut sums = degrees
+        .into_iter()
+        .scan(T::zero(), |total, degree| {
+            let value = total.copied();
+            total.add(degree);
+            Some(value)
+        })
+        .collect::<Vec<_>>();
+
+    last.add_ref(sums.last().unwrap());
+    sums.push(last);
 
     sums
 }

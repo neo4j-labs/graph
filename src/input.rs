@@ -66,7 +66,7 @@ impl EdgeList {
             .reduce(|| 0_usize, usize::max)
     }
 
-    pub(crate) fn degrees(&self, node_count: usize, direction: Direction) -> Vec<usize> {
+    pub(crate) fn degrees(&self, node_count: usize, direction: Direction) -> Vec<AtomicUsize> {
         let mut degrees = Vec::with_capacity(node_count);
         degrees.resize_with(node_count, || AtomicUsize::new(0));
 
@@ -84,7 +84,8 @@ impl EdgeList {
         }
 
         // This is safe, since AtomicUsize is guaranteed to have the same memory layout as usize.
-        unsafe { std::mem::transmute(degrees) }
+        // unsafe { std::mem::transmute(degrees) }
+        degrees
     }
 }
 
