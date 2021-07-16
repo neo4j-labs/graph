@@ -1,5 +1,14 @@
 use atoi::FromRadix10;
-use std::{collections::HashMap, convert::TryFrom, fs::File, io::Read, ops::Deref, path::Path};
+use rayon::prelude::*;
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    fs::File,
+    io::Read,
+    ops::Deref,
+    path::Path,
+    sync::atomic::{AtomicUsize, Ordering::SeqCst},
+};
 
 use linereader::LineReader;
 
@@ -43,25 +52,30 @@ impl EdgeList {
 
     pub(crate) fn max_node_id(&self) -> usize {
         self.0
-            .iter()
+            .par_iter()
             .map(|(s, t)| usize::max(*s, *t))
-            .reduce(usize::max)
-            .unwrap_or_default()
+            .reduce(|| 0_usize, usize::max)
     }
 
     pub(crate) fn degrees(&self, node_count: usize, direction: Direction) -> Vec<usize> {
-        let mut degrees = vec![0_usize; node_count];
+        let mut degrees = Vec::with_capacity(node_count);
+        degrees.resize_with(node_count, || AtomicUsize::new(0));
 
         match direction {
-            Direction::Outgoing => self.iter().for_each(|(s, _)| degrees[*s] += 1),
-            Direction::Incoming => self.iter().for_each(|(_, t)| degrees[*t] += 1),
-            Direction::Undirected => self.iter().for_each(|(s, t)| {
-                degrees[*s] += 1;
-                degrees[*t] += 1;
+            Direction::Outgoing => self.par_iter().for_each(|(s, _)| {
+                degrees[*s].fetch_add(1, SeqCst);
+            }),
+            Direction::Incoming => self.par_iter().for_each(|(_, t)| {
+                degrees[*t].fetch_add(1, SeqCst);
+            }),
+            Direction::Undirected => self.par_iter().for_each(|(s, t)| {
+                degrees[*s].fetch_add(1, SeqCst);
+                degrees[*t].fetch_add(1, SeqCst);
             }),
         }
 
-        degrees
+        // This is safe, since AtomicUsize is guaranteed to have the same memory layout as usize.
+        unsafe { std::mem::transmute(degrees) }
     }
 }
 

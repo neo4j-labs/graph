@@ -38,10 +38,24 @@ impl CSR {
 
 impl From<(&EdgeList, usize, Direction)> for CSR {
     fn from((edge_list, node_count, direction): (&EdgeList, usize, Direction)) -> Self {
+        let mut start = Instant::now();
+
+        println!("Start: degrees()");
         let degrees = edge_list.degrees(node_count, direction);
+        println!("Finish: degrees() took {} ms", start.elapsed().as_millis());
+        start = Instant::now();
+
+        println!("Start: prefix_sum()");
         let mut offsets = prefix_sum(&degrees);
+        println!(
+            "Finish: prefix_sum() took {} ms",
+            start.elapsed().as_millis()
+        );
+        start = Instant::now();
+
         let mut targets = vec![0_usize; offsets[node_count]];
 
+        println!("Start: targets");
         match direction {
             Direction::Outgoing => edge_list.iter().for_each(|(s, t)| {
                 targets[offsets[*s]] = *t;
@@ -58,13 +72,20 @@ impl From<(&EdgeList, usize, Direction)> for CSR {
                 offsets[*t] += 1;
             }),
         }
+        println!("Finish: targets took {} ms", start.elapsed().as_millis());
+        start = Instant::now();
 
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
         offsets.pop();
         offsets.insert(0, 0);
 
+        println!("Start: sort_targets()");
         sort_targets(&offsets, &mut targets);
+        println!(
+            "Finish: sort_targets() took {} ms",
+            start.elapsed().as_millis()
+        );
 
         CSR {
             offsets: offsets.into_boxed_slice(),
@@ -88,8 +109,6 @@ fn prefix_sum(degrees: &[usize]) -> Vec<usize> {
 }
 
 fn sort_targets(offsets: &[usize], targets: &mut [usize]) {
-    let start = Instant::now();
-
     let node_count = offsets.len() - 1;
     let mut target_chunks = Vec::with_capacity(node_count);
     let mut tail = targets;
@@ -106,8 +125,6 @@ fn sort_targets(offsets: &[usize], targets: &mut [usize]) {
     target_chunks
         .par_iter_mut()
         .for_each(|list| list.sort_unstable());
-
-    println!("Sorted adjacency lists in {}s", start.elapsed().as_secs());
 }
 
 pub struct DirectedCSRGraph {
