@@ -7,7 +7,10 @@ use std::{
     io::Read,
     ops::{Deref, DerefMut},
     path::Path,
-    sync::atomic::{AtomicUsize, Ordering::SeqCst},
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc, Mutex,
+    },
 };
 
 use linereader::LineReader;
@@ -88,8 +91,9 @@ impl EdgeList {
 impl From<&Path> for EdgeList {
     fn from(path: &Path) -> Self {
         let file = File::open(path).unwrap();
-        let reader = LineReader::new(file);
-        EdgeList::try_from(reader).unwrap()
+        // let reader = LineReader::new(file);
+        let mmap = unsafe { memmap2::MmapOptions::new().populate().map(&file).unwrap() };
+        EdgeList::try_from(mmap.as_ref()).unwrap()
     }
 }
 
@@ -122,6 +126,79 @@ where
             edges.len(),
             elapsed,
             ((bytes as f64) / elapsed) / (1024.0 * 1024.0)
+        );
+
+        Ok(EdgeList::new(edges))
+    }
+}
+
+impl TryFrom<&[u8]> for EdgeList {
+    type Error = std::io::Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let start = std::time::Instant::now();
+
+        let ps = dbg!(page_size::get());
+        let cpus = dbg!(num_cpus::get_physical());
+        let chunk_size = dbg!((dbg!(dbg!(bytes.len()) / cpus) + (ps - 1)) & !(ps - 1));
+
+        let all_edges = Arc::new(Mutex::new(Vec::new()));
+
+        rayon::scope(|s| {
+            for start in (0..bytes.len()).step_by(chunk_size) {
+                let all_edges = Arc::clone(&all_edges);
+                s.spawn(move |_| {
+                    let mut end = usize::min(start + chunk_size, bytes.len());
+                    while end <= bytes.len() && bytes[end - 1] != b'\n' {
+                        end += 1;
+                    }
+
+                    let mut start = start;
+                    if start != 0 {
+                        while bytes[start - 1] != b'\n' {
+                            start += 1;
+                        }
+                    }
+
+                    let mut edges = Vec::new();
+                    let mut chunk = &bytes[start..end];
+                    while !chunk.is_empty() {
+                        let (source, source_bytes) = usize::from_radix_10(chunk);
+                        let (target, target_bytes) =
+                            usize::from_radix_10(&chunk[source_bytes + 1..]);
+                        edges.push((source, target));
+                        chunk = &chunk[source_bytes + target_bytes + 2..];
+                    }
+
+                    let mut all_edges = all_edges.lock().unwrap();
+                    all_edges.append(&mut edges);
+                });
+            }
+        });
+
+        let edges = Arc::try_unwrap(all_edges).unwrap().into_inner().unwrap();
+
+        // let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
+
+        // println!(
+        //     "Read {} edges in {:.2}s ({:.2} MB/s)",
+        //     all_edges.len(),
+        //     elapsed,
+        //     ((bytes.len() as f64) / elapsed) / (1024.0 * 1024.0)
+        // );
+
+        // let edges = all_edges
+        //     .into_iter()
+        //     .flat_map(|e| e.into_iter())
+        //     .collect::<Vec<_>>();
+
+        let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
+
+        println!(
+            "Read {} edges in {:.2}s ({:.2} MB/s)",
+            edges.len(),
+            elapsed,
+            ((bytes.len() as f64) / elapsed) / (1024.0 * 1024.0)
         );
 
         Ok(EdgeList::new(edges))
