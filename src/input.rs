@@ -12,7 +12,7 @@ use std::{
 
 use linereader::LineReader;
 
-use crate::{index::AtomicIdx, index::Idx, InputCapabilities};
+use crate::{index::AtomicIdx, index::Idx, Error, InputCapabilities};
 
 pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,
@@ -98,7 +98,7 @@ impl<Node: Idx, P> TryFrom<MyPath<P>> for EdgeList<Node>
 where
     P: AsRef<Path>,
 {
-    type Error = std::io::Error;
+    type Error = Error;
 
     fn try_from(path: MyPath<P>) -> Result<Self, Self::Error> {
         let file = File::open(path.0.as_ref())?;
@@ -111,7 +111,7 @@ impl<Node: Idx, R> TryFrom<LineReader<R>> for EdgeList<Node>
 where
     R: Read,
 {
-    type Error = std::io::Error;
+    type Error = Error;
 
     fn try_from(mut reader: LineReader<R>) -> Result<Self, Self::Error> {
         let mut edges = Vec::new();
@@ -143,7 +143,7 @@ where
 }
 
 impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
-    type Error = std::io::Error;
+    type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let start = std::time::Instant::now();
@@ -230,7 +230,7 @@ impl<Node: Idx, P> TryFrom<MyPath<P>> for DotGraph<Node>
 where
     P: AsRef<Path>,
 {
-    type Error = std::io::Error;
+    type Error = Error;
 
     fn try_from(_: MyPath<P>) -> Result<Self, Self::Error> {
         todo!()

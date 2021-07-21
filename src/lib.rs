@@ -11,7 +11,13 @@ use std::{collections::HashMap, path::Path};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum Error {}
+pub enum Error {
+    #[error("error while loading graph")]
+    LoadGraph {
+        #[from]
+        source: std::io::Error,
+    },
+}
 
 pub trait Graph<Node: Idx> {
     fn node_count(&self) -> Node;
@@ -84,7 +90,7 @@ mod tests {
 
     #[test]
     fn read_graph_test() {
-        fn inner_test() -> Result<(), std::io::Error> {
+        fn inner_test() -> Result<(), Error> {
             let _g0: DirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::default())?;
             let _g0: DirectedCSRGraph<_> = read_graph("graph", EdgeListInput::<usize>::default())?;
 
