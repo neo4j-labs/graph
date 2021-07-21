@@ -12,7 +12,7 @@ use std::{
 
 use linereader::LineReader;
 
-use crate::{AtomicIdx, Idx, InputCapabilities};
+use crate::{index::AtomicIdx, index::Idx, InputCapabilities};
 
 pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,

@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    mem::transmute,
-    sync::atomic::{AtomicU32, AtomicUsize, Ordering},
-    time::Instant,
-};
+use std::{collections::HashMap, mem::transmute, sync::atomic::Ordering, time::Instant};
 
 use rayon::iter::IndexedParallelIterator;
 use rayon::{
@@ -14,8 +9,9 @@ use rayon::{
 };
 
 use crate::{
+    index::{AtomicIdx, Idx},
     input::{Direction, DotGraph, EdgeList},
-    AtomicIdx, DirectedGraph, Graph, Idx, UndirectedGraph,
+    DirectedGraph, Graph, UndirectedGraph,
 };
 
 pub struct CSR<Node: Idx> {
@@ -61,7 +57,7 @@ impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
         start = Instant::now();
 
         println!("Start: prefix_sum()");
-        let offsets = into_prefix_sum(degrees);
+        let offsets = prefix_sum(degrees);
         println!(
             "Finish: prefix_sum() took {} ms",
             start.elapsed().as_millis()
@@ -114,123 +110,7 @@ impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
     }
 }
 
-trait NodeLike
-where
-    Self: Sized,
-{
-    fn zero() -> Self;
-
-    fn copied(&self) -> Self;
-
-    fn add(&mut self, other: Self);
-
-    fn add_ref(&mut self, other: &Self);
-}
-
-impl NodeLike for usize {
-    #[inline]
-    fn zero() -> Self {
-        0
-    }
-
-    #[inline]
-    fn copied(&self) -> Self {
-        *self
-    }
-
-    #[inline]
-    fn add(&mut self, other: Self) {
-        *self += other;
-    }
-
-    #[inline]
-    fn add_ref(&mut self, other: &Self) {
-        *self += *other;
-    }
-}
-
-impl NodeLike for AtomicUsize {
-    #[inline]
-    fn zero() -> Self {
-        AtomicUsize::new(0)
-    }
-
-    #[inline]
-    fn copied(&self) -> Self {
-        AtomicUsize::new(self.load(Ordering::SeqCst))
-    }
-
-    #[inline]
-    fn add(&mut self, other: Self) {
-        *self.get_mut() += other.into_inner();
-    }
-
-    #[inline]
-    fn add_ref(&mut self, other: &Self) {
-        *self.get_mut() += other.load(Ordering::SeqCst);
-    }
-}
-
-impl NodeLike for u32 {
-    #[inline]
-    fn zero() -> Self {
-        0
-    }
-
-    #[inline]
-    fn copied(&self) -> Self {
-        *self
-    }
-
-    #[inline]
-    fn add(&mut self, other: Self) {
-        *self += other;
-    }
-
-    #[inline]
-    fn add_ref(&mut self, other: &Self) {
-        *self += *other;
-    }
-}
-
-impl NodeLike for AtomicU32 {
-    #[inline]
-    fn zero() -> Self {
-        AtomicU32::new(0)
-    }
-
-    #[inline]
-    fn copied(&self) -> Self {
-        AtomicU32::new(self.load(Ordering::SeqCst))
-    }
-
-    #[inline]
-    fn add(&mut self, other: Self) {
-        *self.get_mut() += other.into_inner();
-    }
-
-    #[inline]
-    fn add_ref(&mut self, other: &Self) {
-        *self.get_mut() += other.load(Ordering::SeqCst);
-    }
-}
-
-// fn prefix_sum<Node: Idx>(degrees: &[Node::Atomic]) -> Vec<Node::Atomic> {
-//     let mut sums = Vec::with_capacity(degrees.len() + 1);
-//     sums.resize_with(degrees.len() + 1, || Node::zero().atomic());
-//     let mut total = Node::zero();
-
-//     for (i, degree) in degrees.iter().enumerate() {
-//         sums[i] = total.copied();
-//         total.plus(degree.load(Ordering::SeqCst).index());
-//     }
-
-//     sums[degrees.len()] = total;
-
-//     sums
-// }
-
-fn into_prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
+fn prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
     let mut last = degrees.last().unwrap().copied();
     let mut sums = degrees
         .into_iter()
@@ -368,7 +248,7 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
 
         let new_ids = unsafe { transmute::<_, Vec<Node>>(new_ids) };
 
-        let offsets = into_prefix_sum(degrees);
+        let offsets = prefix_sum(degrees);
 
         let edge_count = offsets[node_count.index()].load(Ordering::SeqCst).index();
         let mut targets = Vec::with_capacity(edge_count);
