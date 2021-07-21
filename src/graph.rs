@@ -1,3 +1,4 @@
+use log::info;
 use std::{collections::HashMap, mem::transmute, sync::atomic::Ordering::SeqCst, time::Instant};
 
 use rayon::iter::IndexedParallelIterator;
@@ -51,24 +52,18 @@ impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
     fn from((edge_list, node_count, direction): (&EdgeList<Node>, Node, Direction)) -> Self {
         let mut start = Instant::now();
 
-        println!("Start: degrees()");
         let degrees = edge_list.degrees(node_count, direction);
-        println!("Finish: degrees() took {} ms", start.elapsed().as_millis());
+        info!("degrees took {} ms", start.elapsed().as_millis());
         start = Instant::now();
 
-        println!("Start: prefix_sum()");
         let offsets = prefix_sum(degrees);
-        println!(
-            "Finish: prefix_sum() took {} ms",
-            start.elapsed().as_millis()
-        );
+        info!("prefix_sum took {} ms", start.elapsed().as_millis());
         start = Instant::now();
 
         let targets_len = offsets[node_count.index()].load(SeqCst);
         let mut targets = Vec::with_capacity(targets_len.index());
         targets.resize_with(targets_len.index(), Node::Atomic::zero);
 
-        println!("Start: targets");
         match direction {
             Direction::Outgoing => edge_list.par_iter().for_each(|(s, t)| {
                 targets[offsets[s.index()].fetch_add(1, SeqCst).index()].store(*t, SeqCst);
@@ -81,7 +76,7 @@ impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
                 targets[offsets[t.index()].fetch_add(1, SeqCst).index()].store(*s, SeqCst);
             }),
         }
-        println!("Finish: targets took {} ms", start.elapsed().as_millis());
+        info!("targets took {} ms", start.elapsed().as_millis());
         start = Instant::now();
 
         let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
@@ -92,12 +87,8 @@ impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
         offsets.pop();
         offsets.insert(0, Node::zero());
 
-        println!("Start: sort_targets()");
         sort_targets(&offsets, &mut targets);
-        println!(
-            "Finish: sort_targets() took {} ms",
-            start.elapsed().as_millis()
-        );
+        info!("sort_targets took {} ms", start.elapsed().as_millis());
 
         CSR {
             offsets: offsets.into_boxed_slice(),

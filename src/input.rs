@@ -1,16 +1,14 @@
+use log::info;
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
     convert::TryFrom,
     fs::File,
-    io::Read,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     path::Path,
     sync::{atomic::Ordering::SeqCst, Arc, Mutex},
 };
-
-use linereader::LineReader;
 
 use crate::{index::AtomicIdx, index::Idx, Error, InputCapabilities};
 
@@ -107,51 +105,21 @@ where
     }
 }
 
-impl<Node: Idx, R> TryFrom<LineReader<R>> for EdgeList<Node>
-where
-    R: Read,
-{
-    type Error = Error;
-
-    fn try_from(mut reader: LineReader<R>) -> Result<Self, Self::Error> {
-        let mut edges = Vec::new();
-        let mut bytes = 0_u64;
-        let start = std::time::Instant::now();
-
-        while let Some(lines) = reader.next_batch() {
-            let mut lines = lines.expect("read error");
-            bytes += lines.len() as u64;
-            while !lines.is_empty() {
-                let (source, pos) = Node::parse(lines);
-                let (target, pos2) = Node::parse(&lines[pos + 1..]);
-                edges.push((source, target));
-                lines = &lines[pos + pos2 + 2..];
-            }
-        }
-
-        let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
-
-        println!(
-            "Read {} edges in {:.2}s ({:.2} MB/s)",
-            edges.len(),
-            elapsed,
-            ((bytes as f64) / elapsed) / (1024.0 * 1024.0)
-        );
-
-        Ok(EdgeList::new(edges))
-    }
-}
-
 impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
     type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let start = std::time::Instant::now();
 
-        let ps = dbg!(page_size::get());
-        let cpus = dbg!(num_cpus::get_physical());
+        let page_size = page_size::get();
+        let cpu_count = num_cpus::get_physical();
         let chunk_size =
-            dbg!((dbg!(dbg!(usize::max(1, bytes.len() / cpus))) + (ps - 1)) & !(ps - 1));
+            (usize::max(1, bytes.len() / cpu_count) + (page_size - 1)) & !(page_size - 1);
+
+        info!(
+            "page_size = {}, cpu_count = {}, chunk_size = {}",
+            page_size, cpu_count, chunk_size
+        );
 
         let all_edges = Arc::new(Mutex::new(Vec::new()));
 
@@ -190,7 +158,7 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
 
         let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
 
-        println!(
+        info!(
             "Read {} edges in {:.2}s ({:.2} MB/s)",
             edges.len(),
             elapsed,

@@ -1,33 +1,34 @@
+use log::info;
 use std::time::Instant;
 
 use graph::{graph::UndirectedCSRGraph, input::EdgeListInput, read_graph, Graph, UndirectedGraph};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 fn main() {
+    env_logger::init();
+
     let path = std::env::args()
         .into_iter()
         .nth(1)
         .expect("require path argument");
 
-    println!("opening path {}", path);
+    info!("Reading graph from: {}", path);
     let graph: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::default()).unwrap();
 
-    println!("node count = {}", graph.node_count());
-    println!("edge count = {}", graph.edge_count());
+    info!("Node count = {}", graph.node_count());
+    info!("Edge count = {}", graph.edge_count());
 
     let start = Instant::now();
-    println!("Start: relabel_by_degree()");
     let graph = graph.relabel_by_degrees();
-    println!(
-        "Finish: relabel_by_degree() took {} ms",
+    info!(
+        "relabel_by_degree() took {} ms",
         start.elapsed().as_millis()
     );
 
     let start = Instant::now();
-    println!("Start: global_triangle_count()");
     let global_count = global_triangle_count(&graph);
-    println!(
-        "Finish: global_triangle_count = {}, took {} seconds",
+    info!(
+        "global_triangle_count = {}, took {} seconds",
         global_count,
         start.elapsed().as_secs()
     );
