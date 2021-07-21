@@ -7,14 +7,6 @@ keywords = ["graph", "csr", "algorithms"]
 edition = "2018"
 license = "MIT"
 
-[lib]
-name = "graph"
-path = "src/lib.rs"
-
-[[bin]]
-name = "graph-app"
-path = "src/bin.rs"
-
 [dependencies]
 atoi = "0.4.0"
 linereader = "0.4.0"
