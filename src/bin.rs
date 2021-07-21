@@ -6,12 +6,11 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 fn main() {
     let path = std::env::args()
         .into_iter()
-        .skip(1)
-        .next()
+        .nth(1)
         .expect("require path argument");
 
     println!("opening path {}", path);
-    let graph: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::new()).unwrap();
+    let graph: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::default()).unwrap();
 
     println!("node count = {}", graph.node_count());
     println!("edge count = {}", graph.edge_count());
@@ -50,7 +49,7 @@ fn global_triangle_count(graph: &UndirectedCSRGraph<usize>) -> usize {
                         break;
                     }
 
-                    if let Some(x) = it.by_ref().skip_while(|&tmp| *tmp < w).next() {
+                    if let Some(x) = it.by_ref().find(|&tmp| *tmp >= w) {
                         if *x == w {
                             triangles += 1;
                         }

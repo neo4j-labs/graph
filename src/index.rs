@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
+use atoi::FromRadix10;
+
 pub trait Idx:
     Copy
     + std::ops::Add<Output = Self>
@@ -20,13 +22,11 @@ pub trait Idx:
 
     fn zero() -> Self;
 
-    fn copied(&self) -> Self;
-
     fn index(self) -> usize;
 
     fn atomic(self) -> Self::Atomic;
 
-    fn from_radix_10(bytes: &[u8]) -> (Self, usize);
+    fn parse(bytes: &[u8]) -> (Self, usize);
 }
 
 pub trait AtomicIdx: Send + Sync {
@@ -51,18 +51,13 @@ impl Idx for usize {
     type Atomic = AtomicUsize;
 
     #[inline]
-    fn zero() -> Self {
-        0
-    }
-
-    #[inline]
-    fn copied(&self) -> Self {
-        *self
-    }
-
-    #[inline]
     fn new(idx: usize) -> Self {
         idx
+    }
+
+    #[inline]
+    fn zero() -> Self {
+        0
     }
     #[inline]
     fn index(self) -> usize {
@@ -75,8 +70,8 @@ impl Idx for usize {
     }
 
     #[inline]
-    fn from_radix_10(bytes: &[u8]) -> (Self, usize) {
-        atoi::FromRadix10::from_radix_10(bytes)
+    fn parse(bytes: &[u8]) -> (Self, usize) {
+        FromRadix10::from_radix_10(bytes)
     }
 }
 
@@ -129,11 +124,6 @@ impl Idx for u32 {
     }
 
     #[inline]
-    fn copied(&self) -> Self {
-        *self
-    }
-
-    #[inline]
     fn zero() -> Self {
         0
     }
@@ -149,8 +139,8 @@ impl Idx for u32 {
     }
 
     #[inline]
-    fn from_radix_10(bytes: &[u8]) -> (Self, usize) {
-        atoi::FromRadix10::from_radix_10(bytes)
+    fn parse(bytes: &[u8]) -> (Self, usize) {
+        FromRadix10::from_radix_10(bytes)
     }
 }
 

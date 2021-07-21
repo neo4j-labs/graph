@@ -18,8 +18,8 @@ pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,
 }
 
-impl<Node: Idx> EdgeListInput<Node> {
-    pub fn new() -> Self {
+impl<Node: Idx> Default for EdgeListInput<Node> {
+    fn default() -> Self {
         Self { _idx: PhantomData }
     }
 }
@@ -66,12 +66,12 @@ impl<Node: Idx> EdgeList<Node> {
         self.0
             .par_iter()
             .map(|(s, t)| Node::max(*s, *t))
-            .reduce(|| Node::zero(), Node::max)
+            .reduce(Node::zero, Node::max)
     }
 
     pub(crate) fn degrees(&self, node_count: Node, direction: Direction) -> Vec<Node::Atomic> {
         let mut degrees = Vec::with_capacity(node_count.index());
-        degrees.resize_with(node_count.index(), || Node::zero().atomic());
+        degrees.resize_with(node_count.index(), Node::Atomic::zero);
 
         match direction {
             Direction::Outgoing => self.par_iter().for_each(|(s, _)| {
@@ -122,8 +122,8 @@ where
             let mut lines = lines.expect("read error");
             bytes += lines.len() as u64;
             while !lines.is_empty() {
-                let (source, pos) = Node::from_radix_10(lines);
-                let (target, pos2) = Node::from_radix_10(&lines[pos + 1..]);
+                let (source, pos) = Node::parse(lines);
+                let (target, pos2) = Node::parse(&lines[pos + 1..]);
                 edges.push((source, target));
                 lines = &lines[pos + pos2 + 2..];
             }
@@ -174,9 +174,8 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
                     let mut edges = Vec::new();
                     let mut chunk = &bytes[start..end];
                     while !chunk.is_empty() {
-                        let (source, source_bytes) = Node::from_radix_10(chunk);
-                        let (target, target_bytes) =
-                            Node::from_radix_10(&chunk[source_bytes + 1..]);
+                        let (source, source_bytes) = Node::parse(chunk);
+                        let (target, target_bytes) = Node::parse(&chunk[source_bytes + 1..]);
                         edges.push((source, target));
                         chunk = &chunk[source_bytes + target_bytes + 2..];
                     }
@@ -206,8 +205,8 @@ pub struct DotGraphInput<Node: Idx> {
     _idx: PhantomData<Node>,
 }
 
-impl<Node: Idx> DotGraphInput<Node> {
-    pub fn new() -> Self {
+impl<Node: Idx> Default for DotGraphInput<Node> {
+    fn default() -> Self {
         Self { _idx: PhantomData }
     }
 }

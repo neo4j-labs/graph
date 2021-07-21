@@ -85,14 +85,14 @@ mod tests {
     #[test]
     fn read_graph_test() {
         fn inner_test() -> Result<(), std::io::Error> {
-            let _g0: DirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::new())?;
-            let _g0: DirectedCSRGraph<_> = read_graph("graph", EdgeListInput::<usize>::new())?;
+            let _g0: DirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::default())?;
+            let _g0: DirectedCSRGraph<_> = read_graph("graph", EdgeListInput::<usize>::default())?;
 
-            let _g1: UndirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::new())?;
+            let _g1: UndirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::default())?;
             let _g2: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> =
-                read_graph("graph", DotGraphInput::new())?;
+                read_graph("graph", DotGraphInput::default())?;
             let _g3: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> =
-                read_graph("graph", DotGraphInput::new())?;
+                read_graph("graph", DotGraphInput::default())?;
 
             Ok(())
         }
@@ -150,7 +150,7 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let g: DirectedCSRGraph<usize> = read_graph(path, EdgeListInput::new()).unwrap();
+        let g: DirectedCSRGraph<usize> = read_graph(path, EdgeListInput::default()).unwrap();
 
         assert_eq!(g.node_count(), 3);
         assert_eq!(g.edge_count(), 2);
@@ -178,7 +178,7 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let g: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::new()).unwrap();
+        let g: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::default()).unwrap();
 
         assert_eq!(g.node_count(), 3);
         assert_eq!(g.edge_count(), 2);

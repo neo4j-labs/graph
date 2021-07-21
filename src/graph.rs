@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem::transmute, sync::atomic::Ordering, time::Instant};
+use std::{collections::HashMap, mem::transmute, sync::atomic::Ordering::SeqCst, time::Instant};
 
 use rayon::iter::IndexedParallelIterator;
 use rayon::{
@@ -64,25 +64,21 @@ impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
         );
         start = Instant::now();
 
-        let targets_len = offsets[node_count.index()].load(Ordering::SeqCst);
+        let targets_len = offsets[node_count.index()].load(SeqCst);
         let mut targets = Vec::with_capacity(targets_len.index());
-        targets.resize_with(targets_len.index(), || Node::zero().atomic());
+        targets.resize_with(targets_len.index(), Node::Atomic::zero);
 
         println!("Start: targets");
         match direction {
             Direction::Outgoing => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[s.index()].fetch_add(1, Ordering::SeqCst).index()]
-                    .store(*t, Ordering::SeqCst);
+                targets[offsets[s.index()].fetch_add(1, SeqCst).index()].store(*t, SeqCst);
             }),
             Direction::Incoming => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[t.index()].fetch_add(1, Ordering::SeqCst).index()]
-                    .store(*s, Ordering::SeqCst);
+                targets[offsets[t.index()].fetch_add(1, SeqCst).index()].store(*s, SeqCst);
             }),
             Direction::Undirected => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[s.index()].fetch_add(1, Ordering::SeqCst).index()]
-                    .store(*t, Ordering::SeqCst);
-                targets[offsets[t.index()].fetch_add(1, Ordering::SeqCst).index()]
-                    .store(*s, Ordering::SeqCst);
+                targets[offsets[s.index()].fetch_add(1, SeqCst).index()].store(*t, SeqCst);
+                targets[offsets[t.index()].fetch_add(1, SeqCst).index()].store(*s, SeqCst);
             }),
         }
         println!("Finish: targets took {} ms", start.elapsed().as_millis());
@@ -232,38 +228,36 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
         degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
 
         let mut degrees = Vec::with_capacity(node_count.index());
-        degrees.resize_with(node_count.index(), || Node::zero().atomic());
+        degrees.resize_with(node_count.index(), Node::Atomic::zero);
 
         let mut new_ids = Vec::with_capacity(node_count.index());
-        new_ids.resize_with(node_count.index(), || Node::zero().atomic());
+        new_ids.resize_with(node_count.index(), Node::Atomic::zero);
 
         (0..node_count.index())
             .into_par_iter()
             .map(Node::new)
             .for_each(|n| {
                 let (degree, node) = degree_node_pairs[n.index()];
-                degrees[n.index()].store(degree, Ordering::SeqCst);
-                new_ids[node.index()].store(n, Ordering::SeqCst);
+                degrees[n.index()].store(degree, SeqCst);
+                new_ids[node.index()].store(n, SeqCst);
             });
-
-        let new_ids = unsafe { transmute::<_, Vec<Node>>(new_ids) };
 
         let offsets = prefix_sum(degrees);
 
-        let edge_count = offsets[node_count.index()].load(Ordering::SeqCst).index();
+        let edge_count = offsets[node_count.index()].load(SeqCst).index();
         let mut targets = Vec::with_capacity(edge_count);
-        targets.resize_with(edge_count, || Node::zero().atomic());
+        targets.resize_with(edge_count, Node::Atomic::zero);
 
         (0..node_count.index())
             .into_par_iter()
             .map(Node::new)
             .for_each(|u| {
-                let new_u = new_ids[u.index()];
+                let new_u = new_ids[u.index()].load(SeqCst);
 
                 for &v in self.neighbors(u) {
-                    let new_v = new_ids[v.index()];
-                    let offset = offsets[new_u.index()].fetch_add(1, Ordering::SeqCst);
-                    targets[offset.index()].store(new_v, Ordering::SeqCst);
+                    let new_v = new_ids[v.index()].load(SeqCst);
+                    let offset = offsets[new_u.index()].fetch_add(1, SeqCst);
+                    targets[offset.index()].store(new_v, SeqCst);
                 }
             });
 
