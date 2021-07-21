@@ -5,50 +5,54 @@ use std::{
     time::Instant,
 };
 
+use rayon::iter::IndexedParallelIterator;
 use rayon::{
     iter::{
-        IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-        IntoParallelRefMutIterator, ParallelIterator,
+        IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
     },
     slice::ParallelSliceMut,
 };
 
 use crate::{
     input::{Direction, DotGraph, EdgeList},
-    AtomicNode, DirectedGraph, Graph, Node, UndirectedGraph,
+    AtomicIdx, DirectedGraph, Graph, Idx, UndirectedGraph,
 };
 
-pub struct CSR {
+pub struct CSR<Node: Idx> {
     offsets: Box<[Node]>,
     targets: Box<[Node]>,
 }
 
-impl CSR {
+impl<Node: Idx> CSR<Node> {
     #[inline]
     fn node_count(&self) -> Node {
-        (self.offsets.len() - 1) as Node
+        Node::new(self.offsets.len() - 1)
     }
 
     #[inline]
     fn edge_count(&self) -> Node {
-        self.targets.len() as Node
+        Node::new(self.targets.len())
     }
 
     #[inline]
     fn degree(&self, node: Node) -> Node {
-        (self.offsets[node as usize + 1] - self.offsets[node as usize]) as Node
+        let from = self.offsets[node.index()];
+        let to = self.offsets[(node + Node::new(1)).index()];
+
+        to - from
     }
 
     #[inline]
     fn neighbors(&self, node: Node) -> &[Node] {
-        let from = self.offsets[node as usize] as usize;
-        let to = self.offsets[node as usize + 1] as usize;
-        &self.targets[from..to]
+        let from = self.offsets[node.index()];
+        let to = self.offsets[(node + Node::new(1)).index()];
+
+        &self.targets[from.index()..to.index()]
     }
 }
 
-impl From<(&EdgeList, Node, Direction)> for CSR {
-    fn from((edge_list, node_count, direction): (&EdgeList, Node, Direction)) -> Self {
+impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
+    fn from((edge_list, node_count, direction): (&EdgeList<Node>, Node, Direction)) -> Self {
         let mut start = Instant::now();
 
         println!("Start: degrees()");
@@ -64,29 +68,24 @@ impl From<(&EdgeList, Node, Direction)> for CSR {
         );
         start = Instant::now();
 
-        let targets_len = offsets[node_count as usize].load(Ordering::SeqCst);
-        let mut targets = Vec::with_capacity(targets_len as usize);
-        targets.resize_with(targets_len as usize, || AtomicNode::new(0));
-
-        // vec![0_usize; offsets[node_count].load(Ordering::SeqCst)];
-
-        // let targets = unsafe { transmute::<_, Vec<AtomicUsize>>(targets) };
-        // let offsets = unsafe { transmute::<_, Vec<AtomicUsize>>(offsets) };
+        let targets_len = offsets[node_count.index()].load(Ordering::SeqCst);
+        let mut targets = Vec::with_capacity(targets_len.index());
+        targets.resize_with(targets_len.index(), || Node::zero().atomic());
 
         println!("Start: targets");
         match direction {
             Direction::Outgoing => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[*s as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                targets[offsets[s.index()].fetch_add(1, Ordering::SeqCst).index()]
                     .store(*t, Ordering::SeqCst);
             }),
             Direction::Incoming => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[*t as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                targets[offsets[t.index()].fetch_add(1, Ordering::SeqCst).index()]
                     .store(*s, Ordering::SeqCst);
             }),
             Direction::Undirected => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[*s as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                targets[offsets[s.index()].fetch_add(1, Ordering::SeqCst).index()]
                     .store(*t, Ordering::SeqCst);
-                targets[offsets[*t as usize].fetch_add(1, Ordering::SeqCst) as usize]
+                targets[offsets[t.index()].fetch_add(1, Ordering::SeqCst).index()]
                     .store(*s, Ordering::SeqCst);
             }),
         }
@@ -99,7 +98,7 @@ impl From<(&EdgeList, Node, Direction)> for CSR {
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
         offsets.pop();
-        offsets.insert(0, 0);
+        offsets.insert(0, Node::zero());
 
         println!("Start: sort_targets()");
         sort_targets(&offsets, &mut targets);
@@ -216,26 +215,26 @@ impl NodeLike for AtomicU32 {
     }
 }
 
-fn prefix_sum<T: NodeLike>(degrees: &[T]) -> Vec<T> {
-    let mut sums = Vec::with_capacity(degrees.len() + 1);
-    sums.resize_with(degrees.len() + 1, T::zero);
-    let mut total = T::zero();
+// fn prefix_sum<Node: Idx>(degrees: &[Node::Atomic]) -> Vec<Node::Atomic> {
+//     let mut sums = Vec::with_capacity(degrees.len() + 1);
+//     sums.resize_with(degrees.len() + 1, || Node::zero().atomic());
+//     let mut total = Node::zero();
 
-    for (i, degree) in degrees.iter().enumerate() {
-        sums[i] = total.copied();
-        total.add_ref(degree);
-    }
+//     for (i, degree) in degrees.iter().enumerate() {
+//         sums[i] = total.copied();
+//         total.plus(degree.load(Ordering::SeqCst).index());
+//     }
 
-    sums[degrees.len()] = total;
+//     sums[degrees.len()] = total;
 
-    sums
-}
+//     sums
+// }
 
-fn into_prefix_sum<T: NodeLike>(degrees: Vec<T>) -> Vec<T> {
+fn into_prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
     let mut last = degrees.last().unwrap().copied();
     let mut sums = degrees
         .into_iter()
-        .scan(T::zero(), |total, degree| {
+        .scan(Node::zero(), |total, degree| {
             let value = total.copied();
             total.add(degree);
             Some(value)
@@ -248,14 +247,14 @@ fn into_prefix_sum<T: NodeLike>(degrees: Vec<T>) -> Vec<T> {
     sums
 }
 
-fn sort_targets(offsets: &[Node], targets: &mut [Node]) {
+fn sort_targets<Node: Idx>(offsets: &[Node], targets: &mut [Node]) {
     let node_count = offsets.len() - 1;
     let mut target_chunks = Vec::with_capacity(node_count);
     let mut tail = targets;
     let mut prev_offset = offsets[0];
 
     for &offset in &offsets[1..node_count] {
-        let (list, remainder) = tail.split_at_mut((offset - prev_offset) as usize);
+        let (list, remainder) = tail.split_at_mut((offset - prev_offset).index());
         target_chunks.push(list);
         tail = remainder;
         prev_offset = offset;
@@ -267,15 +266,15 @@ fn sort_targets(offsets: &[Node], targets: &mut [Node]) {
         .for_each(|list| list.sort_unstable());
 }
 
-pub struct DirectedCSRGraph {
+pub struct DirectedCSRGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
-    out_edges: CSR,
-    in_edges: CSR,
+    out_edges: CSR<Node>,
+    in_edges: CSR<Node>,
 }
 
-impl DirectedCSRGraph {
-    pub fn new(out_edges: CSR, in_edges: CSR) -> Self {
+impl<Node: Idx> DirectedCSRGraph<Node> {
+    pub fn new(out_edges: CSR<Node>, in_edges: CSR<Node>) -> Self {
         Self {
             node_count: out_edges.node_count(),
             edge_count: out_edges.edge_count(),
@@ -285,7 +284,7 @@ impl DirectedCSRGraph {
     }
 }
 
-impl Graph for DirectedCSRGraph {
+impl<Node: Idx> Graph<Node> for DirectedCSRGraph<Node> {
     fn node_count(&self) -> Node {
         self.node_count
     }
@@ -295,7 +294,7 @@ impl Graph for DirectedCSRGraph {
     }
 }
 
-impl DirectedGraph for DirectedCSRGraph {
+impl<Node: Idx> DirectedGraph<Node> for DirectedCSRGraph<Node> {
     fn out_degree(&self, node: Node) -> Node {
         self.out_edges.degree(node)
     }
@@ -313,9 +312,9 @@ impl DirectedGraph for DirectedCSRGraph {
     }
 }
 
-impl From<EdgeList> for DirectedCSRGraph {
-    fn from(edge_list: EdgeList) -> Self {
-        let node_count = edge_list.max_node_id() + 1;
+impl<Node: Idx> From<EdgeList<Node>> for DirectedCSRGraph<Node> {
+    fn from(edge_list: EdgeList<Node>) -> Self {
+        let node_count = edge_list.max_node_id() + Node::new(1);
         let out_edges = CSR::from((&edge_list, node_count, Direction::Outgoing));
         let in_edges = CSR::from((&edge_list, node_count, Direction::Incoming));
 
@@ -323,17 +322,17 @@ impl From<EdgeList> for DirectedCSRGraph {
     }
 }
 
-pub struct UndirectedCSRGraph {
+pub struct UndirectedCSRGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
-    edges: CSR,
+    edges: CSR<Node>,
 }
 
-impl UndirectedCSRGraph {
-    pub fn new(edges: CSR) -> Self {
+impl<Node: Idx> UndirectedCSRGraph<Node> {
+    pub fn new(edges: CSR<Node>) -> Self {
         Self {
             node_count: edges.node_count(),
-            edge_count: edges.edge_count() / 2,
+            edge_count: edges.edge_count() / Node::new(2),
             edges,
         }
     }
@@ -341,46 +340,52 @@ impl UndirectedCSRGraph {
     pub fn relabel_by_degrees(self) -> Self {
         let node_count = self.node_count();
 
-        let mut degree_node_pairs = Vec::with_capacity(node_count as usize);
+        let mut degree_node_pairs = Vec::with_capacity(node_count.index());
 
-        (0..node_count)
+        (0..node_count.index())
             .into_par_iter()
+            .map(Node::new)
             .map(|node_id| (self.degree(node_id), node_id))
             .collect_into_vec(&mut degree_node_pairs);
 
         // sort node-degree pairs descending by degree
         degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
 
-        let mut degrees = Vec::with_capacity(node_count as usize);
-        degrees.resize_with(node_count as usize, || AtomicNode::new(0));
+        let mut degrees = Vec::with_capacity(node_count.index());
+        degrees.resize_with(node_count.index(), || Node::zero().atomic());
 
-        let mut new_ids = Vec::with_capacity(node_count as usize);
-        new_ids.resize_with(node_count as usize, || AtomicNode::new(0));
+        let mut new_ids = Vec::with_capacity(node_count.index());
+        new_ids.resize_with(node_count.index(), || Node::zero().atomic());
 
-        (0..node_count).into_par_iter().for_each(|n| {
-            let (degree, node) = degree_node_pairs[n as usize];
-            degrees[n as usize].store(degree, Ordering::SeqCst);
-            new_ids[node as usize].store(n, Ordering::SeqCst);
-        });
+        (0..node_count.index())
+            .into_par_iter()
+            .map(Node::new)
+            .for_each(|n| {
+                let (degree, node) = degree_node_pairs[n.index()];
+                degrees[n.index()].store(degree, Ordering::SeqCst);
+                new_ids[node.index()].store(n, Ordering::SeqCst);
+            });
 
-        let degrees = unsafe { transmute::<_, Vec<Node>>(degrees) };
         let new_ids = unsafe { transmute::<_, Vec<Node>>(new_ids) };
 
-        let offsets = prefix_sum(&degrees);
-        let offsets = unsafe { transmute::<_, Vec<AtomicNode>>(offsets) };
+        let offsets = into_prefix_sum(degrees);
 
-        let targets = vec![0 as Node; offsets[node_count as usize].load(Ordering::SeqCst) as usize];
-        let targets = unsafe { transmute::<_, Vec<AtomicNode>>(targets) };
+        let edge_count = offsets[node_count.index()].load(Ordering::SeqCst).index();
+        let mut targets = Vec::with_capacity(edge_count);
+        targets.resize_with(edge_count, || Node::zero().atomic());
 
-        (0..node_count).into_par_iter().for_each(|u| {
-            let new_u = new_ids[u as usize];
+        (0..node_count.index())
+            .into_par_iter()
+            .map(Node::new)
+            .for_each(|u| {
+                let new_u = new_ids[u.index()];
 
-            for &v in self.neighbors(u) {
-                let new_v = new_ids[v as usize];
-                let offset = offsets[new_u as usize].fetch_add(1, Ordering::SeqCst);
-                targets[offset as usize].store(new_v, Ordering::SeqCst);
-            }
-        });
+                for &v in self.neighbors(u) {
+                    let new_v = new_ids[v.index()];
+                    let offset = offsets[new_u.index()].fetch_add(1, Ordering::SeqCst);
+                    targets[offset.index()].store(new_v, Ordering::SeqCst);
+                }
+            });
 
         let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
         let mut targets = unsafe { transmute::<_, Vec<Node>>(targets) };
@@ -388,7 +393,7 @@ impl UndirectedCSRGraph {
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
         offsets.pop();
-        offsets.insert(0, 0);
+        offsets.insert(0, Node::zero());
 
         sort_targets(&offsets, &mut targets);
 
@@ -401,7 +406,7 @@ impl UndirectedCSRGraph {
     }
 }
 
-impl Graph for UndirectedCSRGraph {
+impl<Node: Idx> Graph<Node> for UndirectedCSRGraph<Node> {
     fn node_count(&self) -> Node {
         self.node_count
     }
@@ -411,7 +416,7 @@ impl Graph for UndirectedCSRGraph {
     }
 }
 
-impl UndirectedGraph for UndirectedCSRGraph {
+impl<Node: Idx> UndirectedGraph<Node> for UndirectedCSRGraph<Node> {
     fn degree(&self, node: Node) -> Node {
         self.edges.degree(node)
     }
@@ -421,9 +426,9 @@ impl UndirectedGraph for UndirectedCSRGraph {
     }
 }
 
-impl From<EdgeList> for UndirectedCSRGraph {
-    fn from(edge_list: EdgeList) -> Self {
-        let node_count = edge_list.max_node_id() + 1;
+impl<Node: Idx> From<EdgeList<Node>> for UndirectedCSRGraph<Node> {
+    fn from(edge_list: EdgeList<Node>) -> Self {
+        let node_count = edge_list.max_node_id() + Node::new(1);
         let edges = CSR::from((&edge_list, node_count, Direction::Undirected));
 
         UndirectedCSRGraph::new(edges)
@@ -441,7 +446,7 @@ pub struct NodeLabeledCSRGraph<G> {
     neighbor_label_frequencies: Option<Box<[HashMap<usize, usize>]>>,
 }
 
-impl<G: Graph> Graph for NodeLabeledCSRGraph<G> {
+impl<Node: Idx, G: Graph<Node>> Graph<Node> for NodeLabeledCSRGraph<G> {
     #[inline]
     fn node_count(&self) -> Node {
         self.graph.node_count()
@@ -453,7 +458,7 @@ impl<G: Graph> Graph for NodeLabeledCSRGraph<G> {
     }
 }
 
-impl<G: DirectedGraph> DirectedGraph for NodeLabeledCSRGraph<G> {
+impl<Node: Idx, G: DirectedGraph<Node>> DirectedGraph<Node> for NodeLabeledCSRGraph<G> {
     fn out_degree(&self, node: Node) -> Node {
         self.graph.out_degree(node)
     }
@@ -471,7 +476,7 @@ impl<G: DirectedGraph> DirectedGraph for NodeLabeledCSRGraph<G> {
     }
 }
 
-impl<G: UndirectedGraph> UndirectedGraph for NodeLabeledCSRGraph<G> {
+impl<Node: Idx, G: UndirectedGraph<Node>> UndirectedGraph<Node> for NodeLabeledCSRGraph<G> {
     fn degree(&self, node: Node) -> Node {
         self.graph.degree(node)
     }
@@ -481,8 +486,8 @@ impl<G: UndirectedGraph> UndirectedGraph for NodeLabeledCSRGraph<G> {
     }
 }
 
-impl<G: From<EdgeList>> From<DotGraph> for NodeLabeledCSRGraph<G> {
-    fn from(_: DotGraph) -> Self {
+impl<Node: Idx, G: From<EdgeList<Node>>> From<DotGraph<Node>> for NodeLabeledCSRGraph<G> {
+    fn from(_: DotGraph<Node>) -> Self {
         todo!()
     }
 }

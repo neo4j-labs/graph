@@ -11,7 +11,7 @@ fn main() {
         .expect("require path argument");
 
     println!("opening path {}", path);
-    let graph: UndirectedCSRGraph = read_graph(path, EdgeListInput).unwrap();
+    let graph: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::new()).unwrap();
 
     println!("node count = {}", graph.node_count());
     println!("edge count = {}", graph.edge_count());
@@ -34,7 +34,7 @@ fn main() {
     );
 }
 
-fn global_triangle_count(graph: &UndirectedCSRGraph) -> usize {
+fn global_triangle_count(graph: &UndirectedCSRGraph<usize>) -> usize {
     (0..graph.node_count())
         .into_par_iter()
         .map(|u| {

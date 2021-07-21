@@ -1,10 +1,10 @@
-use atoi::FromRadix10;
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
     convert::TryFrom,
     fs::File,
     io::Read,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
     path::Path,
     sync::{atomic::Ordering::SeqCst, Arc, Mutex},
@@ -12,33 +12,39 @@ use std::{
 
 use linereader::LineReader;
 
-use crate::{AtomicNode, InputCapabilities, Node};
+use crate::{AtomicIdx, Idx, InputCapabilities};
 
-pub struct EdgeListInput;
-
-impl InputCapabilities for EdgeListInput {
-    type GraphInput = EdgeList;
+pub struct EdgeListInput<Node: Idx> {
+    _idx: PhantomData<Node>,
 }
 
-pub type Edge = (Node, Node);
+impl<Node: Idx> EdgeListInput<Node> {
+    pub fn new() -> Self {
+        Self { _idx: PhantomData }
+    }
+}
 
-pub struct EdgeList(Box<[Edge]>);
+impl<Node: Idx> InputCapabilities<Node> for EdgeListInput<Node> {
+    type GraphInput = EdgeList<Node>;
+}
 
-impl AsRef<[Edge]> for EdgeList {
-    fn as_ref(&self) -> &[Edge] {
+pub struct EdgeList<Node: Idx>(Box<[(Node, Node)]>);
+
+impl<Node: Idx> AsRef<[(Node, Node)]> for EdgeList<Node> {
+    fn as_ref(&self) -> &[(Node, Node)] {
         &self.0
     }
 }
 
-impl Deref for EdgeList {
-    type Target = [Edge];
+impl<Node: Idx> Deref for EdgeList<Node> {
+    type Target = [(Node, Node)];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EdgeList {
+impl<Node: Idx> DerefMut for EdgeList<Node> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -51,8 +57,8 @@ pub enum Direction {
     Undirected,
 }
 
-impl EdgeList {
-    pub fn new(edges: Vec<Edge>) -> Self {
+impl<Node: Idx> EdgeList<Node> {
+    pub fn new(edges: Vec<(Node, Node)>) -> Self {
         Self(edges.into_boxed_slice())
     }
 
@@ -60,23 +66,23 @@ impl EdgeList {
         self.0
             .par_iter()
             .map(|(s, t)| Node::max(*s, *t))
-            .reduce(|| 0 as Node, Node::max)
+            .reduce(|| Node::zero(), Node::max)
     }
 
-    pub(crate) fn degrees(&self, node_count: Node, direction: Direction) -> Vec<AtomicNode> {
-        let mut degrees = Vec::with_capacity(node_count as usize);
-        degrees.resize_with(node_count as usize, || AtomicNode::new(0));
+    pub(crate) fn degrees(&self, node_count: Node, direction: Direction) -> Vec<Node::Atomic> {
+        let mut degrees = Vec::with_capacity(node_count.index());
+        degrees.resize_with(node_count.index(), || Node::zero().atomic());
 
         match direction {
             Direction::Outgoing => self.par_iter().for_each(|(s, _)| {
-                degrees[*s as usize].fetch_add(1, SeqCst);
+                degrees[s.index()].fetch_add(1, SeqCst);
             }),
             Direction::Incoming => self.par_iter().for_each(|(_, t)| {
-                degrees[*t as usize].fetch_add(1, SeqCst);
+                degrees[t.index()].fetch_add(1, SeqCst);
             }),
             Direction::Undirected => self.par_iter().for_each(|(s, t)| {
-                degrees[*s as usize].fetch_add(1, SeqCst);
-                degrees[*t as usize].fetch_add(1, SeqCst);
+                degrees[s.index()].fetch_add(1, SeqCst);
+                degrees[t.index()].fetch_add(1, SeqCst);
             }),
         }
 
@@ -86,16 +92,22 @@ impl EdgeList {
     }
 }
 
-impl From<&Path> for EdgeList {
-    fn from(path: &Path) -> Self {
-        let file = File::open(path).unwrap();
-        // let reader = LineReader::new(file);
-        let mmap = unsafe { memmap2::MmapOptions::new().populate().map(&file).unwrap() };
-        EdgeList::try_from(mmap.as_ref()).unwrap()
+pub struct MyPath<P>(pub(crate) P);
+
+impl<Node: Idx, P> TryFrom<MyPath<P>> for EdgeList<Node>
+where
+    P: AsRef<Path>,
+{
+    type Error = std::io::Error;
+
+    fn try_from(path: MyPath<P>) -> Result<Self, Self::Error> {
+        let file = File::open(path.0.as_ref())?;
+        let mmap = unsafe { memmap2::MmapOptions::new().populate().map(&file)? };
+        EdgeList::try_from(mmap.as_ref())
     }
 }
 
-impl<R> TryFrom<LineReader<R>> for EdgeList
+impl<Node: Idx, R> TryFrom<LineReader<R>> for EdgeList<Node>
 where
     R: Read,
 {
@@ -130,7 +142,7 @@ where
     }
 }
 
-impl TryFrom<&[u8]> for EdgeList {
+impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
     type Error = std::io::Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
@@ -138,7 +150,8 @@ impl TryFrom<&[u8]> for EdgeList {
 
         let ps = dbg!(page_size::get());
         let cpus = dbg!(num_cpus::get_physical());
-        let chunk_size = dbg!((dbg!(dbg!(bytes.len()) / cpus) + (ps - 1)) & !(ps - 1));
+        let chunk_size =
+            dbg!((dbg!(dbg!(usize::max(1, bytes.len() / cpus))) + (ps - 1)) & !(ps - 1));
 
         let all_edges = Arc::new(Mutex::new(Vec::new()));
 
@@ -189,25 +202,38 @@ impl TryFrom<&[u8]> for EdgeList {
     }
 }
 
-pub struct DotGraphInput;
-
-impl InputCapabilities for DotGraphInput {
-    type GraphInput = DotGraph;
+pub struct DotGraphInput<Node: Idx> {
+    _idx: PhantomData<Node>,
 }
 
-pub struct DotGraph {
-    node_count: usize,
-    relationship_count: usize,
+impl<Node: Idx> DotGraphInput<Node> {
+    pub fn new() -> Self {
+        Self { _idx: PhantomData }
+    }
+}
+
+impl<Node: Idx> InputCapabilities<Node> for DotGraphInput<Node> {
+    type GraphInput = DotGraph<Node>;
+}
+
+pub struct DotGraph<Node: Idx> {
+    node_count: Node,
+    relationship_count: Node,
     labels: Vec<usize>,
-    offsets: Vec<usize>,
-    neighbors: Vec<usize>,
-    max_degree: usize,
+    offsets: Vec<Node>,
+    neighbors: Vec<Node>,
+    max_degree: Node,
     max_label: usize,
     label_frequency: HashMap<usize, usize>,
 }
 
-impl From<&Path> for DotGraph {
-    fn from(_: &Path) -> Self {
+impl<Node: Idx, P> TryFrom<MyPath<P>> for DotGraph<Node>
+where
+    P: AsRef<Path>,
+{
+    type Error = std::io::Error;
+
+    fn try_from(_: MyPath<P>) -> Result<Self, Self::Error> {
         todo!()
     }
 }
@@ -224,7 +250,7 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let edge_list = EdgeList::from(path.as_path());
+        let edge_list = EdgeList::<usize>::try_from(MyPath(path.as_path())).unwrap();
 
         assert_eq!(2, edge_list.max_node_id());
     }

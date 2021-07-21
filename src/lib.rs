@@ -2,47 +2,222 @@
 pub mod graph;
 pub mod input;
 
+use input::EdgeList;
+use std::convert::TryFrom;
+use std::fmt::Debug;
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::{collections::HashMap, path::Path};
 
-use input::EdgeList;
 use thiserror::Error;
-
-#[cfg(feature = "size32")]
-pub(crate) type Node = u32;
-#[cfg(feature = "size32")]
-pub(crate) type AtomicNode = std::sync::atomic::AtomicU32;
-#[cfg(feature = "size32")]
-#[inline]
-pub(crate) fn as_usize(node: Node) -> usize {
-    node as usize
-}
-
-#[cfg(not(feature = "size32"))]
-pub(crate) type Node = usize;
-#[cfg(not(feature = "size32"))]
-pub(crate) type AtomicNode = std::sync::atomic::AtomicUsize;
-#[cfg(not(feature = "size32"))]
-#[inline]
-pub(crate) fn as_usize(node: Node) -> usize {
-    node
-}
 
 #[derive(Error, Debug)]
 pub enum Error {}
 
-pub trait Graph {
+pub trait Idx:
+    Copy
+    + std::ops::Add<Output = Self>
+    + std::ops::AddAssign
+    + std::ops::Sub<Output = Self>
+    + std::ops::Div<Output = Self>
+    + Ord
+    + Debug
+    + Send
+    + Sync
+    + Sized
+    + 'static
+{
+    type Atomic: AtomicIdx<Inner = Self>;
+
+    fn new(idx: usize) -> Self;
+
+    fn zero() -> Self;
+
+    fn copied(&self) -> Self;
+
+    fn index(self) -> usize;
+
+    fn atomic(self) -> Self::Atomic;
+
+    fn from_radix_10(bytes: &[u8]) -> (Self, usize);
+}
+
+pub trait AtomicIdx: Send + Sync {
+    type Inner: Idx;
+
+    fn load(&self, order: Ordering) -> Self::Inner;
+
+    fn fetch_add(&self, val: usize, order: Ordering) -> Self::Inner;
+
+    fn store(&self, val: Self::Inner, order: Ordering);
+
+    fn zero() -> Self;
+
+    fn copied(&self) -> Self;
+
+    fn add(&mut self, other: Self);
+
+    fn add_ref(&mut self, other: &Self);
+}
+
+impl AtomicIdx for AtomicUsize {
+    type Inner = usize;
+
+    #[inline]
+    fn load(&self, order: Ordering) -> Self::Inner {
+        self.load(order)
+    }
+
+    #[inline]
+    fn fetch_add(&self, val: usize, order: Ordering) -> Self::Inner {
+        self.fetch_add(val, order)
+    }
+
+    #[inline]
+    fn store(&self, val: Self::Inner, order: Ordering) {
+        self.store(val.index(), order)
+    }
+
+    #[inline]
+    fn zero() -> Self {
+        AtomicUsize::new(0)
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        AtomicUsize::new(self.load(Ordering::SeqCst))
+    }
+
+    #[inline]
+    fn add(&mut self, other: Self) {
+        *self.get_mut() += other.into_inner();
+    }
+
+    #[inline]
+    fn add_ref(&mut self, other: &Self) {
+        *self.get_mut() += other.load(Ordering::SeqCst);
+    }
+}
+
+impl AtomicIdx for AtomicU32 {
+    type Inner = u32;
+
+    #[inline]
+    fn load(&self, order: Ordering) -> Self::Inner {
+        self.load(order)
+    }
+
+    #[inline]
+    fn fetch_add(&self, val: usize, order: Ordering) -> Self::Inner {
+        self.fetch_add(val as u32, order)
+    }
+
+    #[inline]
+    fn store(&self, val: Self::Inner, order: Ordering) {
+        self.store(val.index() as u32, order)
+    }
+
+    #[inline]
+    fn zero() -> Self {
+        AtomicU32::new(0)
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        AtomicU32::new(self.load(Ordering::SeqCst))
+    }
+
+    #[inline]
+    fn add(&mut self, other: Self) {
+        *self.get_mut() += other.into_inner();
+    }
+
+    #[inline]
+    fn add_ref(&mut self, other: &Self) {
+        *self.get_mut() += other.load(Ordering::SeqCst);
+    }
+}
+
+impl Idx for usize {
+    type Atomic = AtomicUsize;
+
+    #[inline]
+    fn zero() -> Self {
+        0
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn new(idx: usize) -> Self {
+        idx
+    }
+    #[inline]
+    fn index(self) -> usize {
+        self
+    }
+
+    #[inline]
+    fn atomic(self) -> AtomicUsize {
+        AtomicUsize::new(self)
+    }
+
+    #[inline]
+    fn from_radix_10(bytes: &[u8]) -> (Self, usize) {
+        atoi::FromRadix10::from_radix_10(bytes)
+    }
+}
+
+impl Idx for u32 {
+    type Atomic = AtomicU32;
+
+    #[inline]
+    fn new(idx: usize) -> Self {
+        assert!(idx <= u32::MAX as usize);
+        idx as u32
+    }
+
+    #[inline]
+    fn copied(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn zero() -> Self {
+        0
+    }
+
+    #[inline]
+    fn index(self) -> usize {
+        self as usize
+    }
+
+    #[inline]
+    fn atomic(self) -> AtomicU32 {
+        AtomicU32::new(self)
+    }
+
+    #[inline]
+    fn from_radix_10(bytes: &[u8]) -> (Self, usize) {
+        atoi::FromRadix10::from_radix_10(bytes)
+    }
+}
+
+pub trait Graph<Node: Idx> {
     fn node_count(&self) -> Node;
 
     fn edge_count(&self) -> Node;
 }
 
-pub trait UndirectedGraph: Graph {
+pub trait UndirectedGraph<Node: Idx>: Graph<Node> {
     fn degree(&self, node: Node) -> Node;
 
     fn neighbors(&self, node: Node) -> &[Node];
 }
 
-pub trait DirectedGraph: Graph {
+pub trait DirectedGraph<Node: Idx>: Graph<Node> {
     fn out_degree(&self, node: Node) -> Node;
 
     fn out_neighbors(&self, node: Node) -> &[Node];
@@ -52,7 +227,7 @@ pub trait DirectedGraph: Graph {
     fn in_neighbors(&self, node: Node) -> &[Node];
 }
 
-pub trait NodeLabeledGraph: Graph {
+pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
     fn label(&self, node: Node) -> Node;
 
     fn nodes_by_label(&self, label: Node) -> &[Node];
@@ -66,22 +241,26 @@ pub trait NodeLabeledGraph: Graph {
     fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Node, Node>;
 }
 
-pub trait InputCapabilities {
+pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
 }
 
-pub fn create_graph<G: From<EdgeList>>(edge_list: EdgeList) -> G {
+pub fn create_graph<Node: Idx, G: From<EdgeList<Node>>>(edge_list: EdgeList<Node>) -> G {
     G::from(edge_list)
 }
 
-pub fn read_graph<G, F, P>(path: P, _fmt: F) -> Result<G, Error>
+pub fn read_graph<G, F, P, N>(
+    path: P,
+    _fmt: F,
+) -> Result<G, <F::GraphInput as TryFrom<input::MyPath<P>>>::Error>
 where
     P: AsRef<Path>,
-    F: InputCapabilities,
-    for<'a> F::GraphInput: From<&'a Path>,
+    N: Idx,
+    F: InputCapabilities<N>,
+    F::GraphInput: TryFrom<input::MyPath<P>>,
     G: From<F::GraphInput>,
 {
-    Ok(G::from(F::GraphInput::from(path.as_ref())))
+    Ok(G::from(F::GraphInput::try_from(input::MyPath(path))?))
 }
 
 #[cfg(test)]
@@ -97,19 +276,27 @@ mod tests {
 
     #[test]
     fn read_graph_test() {
-        let _g0: DirectedCSRGraph = read_graph("graph", EdgeListInput).unwrap();
-        let _g1: UndirectedCSRGraph = read_graph("graph", EdgeListInput).unwrap();
-        let _g2: NodeLabeledCSRGraph<DirectedCSRGraph> =
-            read_graph("graph", DotGraphInput).unwrap();
-        let _g3: NodeLabeledCSRGraph<UndirectedCSRGraph> =
-            read_graph("graph", DotGraphInput).unwrap();
+        fn inner_test() -> Result<(), std::io::Error> {
+            let _g0: DirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::new())?;
+            let _g0: DirectedCSRGraph<_> = read_graph("graph", EdgeListInput::<usize>::new())?;
+
+            let _g1: UndirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::new())?;
+            let _g2: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> =
+                read_graph("graph", DotGraphInput::new())?;
+            let _g3: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> =
+                read_graph("graph", DotGraphInput::new())?;
+
+            Ok(())
+        }
+
+        assert!(inner_test().is_err())
     }
 
     #[test]
     fn directed_graph_from_edge_list() {
         let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
 
-        let g: DirectedCSRGraph = create_graph(edge_list);
+        let g: DirectedCSRGraph<usize> = create_graph(edge_list);
 
         assert_eq!(g.node_count(), 3);
         assert_eq!(g.edge_count(), 2);
@@ -135,7 +322,7 @@ mod tests {
     fn undirected_graph_from_edge_list() {
         let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
 
-        let g: UndirectedCSRGraph = create_graph(edge_list);
+        let g: UndirectedCSRGraph<usize> = create_graph(edge_list);
 
         assert_eq!(g.node_count(), 3);
         assert_eq!(g.edge_count(), 2);
@@ -155,7 +342,7 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let g: DirectedCSRGraph = read_graph(path, EdgeListInput).unwrap();
+        let g: DirectedCSRGraph<usize> = read_graph(path, EdgeListInput::new()).unwrap();
 
         assert_eq!(g.node_count(), 3);
         assert_eq!(g.edge_count(), 2);
@@ -183,7 +370,7 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let g: UndirectedCSRGraph = read_graph(path, EdgeListInput).unwrap();
+        let g: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::new()).unwrap();
 
         assert_eq!(g.node_count(), 3);
         assert_eq!(g.edge_count(), 2);
