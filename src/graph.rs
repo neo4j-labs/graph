@@ -142,9 +142,17 @@ pub struct DirectedCSRGraph<Node: Idx> {
 
 impl<Node: Idx> DirectedCSRGraph<Node> {
     pub fn new(out_edges: CSR<Node>, in_edges: CSR<Node>) -> Self {
+        let node_count = out_edges.node_count();
+        let edge_count = out_edges.edge_count();
+
+        info!(
+            "Created directed CSR graph (node_count = {:?}, edge_count = {:?})",
+            node_count, edge_count
+        );
+
         Self {
-            node_count: out_edges.node_count(),
-            edge_count: out_edges.edge_count(),
+            node_count,
+            edge_count,
             out_edges,
             in_edges,
         }
@@ -197,9 +205,17 @@ pub struct UndirectedCSRGraph<Node: Idx> {
 
 impl<Node: Idx> UndirectedCSRGraph<Node> {
     pub fn new(edges: CSR<Node>) -> Self {
+        let node_count = edges.node_count();
+        let edge_count = edges.edge_count() / Node::new(2);
+
+        info!(
+            "Created undirected CSR graph (node_count = {:?}, edge_count = {:?})",
+            node_count, edge_count
+        );
+
         Self {
-            node_count: edges.node_count(),
-            edge_count: edges.edge_count() / Node::new(2),
+            node_count,
+            edge_count,
             edges,
         }
     }

@@ -27,22 +27,15 @@ fn main() {
     );
 
     if use_64_bit {
-        let g = load::<usize>(path);
+        let g: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::default()).unwrap();
         global_triangle_count(g);
     } else {
-        let g = load::<u32>(path);
+        let g: UndirectedCSRGraph<u32> = read_graph(path, EdgeListInput::default()).unwrap();
         global_triangle_count(g);
     }
 }
 
-fn load<T: Idx>(path: String) -> UndirectedCSRGraph<T> {
-    let graph: UndirectedCSRGraph<T> = read_graph(path, EdgeListInput::default()).unwrap();
-    info!("Node count = {:?}", graph.node_count());
-    info!("Edge count = {:?}", graph.edge_count());
-    graph
-}
-
-fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> usize {
+fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) {
     let start = Instant::now();
     let graph = graph.relabel_by_degrees();
     info!(
@@ -50,7 +43,8 @@ fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> usize {
         start.elapsed().as_millis()
     );
 
-    (0..graph.node_count().index())
+    let start = Instant::now();
+    let tc: usize = (0..graph.node_count().index())
         .into_par_iter()
         .map(Node::new)
         .map(|u| {
@@ -75,5 +69,11 @@ fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> usize {
             }
             triangles
         })
-        .sum()
+        .sum();
+
+    info!(
+        "Triangle counting finished in {} seconds .. global triangle count = {}",
+        start.elapsed().as_secs(),
+        tc
+    );
 }
