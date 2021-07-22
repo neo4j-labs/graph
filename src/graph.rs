@@ -97,42 +97,6 @@ impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
     }
 }
 
-fn prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
-    let mut last = degrees.last().unwrap().copied();
-    let mut sums = degrees
-        .into_iter()
-        .scan(Node::zero(), |total, degree| {
-            let value = total.copied();
-            total.add(degree);
-            Some(value)
-        })
-        .collect::<Vec<_>>();
-
-    last.add_ref(sums.last().unwrap());
-    sums.push(last);
-
-    sums
-}
-
-fn sort_targets<Node: Idx>(offsets: &[Node], targets: &mut [Node]) {
-    let node_count = offsets.len() - 1;
-    let mut target_chunks = Vec::with_capacity(node_count);
-    let mut tail = targets;
-    let mut prev_offset = offsets[0];
-
-    for &offset in &offsets[1..node_count] {
-        let (list, remainder) = tail.split_at_mut((offset - prev_offset).index());
-        target_chunks.push(list);
-        tail = remainder;
-        prev_offset = offset;
-    }
-
-    // do the actual sorting of individual target lists
-    target_chunks
-        .par_iter_mut()
-        .for_each(|list| list.sort_unstable());
-}
-
 pub struct DirectedCSRGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
@@ -371,4 +335,40 @@ impl<Node: Idx, G: From<EdgeList<Node>>> From<DotGraph<Node>> for NodeLabeledCSR
     fn from(_: DotGraph<Node>) -> Self {
         todo!()
     }
+}
+
+fn prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
+    let mut last = degrees.last().unwrap().copied();
+    let mut sums = degrees
+        .into_iter()
+        .scan(Node::zero(), |total, degree| {
+            let value = total.copied();
+            total.add(degree);
+            Some(value)
+        })
+        .collect::<Vec<_>>();
+
+    last.add_ref(sums.last().unwrap());
+    sums.push(last);
+
+    sums
+}
+
+fn sort_targets<Node: Idx>(offsets: &[Node], targets: &mut [Node]) {
+    let node_count = offsets.len() - 1;
+    let mut target_chunks = Vec::with_capacity(node_count);
+    let mut tail = targets;
+    let mut prev_offset = offsets[0];
+
+    for &offset in &offsets[1..node_count] {
+        let (list, remainder) = tail.split_at_mut((offset - prev_offset).index());
+        target_chunks.push(list);
+        tail = remainder;
+        prev_offset = offset;
+    }
+
+    // do the actual sorting of individual target lists
+    target_chunks
+        .par_iter_mut()
+        .for_each(|list| list.sort_unstable());
 }
