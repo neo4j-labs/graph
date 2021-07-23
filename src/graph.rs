@@ -15,6 +15,19 @@ use crate::{
     DirectedGraph, Graph, UndirectedGraph,
 };
 
+#[derive(Clone, Copy)]
+pub enum CSROption {
+    Unsorted,
+    Sorted,
+    Deduplicated,
+}
+
+impl Default for CSROption {
+    fn default() -> Self {
+        CSROption::Sorted
+    }
+}
+
 pub struct CSR<Node: Idx> {
     offsets: Box<[Node]>,
     targets: Box<[Node]>,
@@ -48,8 +61,10 @@ impl<Node: Idx> CSR<Node> {
     }
 }
 
-impl<Node: Idx> From<(&EdgeList<Node>, Node, Direction)> for CSR<Node> {
-    fn from((edge_list, node_count, direction): (&EdgeList<Node>, Node, Direction)) -> Self {
+type CSRConfiguration<'a, Node> = (&'a EdgeList<Node>, Node, Direction, CSROption);
+
+impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
+    fn from((edge_list, node_count, direction, csr_option): CSRConfiguration<'_, Node>) -> Self {
         let mut start = Instant::now();
 
         let degrees = edge_list.degrees(node_count, direction);
@@ -151,11 +166,11 @@ impl<Node: Idx> DirectedGraph<Node> for DirectedCSRGraph<Node> {
     }
 }
 
-impl<Node: Idx> From<EdgeList<Node>> for DirectedCSRGraph<Node> {
-    fn from(edge_list: EdgeList<Node>) -> Self {
+impl<Node: Idx> From<(EdgeList<Node>, CSROption)> for DirectedCSRGraph<Node> {
+    fn from((edge_list, csr_option): (EdgeList<Node>, CSROption)) -> Self {
         let node_count = edge_list.max_node_id() + Node::new(1);
-        let out_edges = CSR::from((&edge_list, node_count, Direction::Outgoing));
-        let in_edges = CSR::from((&edge_list, node_count, Direction::Incoming));
+        let out_edges = CSR::from((&edge_list, node_count, Direction::Outgoing, csr_option));
+        let in_edges = CSR::from((&edge_list, node_count, Direction::Incoming, csr_option));
 
         DirectedCSRGraph::new(out_edges, in_edges)
     }
@@ -271,10 +286,10 @@ impl<Node: Idx> UndirectedGraph<Node> for UndirectedCSRGraph<Node> {
     }
 }
 
-impl<Node: Idx> From<EdgeList<Node>> for UndirectedCSRGraph<Node> {
-    fn from(edge_list: EdgeList<Node>) -> Self {
+impl<Node: Idx> From<(EdgeList<Node>, CSROption)> for UndirectedCSRGraph<Node> {
+    fn from((edge_list, csr_option): (EdgeList<Node>, CSROption)) -> Self {
         let node_count = edge_list.max_node_id() + Node::new(1);
-        let edges = CSR::from((&edge_list, node_count, Direction::Undirected));
+        let edges = CSR::from((&edge_list, node_count, Direction::Undirected, csr_option));
 
         UndirectedCSRGraph::new(edges)
     }
@@ -331,8 +346,10 @@ impl<Node: Idx, G: UndirectedGraph<Node>> UndirectedGraph<Node> for NodeLabeledC
     }
 }
 
-impl<Node: Idx, G: From<EdgeList<Node>>> From<DotGraph<Node>> for NodeLabeledCSRGraph<G> {
-    fn from(_: DotGraph<Node>) -> Self {
+impl<Node: Idx, G: From<(EdgeList<Node>, CSROption)>> From<(DotGraph<Node>, CSROption)>
+    for NodeLabeledCSRGraph<G>
+{
+    fn from(_: (DotGraph<Node>, CSROption)) -> Self {
         todo!()
     }
 }

@@ -2,7 +2,10 @@ use log::info;
 use std::time::Instant;
 
 use graph::{
-    graph::UndirectedCSRGraph, index::Idx, input::EdgeListInput, read_graph, Graph, UndirectedGraph,
+    graph::{CSROption, UndirectedCSRGraph},
+    index::Idx,
+    input::EdgeListInput,
+    read_graph, Graph, UndirectedGraph,
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -27,10 +30,12 @@ fn main() {
     );
 
     if use_64_bit {
-        let g: UndirectedCSRGraph<usize> = read_graph(path, EdgeListInput::default()).unwrap();
+        let g: UndirectedCSRGraph<usize> =
+            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap();
         global_triangle_count(g);
     } else {
-        let g: UndirectedCSRGraph<u32> = read_graph(path, EdgeListInput::default()).unwrap();
+        let g: UndirectedCSRGraph<u32> =
+            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap();
         global_triangle_count(g);
     }
 }

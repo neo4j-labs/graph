@@ -3,6 +3,7 @@ pub mod graph;
 pub mod index;
 pub mod input;
 
+use crate::graph::CSROption;
 use crate::index::Idx;
 use input::EdgeList;
 use std::convert::TryFrom;
@@ -59,22 +60,27 @@ pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
 }
 
-pub fn create_graph<Node: Idx, G: From<EdgeList<Node>>>(edge_list: EdgeList<Node>) -> G {
-    G::from(edge_list)
+pub fn create_graph<Node: Idx, G: From<(EdgeList<Node>, CSROption)>>(
+    edge_list: EdgeList<Node>,
+    csr_option: CSROption,
+) -> G {
+    G::from((edge_list, csr_option))
 }
 
 pub fn read_graph<G, F, P, N>(
     path: P,
     _fmt: F,
+    csr_option: CSROption,
 ) -> Result<G, <F::GraphInput as TryFrom<input::MyPath<P>>>::Error>
 where
     P: AsRef<Path>,
     N: Idx,
     F: InputCapabilities<N>,
     F::GraphInput: TryFrom<input::MyPath<P>>,
-    G: From<F::GraphInput>,
+    G: From<(F::GraphInput, CSROption)>,
 {
-    Ok(G::from(F::GraphInput::try_from(input::MyPath(path))?))
+    let graph_input: F::GraphInput = F::GraphInput::try_from(input::MyPath(path))?;
+    Ok(G::from((graph_input, csr_option)))
 }
 
 #[cfg(test)]
@@ -91,14 +97,20 @@ mod tests {
     #[test]
     fn should_compile_test() {
         fn inner_test() -> Result<(), Error> {
-            let _g0: DirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::default())?;
-            let _g0: DirectedCSRGraph<_> = read_graph("graph", EdgeListInput::<usize>::default())?;
+            let _g0: DirectedCSRGraph<usize> =
+                read_graph("graph", EdgeListInput::default(), CSROption::default())?;
+            let _g0: DirectedCSRGraph<_> = read_graph(
+                "graph",
+                EdgeListInput::<usize>::default(),
+                CSROption::default(),
+            )?;
 
-            let _g1: UndirectedCSRGraph<usize> = read_graph("graph", EdgeListInput::default())?;
+            let _g1: UndirectedCSRGraph<usize> =
+                read_graph("graph", EdgeListInput::default(), CSROption::default())?;
             let _g2: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> =
-                read_graph("graph", DotGraphInput::default())?;
+                read_graph("graph", DotGraphInput::default(), CSROption::default())?;
             let _g3: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> =
-                read_graph("graph", DotGraphInput::default())?;
+                read_graph("graph", DotGraphInput::default(), CSROption::default())?;
 
             Ok(())
         }
@@ -109,25 +121,25 @@ mod tests {
     #[test]
     fn directed_usize_graph_from_edge_list() {
         let edges = vec![(0, 1), (0, 2)];
-        assert_directed_graph::<usize>(create_graph(EdgeList::new(edges)));
+        assert_directed_graph::<usize>(create_graph(EdgeList::new(edges), CSROption::default()));
     }
 
     #[test]
     fn directed_u32_graph_from_edge_list() {
         let edges = vec![(0, 1), (0, 2)];
-        assert_directed_graph::<u32>(create_graph(EdgeList::new(edges)));
+        assert_directed_graph::<u32>(create_graph(EdgeList::new(edges), CSROption::default()));
     }
 
     #[test]
     fn undirected_usize_graph_from_edge_list() {
         let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
-        assert_undirected_graph::<usize>(create_graph(edge_list));
+        assert_undirected_graph::<usize>(create_graph(edge_list, CSROption::default()));
     }
 
     #[test]
     fn undirected_u32_graph_from_edge_list() {
         let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
-        assert_undirected_graph::<u32>(create_graph(edge_list));
+        assert_undirected_graph::<u32>(create_graph(edge_list, CSROption::default()));
     }
 
     #[test]
@@ -136,7 +148,9 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_directed_graph::<usize>(read_graph(path, EdgeListInput::default()).unwrap());
+        assert_directed_graph::<usize>(
+            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
+        );
     }
 
     #[test]
@@ -145,7 +159,9 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_directed_graph::<u32>(read_graph(path, EdgeListInput::default()).unwrap());
+        assert_directed_graph::<u32>(
+            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
+        );
     }
 
     #[test]
@@ -154,7 +170,9 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_undirected_graph::<usize>(read_graph(path, EdgeListInput::default()).unwrap());
+        assert_undirected_graph::<usize>(
+            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
+        );
     }
 
     #[test]
@@ -163,7 +181,9 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_undirected_graph::<u32>(read_graph(path, EdgeListInput::default()).unwrap());
+        assert_undirected_graph::<u32>(
+            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
+        );
     }
 
     fn assert_directed_graph<Node: Idx>(g: DirectedCSRGraph<Node>) {
