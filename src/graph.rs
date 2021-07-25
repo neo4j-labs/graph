@@ -64,7 +64,7 @@ impl<Node: Idx> CSR<Node> {
 type CSRConfiguration<'a, Node> = (&'a EdgeList<Node>, Node, Direction, CSROption);
 
 impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
-    fn from((edge_list, node_count, direction, csr_option): CSRConfiguration<'_, Node>) -> Self {
+    fn from((edge_list, node_count, direction, _csr_option): CSRConfiguration<'_, Node>) -> Self {
         let mut start = Instant::now();
 
         let degrees = edge_list.degrees(node_count, direction);

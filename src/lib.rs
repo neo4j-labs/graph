@@ -60,11 +60,48 @@ pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
 }
 
-pub fn create_graph<Node: Idx, G: From<(EdgeList<Node>, CSROption)>>(
-    edge_list: EdgeList<Node>,
+pub struct GraphBuilder {
     csr_option: CSROption,
-) -> G {
-    G::from((edge_list, csr_option))
+}
+
+impl GraphBuilder {
+    pub fn new() -> Self {
+        Self {
+            csr_option: CSROption::default(),
+        }
+    }
+
+    pub fn csr_option(mut self, csr_option: CSROption) -> Self {
+        self.csr_option = csr_option;
+        self
+    }
+
+    pub fn from_edges<Node, Edges>(self, edges: Edges) -> GraphFromEdgesBuilder<Node, Edges>
+    where
+        Node: Idx,
+        Edges: IntoIterator<Item = (Node, Node)>,
+    {
+        GraphFromEdgesBuilder(edges, self.csr_option)
+    }
+}
+
+pub struct GraphFromEdgesBuilder<Node, Edges>(Edges, CSROption)
+where
+    Node: Idx,
+    Edges: IntoIterator<Item = (Node, Node)>;
+
+impl<Node, Edges> GraphFromEdgesBuilder<Node, Edges>
+where
+    Node: Idx,
+    Edges: IntoIterator<Item = (Node, Node)>,
+{
+    pub fn build<G>(self) -> G
+    where
+        G: From<(EdgeList<Node>, CSROption)>,
+    {
+        let edge_list = EdgeList::new(self.0.into_iter().collect());
+        G::from((edge_list, self.1))
+    }
 }
 
 pub fn read_graph<G, F, P, N>(
@@ -120,26 +157,22 @@ mod tests {
 
     #[test]
     fn directed_usize_graph_from_edge_list() {
-        let edges = vec![(0, 1), (0, 2)];
-        assert_directed_graph::<usize>(create_graph(EdgeList::new(edges), CSROption::default()));
+        assert_directed_graph::<usize>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
     fn directed_u32_graph_from_edge_list() {
-        let edges = vec![(0, 1), (0, 2)];
-        assert_directed_graph::<u32>(create_graph(EdgeList::new(edges), CSROption::default()));
+        assert_directed_graph::<u32>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
     fn undirected_usize_graph_from_edge_list() {
-        let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
-        assert_undirected_graph::<usize>(create_graph(edge_list, CSROption::default()));
+        assert_undirected_graph::<usize>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
     fn undirected_u32_graph_from_edge_list() {
-        let edge_list = EdgeList::new(vec![(0, 1), (0, 2)]);
-        assert_undirected_graph::<u32>(create_graph(edge_list, CSROption::default()));
+        assert_undirected_graph::<u32>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
