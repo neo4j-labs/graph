@@ -5,7 +5,7 @@ use graph::{
     graph::{CSROption, UndirectedCSRGraph},
     index::Idx,
     input::EdgeListInput,
-    read_graph, Graph, UndirectedGraph,
+    Graph, GraphBuilder, UndirectedGraph,
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -30,12 +30,22 @@ fn main() {
     );
 
     if use_64_bit {
-        let g: UndirectedCSRGraph<usize> =
-            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap();
+        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
+            .csr_option(CSROption::Sorted)
+            .file_format(EdgeListInput::default())
+            .path(path)
+            .build()
+            .unwrap();
+
         global_triangle_count(g);
     } else {
-        let g: UndirectedCSRGraph<u32> =
-            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap();
+        let g: UndirectedCSRGraph<u32> = GraphBuilder::new()
+            .csr_option(CSROption::Sorted)
+            .file_format(EdgeListInput::default())
+            .path(path)
+            .build()
+            .unwrap();
+
         global_triangle_count(g);
     }
 }

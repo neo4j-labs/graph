@@ -7,6 +7,7 @@ use crate::graph::CSROption;
 use crate::index::Idx;
 use input::EdgeList;
 use std::convert::TryFrom;
+use std::marker::PhantomData;
 use std::{collections::HashMap, path::Path};
 
 use thiserror::Error;
@@ -64,6 +65,12 @@ pub struct GraphBuilder {
     csr_option: CSROption,
 }
 
+impl Default for GraphBuilder {
+    fn default() -> Self {
+        GraphBuilder::new()
+    }
+}
+
 impl GraphBuilder {
     pub fn new() -> Self {
         Self {
@@ -76,12 +83,27 @@ impl GraphBuilder {
         self
     }
 
-    pub fn from_edges<Node, Edges>(self, edges: Edges) -> GraphFromEdgesBuilder<Node, Edges>
+    pub fn edges<Node, Edges>(self, edges: Edges) -> GraphFromEdgesBuilder<Node, Edges>
     where
         Node: Idx,
         Edges: IntoIterator<Item = (Node, Node)>,
     {
         GraphFromEdgesBuilder(edges, self.csr_option)
+    }
+
+    pub fn file_format<F, P, N>(self, format: F) -> GraphFromFormatBuilder<F, P, N>
+    where
+        P: AsRef<Path>,
+        N: Idx,
+        F: InputCapabilities<N>,
+        F::GraphInput: TryFrom<input::MyPath<P>>,
+    {
+        GraphFromFormatBuilder {
+            csr_option: self.csr_option,
+            format,
+            path: None,
+            _idx: PhantomData,
+        }
     }
 }
 
@@ -99,25 +121,67 @@ where
     where
         G: From<(EdgeList<Node>, CSROption)>,
     {
-        let edge_list = EdgeList::new(self.0.into_iter().collect());
-        G::from((edge_list, self.1))
+        G::from((EdgeList::new(self.0.into_iter().collect()), self.1))
     }
 }
 
-pub fn read_graph<G, F, P, N>(
-    path: P,
-    _fmt: F,
-    csr_option: CSROption,
-) -> Result<G, <F::GraphInput as TryFrom<input::MyPath<P>>>::Error>
+pub struct GraphFromFormatBuilder<F, P, N>
 where
     P: AsRef<Path>,
     N: Idx,
     F: InputCapabilities<N>,
     F::GraphInput: TryFrom<input::MyPath<P>>,
-    G: From<(F::GraphInput, CSROption)>,
 {
-    let graph_input: F::GraphInput = F::GraphInput::try_from(input::MyPath(path))?;
-    Ok(G::from((graph_input, csr_option)))
+    csr_option: CSROption,
+    format: F,
+    path: Option<P>,
+    _idx: PhantomData<N>,
+}
+
+impl<F, P, N> GraphFromFormatBuilder<F, P, N>
+where
+    P: AsRef<Path>,
+    N: Idx,
+    F: InputCapabilities<N>,
+    F::GraphInput: TryFrom<input::MyPath<P>>,
+{
+    pub fn path(self, path: P) -> GraphFromPathBuilder<F, P, N> {
+        GraphFromPathBuilder {
+            csr_option: self.csr_option,
+            format: self.format,
+            path,
+            _idx: PhantomData,
+        }
+    }
+}
+
+pub struct GraphFromPathBuilder<F, P, N>
+where
+    P: AsRef<Path>,
+    N: Idx,
+    F: InputCapabilities<N>,
+    F::GraphInput: TryFrom<input::MyPath<P>>,
+{
+    csr_option: CSROption,
+    format: F,
+    path: P,
+    _idx: PhantomData<N>,
+}
+
+impl<F, P, N> GraphFromPathBuilder<F, P, N>
+where
+    P: AsRef<Path>,
+    N: Idx,
+    F: InputCapabilities<N>,
+    F::GraphInput: TryFrom<input::MyPath<P>>,
+{
+    pub fn build<G>(self) -> Result<G, <F::GraphInput as TryFrom<input::MyPath<P>>>::Error>
+    where
+        G: From<(F::GraphInput, CSROption)>,
+    {
+        let graph_input: F::GraphInput = F::GraphInput::try_from(input::MyPath(self.path))?;
+        Ok(G::from((graph_input, self.csr_option)))
+    }
 }
 
 #[cfg(test)]
@@ -134,20 +198,30 @@ mod tests {
     #[test]
     fn should_compile_test() {
         fn inner_test() -> Result<(), Error> {
-            let _g0: DirectedCSRGraph<usize> =
-                read_graph("graph", EdgeListInput::default(), CSROption::default())?;
-            let _g0: DirectedCSRGraph<_> = read_graph(
-                "graph",
-                EdgeListInput::<usize>::default(),
-                CSROption::default(),
-            )?;
+            let _g: DirectedCSRGraph<usize> = GraphBuilder::new()
+                .file_format(EdgeListInput::default())
+                .path("graph")
+                .build()?;
 
-            let _g1: UndirectedCSRGraph<usize> =
-                read_graph("graph", EdgeListInput::default(), CSROption::default())?;
-            let _g2: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> =
-                read_graph("graph", DotGraphInput::default(), CSROption::default())?;
-            let _g3: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> =
-                read_graph("graph", DotGraphInput::default(), CSROption::default())?;
+            let _g: DirectedCSRGraph<_> = GraphBuilder::new()
+                .file_format(EdgeListInput::<usize>::default())
+                .path("graph")
+                .build()?;
+
+            let _g: UndirectedCSRGraph<usize> = GraphBuilder::new()
+                .file_format(EdgeListInput::default())
+                .path("graph")
+                .build()?;
+
+            let _g: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> = GraphBuilder::new()
+                .file_format(DotGraphInput::default())
+                .path("graph")
+                .build()?;
+
+            let _g: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> = GraphBuilder::new()
+                .file_format(DotGraphInput::default())
+                .path("graph")
+                .build()?;
 
             Ok(())
         }
@@ -157,22 +231,22 @@ mod tests {
 
     #[test]
     fn directed_usize_graph_from_edge_list() {
-        assert_directed_graph::<usize>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
+        assert_directed_graph::<usize>(GraphBuilder::new().edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
     fn directed_u32_graph_from_edge_list() {
-        assert_directed_graph::<u32>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
+        assert_directed_graph::<u32>(GraphBuilder::new().edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
     fn undirected_usize_graph_from_edge_list() {
-        assert_undirected_graph::<usize>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
+        assert_undirected_graph::<usize>(GraphBuilder::new().edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
     fn undirected_u32_graph_from_edge_list() {
-        assert_undirected_graph::<u32>(GraphBuilder::new().from_edges([(0, 1), (0, 2)]).build());
+        assert_undirected_graph::<u32>(GraphBuilder::new().edges([(0, 1), (0, 2)]).build());
     }
 
     #[test]
@@ -181,9 +255,14 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_directed_graph::<usize>(
-            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
-        );
+        let graph = GraphBuilder::new()
+            .csr_option(CSROption::Sorted)
+            .file_format(EdgeListInput::default())
+            .path(path)
+            .build()
+            .expect("loading failed");
+
+        assert_directed_graph::<usize>(graph);
     }
 
     #[test]
@@ -192,9 +271,14 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_directed_graph::<u32>(
-            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
-        );
+        let graph = GraphBuilder::new()
+            .csr_option(CSROption::Sorted)
+            .file_format(EdgeListInput::default())
+            .path(path)
+            .build()
+            .expect("loading failed");
+
+        assert_directed_graph::<u32>(graph);
     }
 
     #[test]
@@ -203,9 +287,14 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_undirected_graph::<usize>(
-            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
-        );
+        let graph = GraphBuilder::new()
+            .csr_option(CSROption::Sorted)
+            .file_format(EdgeListInput::default())
+            .path(path)
+            .build()
+            .expect("loading failed");
+
+        assert_undirected_graph::<usize>(graph);
     }
 
     #[test]
@@ -214,9 +303,14 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        assert_undirected_graph::<u32>(
-            read_graph(path, EdgeListInput::default(), CSROption::default()).unwrap(),
-        );
+        let graph = GraphBuilder::new()
+            .csr_option(CSROption::Sorted)
+            .file_format(EdgeListInput::default())
+            .path(path)
+            .build()
+            .expect("loading failed");
+
+        assert_undirected_graph::<u32>(graph);
     }
 
     fn assert_directed_graph<Node: Idx>(g: DirectedCSRGraph<Node>) {
