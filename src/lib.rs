@@ -8,7 +8,7 @@ use crate::index::Idx;
 use input::EdgeList;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path as StdPath};
 
 use thiserror::Error;
 
@@ -61,126 +61,157 @@ pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
 }
 
-pub struct GraphBuilder {
+pub struct Uninitialized {
     csr_option: CSROption,
 }
 
-impl Default for GraphBuilder {
+pub struct FromEdges<Node, Edges>
+where
+    Node: Idx,
+    Edges: IntoIterator<Item = (Node, Node)>,
+{
+    csr_option: CSROption,
+    edges: Edges,
+    _node: PhantomData<Node>,
+}
+
+pub struct FromInput<Node, P, Format>
+where
+    P: AsRef<StdPath>,
+    Node: Idx,
+    Format: InputCapabilities<Node>,
+    Format::GraphInput: TryFrom<input::MyPath<P>>,
+{
+    csr_option: CSROption,
+    format: Format,
+    _idx: PhantomData<Node>,
+    _path: PhantomData<P>,
+}
+
+pub struct FromPath<Node, P, Format>
+where
+    P: AsRef<StdPath>,
+    Node: Idx,
+    Format: InputCapabilities<Node>,
+    Format::GraphInput: TryFrom<input::MyPath<P>>,
+{
+    csr_option: CSROption,
+    format: Format,
+    path: P,
+    _idx: PhantomData<Node>,
+}
+
+pub struct GraphBuilder<State> {
+    state: State,
+}
+
+impl Default for GraphBuilder<Uninitialized> {
     fn default() -> Self {
         GraphBuilder::new()
     }
 }
 
-impl GraphBuilder {
+impl GraphBuilder<Uninitialized> {
     pub fn new() -> Self {
         Self {
-            csr_option: CSROption::default(),
+            state: Uninitialized {
+                csr_option: CSROption::default(),
+            },
         }
     }
 
     pub fn csr_option(mut self, csr_option: CSROption) -> Self {
-        self.csr_option = csr_option;
+        self.state.csr_option = csr_option;
         self
     }
 
-    pub fn edges<Node, Edges>(self, edges: Edges) -> GraphFromEdgesBuilder<Node, Edges>
+    pub fn edges<Node, Edges>(self, edges: Edges) -> GraphBuilder<FromEdges<Node, Edges>>
     where
         Node: Idx,
         Edges: IntoIterator<Item = (Node, Node)>,
     {
-        GraphFromEdgesBuilder(edges, self.csr_option)
+        GraphBuilder {
+            state: FromEdges {
+                csr_option: self.state.csr_option,
+                edges,
+                _node: PhantomData,
+            },
+        }
     }
 
-    pub fn file_format<F, P, N>(self, format: F) -> GraphFromFormatBuilder<F, P, N>
+    pub fn file_format<Format, Path, Node>(
+        self,
+        format: Format,
+    ) -> GraphBuilder<FromInput<Node, Path, Format>>
     where
-        P: AsRef<Path>,
-        N: Idx,
-        F: InputCapabilities<N>,
-        F::GraphInput: TryFrom<input::MyPath<P>>,
+        Path: AsRef<StdPath>,
+        Node: Idx,
+        Format: InputCapabilities<Node>,
+        Format::GraphInput: TryFrom<input::MyPath<Path>>,
     {
-        GraphFromFormatBuilder {
-            csr_option: self.csr_option,
-            format,
-            path: None,
-            _idx: PhantomData,
+        GraphBuilder {
+            state: FromInput {
+                csr_option: self.state.csr_option,
+                format,
+                _idx: PhantomData,
+                _path: PhantomData,
+            },
         }
     }
 }
 
-pub struct GraphFromEdgesBuilder<Node, Edges>(Edges, CSROption)
-where
-    Node: Idx,
-    Edges: IntoIterator<Item = (Node, Node)>;
-
-impl<Node, Edges> GraphFromEdgesBuilder<Node, Edges>
+impl<Node, Edges> GraphBuilder<FromEdges<Node, Edges>>
 where
     Node: Idx,
     Edges: IntoIterator<Item = (Node, Node)>,
 {
-    pub fn build<G>(self) -> G
+    pub fn build<Graph>(self) -> Graph
     where
-        G: From<(EdgeList<Node>, CSROption)>,
+        Graph: From<(EdgeList<Node>, CSROption)>,
     {
-        G::from((EdgeList::new(self.0.into_iter().collect()), self.1))
+        Graph::from((
+            EdgeList::new(self.state.edges.into_iter().collect()),
+            self.state.csr_option,
+        ))
     }
 }
 
-pub struct GraphFromFormatBuilder<F, P, N>
+impl<Node, Path, Format> GraphBuilder<FromInput<Node, Path, Format>>
 where
-    P: AsRef<Path>,
-    N: Idx,
-    F: InputCapabilities<N>,
-    F::GraphInput: TryFrom<input::MyPath<P>>,
+    Path: AsRef<StdPath>,
+    Node: Idx,
+    Format: InputCapabilities<Node>,
+    Format::GraphInput: TryFrom<input::MyPath<Path>>,
 {
-    csr_option: CSROption,
-    format: F,
-    path: Option<P>,
-    _idx: PhantomData<N>,
-}
-
-impl<F, P, N> GraphFromFormatBuilder<F, P, N>
-where
-    P: AsRef<Path>,
-    N: Idx,
-    F: InputCapabilities<N>,
-    F::GraphInput: TryFrom<input::MyPath<P>>,
-{
-    pub fn path(self, path: P) -> GraphFromPathBuilder<F, P, N> {
-        GraphFromPathBuilder {
-            csr_option: self.csr_option,
-            format: self.format,
-            path,
-            _idx: PhantomData,
+    pub fn path(self, path: Path) -> GraphBuilder<FromPath<Node, Path, Format>> {
+        GraphBuilder {
+            state: FromPath {
+                csr_option: self.state.csr_option,
+                format: self.state.format,
+                path,
+                _idx: PhantomData,
+            },
         }
     }
 }
 
-pub struct GraphFromPathBuilder<F, P, N>
+impl<Node, Path, Format> GraphBuilder<FromPath<Node, Path, Format>>
 where
-    P: AsRef<Path>,
-    N: Idx,
-    F: InputCapabilities<N>,
-    F::GraphInput: TryFrom<input::MyPath<P>>,
+    Path: AsRef<StdPath>,
+    Node: Idx,
+    Format: InputCapabilities<Node>,
+    Format::GraphInput: TryFrom<input::MyPath<Path>>,
 {
-    csr_option: CSROption,
-    format: F,
-    path: P,
-    _idx: PhantomData<N>,
-}
-
-impl<F, P, N> GraphFromPathBuilder<F, P, N>
-where
-    P: AsRef<Path>,
-    N: Idx,
-    F: InputCapabilities<N>,
-    F::GraphInput: TryFrom<input::MyPath<P>>,
-{
-    pub fn build<G>(self) -> Result<G, <F::GraphInput as TryFrom<input::MyPath<P>>>::Error>
+    pub fn build<Graph>(
+        self,
+    ) -> Result<Graph, <Format::GraphInput as TryFrom<input::MyPath<Path>>>::Error>
     where
-        G: From<(F::GraphInput, CSROption)>,
+        Graph: From<(Format::GraphInput, CSROption)>,
     {
-        let graph_input: F::GraphInput = F::GraphInput::try_from(input::MyPath(self.path))?;
-        Ok(G::from((graph_input, self.csr_option)))
+        Ok(Graph::from((
+            Format::GraphInput::try_from(input::MyPath(self.state.path))?,
+            self.state.csr_option,
+        )))
     }
 }
 
