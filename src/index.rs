@@ -9,6 +9,7 @@ pub trait Idx:
     + std::ops::AddAssign
     + std::ops::Sub<Output = Self>
     + std::ops::Div<Output = Self>
+    + std::ops::Mul<Output = Self>
     + Ord
     + Debug
     + Send

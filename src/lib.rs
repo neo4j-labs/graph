@@ -8,7 +8,7 @@ use crate::index::Idx;
 use input::EdgeList;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::{collections::HashMap, path::Path as StdPath};
+use std::{collections::HashMap, ops::Range, path::Path as StdPath};
 
 use thiserror::Error;
 
@@ -31,6 +31,11 @@ pub trait UndirectedGraph<Node: Idx>: Graph<Node> {
     fn degree(&self, node: Node) -> Node;
 
     fn neighbors(&self, node: Node) -> &[Node];
+
+    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = (self.edge_count() * Node::new(2)) / concurrency;
+        graph::node_map_partition(|node| self.degree(node), self.node_count(), batch_size)
+    }
 }
 
 pub trait DirectedGraph<Node: Idx>: Graph<Node> {
@@ -41,6 +46,16 @@ pub trait DirectedGraph<Node: Idx>: Graph<Node> {
     fn in_degree(&self, node: Node) -> Node;
 
     fn in_neighbors(&self, node: Node) -> &[Node];
+
+    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = self.edge_count() / concurrency;
+        graph::node_map_partition(|node| self.out_degree(node), self.node_count(), batch_size)
+    }
+
+    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = self.edge_count() / concurrency;
+        graph::node_map_partition(|node| self.in_degree(node), self.node_count(), batch_size)
+    }
 }
 
 pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
