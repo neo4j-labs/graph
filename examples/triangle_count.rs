@@ -1,5 +1,5 @@
 use log::info;
-use std::{sync::atomic::Ordering, time::Instant};
+use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 
 use graph::{
     graph::{CSROption, UndirectedCSRGraph},
@@ -9,54 +9,60 @@ use graph::{
 };
 
 use graph::index::AtomicIdx;
-use std::sync::atomic::AtomicU64;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-
-    let path = std::env::args()
-        .into_iter()
-        .nth(1)
-        .expect("require path argument");
-
-    let use_64_bit = std::env::args()
-        .into_iter()
-        .nth(2)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(true);
+    let cli::AppArgs {
+        path,
+        use_32_bit,
+        iterations,
+        relabel,
+    } = cli::create()?;
 
     info!(
-        "Reading graph ({} bit) from: {}",
-        if use_64_bit { "64" } else { "32" },
+        "Reading graph ({} bit) from: {:?}",
+        if use_32_bit { "32" } else { "64" },
         path
     );
 
-    if use_64_bit {
-        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
-            .csr_option(CSROption::Deduplicated)
-            .file_format(EdgeListInput::default())
-            .path(path)
-            .build()
-            .unwrap();
-
-        global_triangle_count(g);
+    if use_32_bit {
+        run::<u32>(path, relabel, iterations)
     } else {
-        let g: UndirectedCSRGraph<u32> = GraphBuilder::new()
-            .csr_option(CSROption::Deduplicated)
-            .file_format(EdgeListInput::default())
-            .path(path)
-            .build()
-            .unwrap();
-
-        global_triangle_count(g);
+        run::<usize>(path, relabel, iterations)
     }
 }
 
-fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> u64 {
+fn run<Node: Idx>(
+    path: PathBuf,
+    relabel: bool,
+    iterations: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut g: UndirectedCSRGraph<Node> = GraphBuilder::new()
+        .csr_option(CSROption::Deduplicated)
+        .file_format(EdgeListInput::default())
+        .path(path)
+        .build()
+        .unwrap();
+
+    if relabel {
+        g = relabel_graph(g);
+    }
+
+    for _ in 0..iterations {
+        global_triangle_count(&g);
+    }
+
+    Ok(())
+}
+
+fn relabel_graph<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> UndirectedCSRGraph<Node> {
     let start = Instant::now();
     let graph = graph.relabel_by_degrees();
     info!("relabel_by_degree() took {:?}", start.elapsed());
+    graph
+}
 
+fn global_triangle_count<Node: Idx>(graph: &UndirectedCSRGraph<Node>) -> u64 {
     let start = Instant::now();
 
     let next_chunk = Node::zero().atomic();
@@ -118,6 +124,38 @@ fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> u64 {
     tc
 }
 
+mod cli {
+    use pico_args::Arguments;
+    use std::{convert::Infallible, ffi::OsStr, path::PathBuf};
+
+    #[derive(Debug)]
+    pub(crate) struct AppArgs {
+        pub(crate) path: std::path::PathBuf,
+        pub(crate) iterations: usize,
+        pub(crate) use_32_bit: bool,
+        pub(crate) relabel: bool,
+    }
+
+    pub(crate) fn create() -> Result<AppArgs, Box<dyn std::error::Error>> {
+        let mut pargs = Arguments::from_env();
+
+        fn as_path_buf(arg: &OsStr) -> Result<PathBuf, Infallible> {
+            Ok(arg.into())
+        }
+
+        let args = AppArgs {
+            path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
+            iterations: pargs
+                .opt_value_from_str(["-i", "--iterations"])?
+                .unwrap_or(1),
+            use_32_bit: pargs.contains("--use-32-bit"),
+            relabel: pargs.contains("--relabel"),
+        };
+
+        Ok(args)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,3 +199,5 @@ mod tests {
         assert_eq!(global_triangle_count(g), 2);
     }
 }
+
+use std::sync::atomic::AtomicU64;
