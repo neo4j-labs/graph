@@ -31,7 +31,7 @@ fn main() {
 
     if use_64_bit {
         let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
-            .csr_option(CSROption::Sorted)
+            .csr_option(CSROption::Deduplicated)
             .file_format(EdgeListInput::default())
             .path(path)
             .build()
@@ -40,7 +40,7 @@ fn main() {
         global_triangle_count(g);
     } else {
         let g: UndirectedCSRGraph<u32> = GraphBuilder::new()
-            .csr_option(CSROption::Sorted)
+            .csr_option(CSROption::Deduplicated)
             .file_format(EdgeListInput::default())
             .path(path)
             .build()
@@ -52,7 +52,7 @@ fn main() {
 
 fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) {
     let start = Instant::now();
-    let graph = graph.relabel_by_degrees();
+    // let graph = graph.relabel_by_degrees();
     info!(
         "relabel_by_degree() took {} ms",
         start.elapsed().as_millis()

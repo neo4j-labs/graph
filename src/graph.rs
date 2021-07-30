@@ -1,5 +1,9 @@
 use log::info;
-use std::{collections::HashMap, mem::transmute, sync::atomic::Ordering::SeqCst, time::Instant};
+use std::mem::MaybeUninit;
+use std::{
+    collections::HashMap, mem::transmute, slice::SliceIndex, sync::atomic::Ordering::SeqCst,
+    time::Instant,
+};
 
 use rayon::iter::IndexedParallelIterator;
 use rayon::{
@@ -64,7 +68,7 @@ impl<Node: Idx> CSR<Node> {
 type CSRConfiguration<'a, Node> = (&'a EdgeList<Node>, Node, Direction, CSROption);
 
 impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
-    fn from((edge_list, node_count, direction, _csr_option): CSRConfiguration<'_, Node>) -> Self {
+    fn from((edge_list, node_count, direction, csr_option): CSRConfiguration<'_, Node>) -> Self {
         let mut start = Instant::now();
 
         let degrees = edge_list.degrees(node_count, direction);
@@ -102,8 +106,22 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
         offsets.rotate_right(1);
         offsets[0] = Node::zero();
 
-        sort_targets(&offsets, &mut targets);
-        info!("sort_targets took {} ms", start.elapsed().as_millis());
+        let (offsets, targets) = match csr_option {
+            CSROption::Unsorted => (offsets, targets),
+            CSROption::Sorted => {
+                sort_targets(&offsets, &mut targets);
+                info!("sort_targets took {} ms", start.elapsed().as_millis());
+                (offsets, targets)
+            }
+            CSROption::Deduplicated => {
+                let offsets_targets = sort_and_deduplicate_targets(&offsets, &mut targets);
+                info!(
+                    "sort_and_deduplicate_targets took {} ms",
+                    start.elapsed().as_millis()
+                );
+                offsets_targets
+            }
+        };
 
         CSR {
             offsets: offsets.into_boxed_slice(),
@@ -377,16 +395,83 @@ fn sort_targets<Node: Idx>(offsets: &[Node], targets: &mut [Node]) {
         .for_each(|list| list.sort_unstable());
 }
 
-fn to_mut_slices<'targets, Node: Idx>(
+fn sort_and_deduplicate_targets<Node: Idx>(
     offsets: &[Node],
-    targets: &'targets mut [Node],
-) -> Vec<&'targets mut [Node]> {
+    targets: &mut [Node],
+) -> (Vec<Node>, Vec<Node>) {
+    let node_count = offsets.len() - 1;
+
+    let mut new_degrees = Vec::with_capacity(node_count);
+    let mut target_slices = to_mut_slices(offsets, targets);
+
+    target_slices
+        .par_iter_mut()
+        .enumerate()
+        .map(|(node, slice)| {
+            slice.sort_unstable();
+            // deduplicate
+            let (dedup, _) = slice.partition_dedup();
+            let mut new_degree = dedup.len();
+            // remove self loops .. there is at most once occurence of node inside dedup
+            if let Ok(idx) = dedup.binary_search(&Node::new(node)) {
+                dedup[idx..].rotate_left(1);
+                new_degree = new_degree - 1;
+            }
+            Node::new(new_degree).atomic()
+        })
+        .collect_into_vec(&mut new_degrees);
+
+    // for node in 0..node_count {
+    //     let mut slice: &mut [Node] = &mut [];
+    //     std::mem::swap(&mut target_slices[node], &mut slice);
+    //     slice.sort_unstable();
+    //     // sort
+    //     let mut new_degree = 0;
+    //     // deduplicate
+    //     let (mut dedup, _) = slice.partition_dedup();
+    //     if let Ok(idx) = dedup.binary_search(&Node::new(node)) {
+    //         dedup[idx..].rotate_left(1);
+    //         if let Some((_, tail)) = dedup.split_last_mut() {
+    //             dedup = tail;
+    //             new_degree = dedup.len();
+    //         }
+    //     }
+    //     // remove self loops
+    //     new_degrees[node] = new_degree;
+    //     std::mem::swap(&mut target_slices[node], &mut slice);
+    // }
+
+    let new_offsets = unsafe { transmute::<_, Vec<Node>>(prefix_sum(new_degrees)) };
+    assert_eq!(new_offsets.len(), node_count + 1);
+
+    let edge_count = new_offsets[node_count].index();
+
+    let mut new_targets: Vec<Node> = Vec::with_capacity(edge_count);
+
+    let new_target_slices = to_mut_slices(&new_offsets, new_targets.spare_capacity_mut());
+
+    for (old_slice, new_slice) in target_slices.into_iter().zip(new_target_slices.into_iter()) {
+        MaybeUninit::write_slice(new_slice, &old_slice[..new_slice.len()]);
+    }
+
+    // SAFETY: We copied all (potentially shortened) target ids from the old target list to the new one.
+    unsafe {
+        new_targets.set_len(edge_count);
+    }
+
+    (new_offsets, new_targets)
+}
+
+fn to_mut_slices<'targets, Node: Idx, T>(
+    offsets: &[Node],
+    targets: &'targets mut [T],
+) -> Vec<&'targets mut [T]> {
     let node_count = offsets.len() - 1;
     let mut target_slices = Vec::with_capacity(node_count);
     let mut tail = targets;
     let mut prev_offset = offsets[0];
 
-    for &offset in &offsets[1..node_count] {
+    for &offset in &offsets[1..] {
         let (list, remainder) = tail.split_at_mut((offset - prev_offset).index());
         target_slices.push(list);
         tail = remainder;
