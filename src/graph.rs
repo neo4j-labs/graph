@@ -250,29 +250,39 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
         degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
         info!("relabel: sort degree node pairs: {:?}", start.elapsed());
 
-        let mut degrees = Vec::with_capacity(node_count.index());
-        degrees.resize_with(node_count.index(), Node::Atomic::zero);
+        let mut degrees = Vec::<Node>::with_capacity(node_count.index());
+        let mut new_ids = Vec::<Node>::with_capacity(node_count.index());
 
-        let mut new_ids = Vec::with_capacity(node_count.index());
-        new_ids.resize_with(node_count.index(), Node::Atomic::zero);
+        let new_ids_ptr = SharedMut(new_ids.as_mut_ptr());
 
         let start = Instant::now();
         (0..node_count.index())
             .into_par_iter()
-            .map(Node::new)
-            .for_each(|n| {
+            .map(|n| {
                 let (degree, node) = degree_node_pairs[n.index()];
-                degrees[n.index()].store(degree, SeqCst);
-                new_ids[node.index()].store(n, SeqCst);
-            });
-        let new_ids = unsafe { transmute::<_, Vec<Node>>(new_ids) };
+
+                // SAFETY:
+                //   node is the node_id from degree_node_pairs which is created
+                //   from 0..node_count -- the values are all distinct and we will
+                //   not write into the same location in parallel
+                unsafe {
+                    new_ids_ptr.0.add(node.index()).write(Node::new(n));
+                }
+
+                degree
+            })
+            .collect_into_vec(&mut degrees);
+
+        unsafe {
+            new_ids.set_len(node_count.index());
+        }
+
         info!(
             "relabel: store degrees and build mapping: {:?}",
             start.elapsed()
         );
 
-        let offsets = prefix_sum(degrees);
-        let offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
+        let offsets = prefix_sum_non_atomic(degrees);
         let edge_count = offsets[node_count.index()].index();
 
         let mut targets = Vec::<Node>::with_capacity(edge_count);
