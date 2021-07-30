@@ -372,20 +372,26 @@ fn prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
 }
 
 fn sort_targets<Node: Idx>(offsets: &[Node], targets: &mut [Node]) {
+    to_mut_slices(offsets, targets)
+        .par_iter_mut()
+        .for_each(|list| list.sort_unstable());
+}
+
+fn to_mut_slices<'targets, Node: Idx>(
+    offsets: &[Node],
+    targets: &'targets mut [Node],
+) -> Vec<&'targets mut [Node]> {
     let node_count = offsets.len() - 1;
-    let mut target_chunks = Vec::with_capacity(node_count);
+    let mut target_slices = Vec::with_capacity(node_count);
     let mut tail = targets;
     let mut prev_offset = offsets[0];
 
     for &offset in &offsets[1..node_count] {
         let (list, remainder) = tail.split_at_mut((offset - prev_offset).index());
-        target_chunks.push(list);
+        target_slices.push(list);
         tail = remainder;
         prev_offset = offset;
     }
 
-    // do the actual sorting of individual target lists
-    target_chunks
-        .par_iter_mut()
-        .for_each(|list| list.sort_unstable());
+    target_slices
 }
