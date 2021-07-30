@@ -1,9 +1,27 @@
-use crate::graph::{DirectedCSRGraph, NodeLabeledCSRGraph, UndirectedCSRGraph};
 use crate::index::Idx;
 use crate::{DirectedGraph, DirectedGraphOps, UndirectedGraph, UndirectedGraphOps};
 use std::ops::Range;
 
-pub(crate) fn node_map_partition<Node: Idx, F>(
+impl<Node: Idx, D: DirectedGraph<Node>> DirectedGraphOps<Node> for D {
+    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = self.edge_count() / concurrency;
+        node_map_partition(|node| self.out_degree(node), self.node_count(), batch_size)
+    }
+
+    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = self.edge_count() / concurrency;
+        node_map_partition(|node| self.in_degree(node), self.node_count(), batch_size)
+    }
+}
+
+impl<Node: Idx, U: UndirectedGraph<Node>> UndirectedGraphOps<Node> for U {
+    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = (self.edge_count() * Node::new(2)) / concurrency;
+        node_map_partition(|node| self.degree(node), self.node_count(), batch_size)
+    }
+}
+
+fn node_map_partition<Node: Idx, F>(
     node_map: F,
     node_count: Node,
     batch_size: Node,
@@ -27,11 +45,6 @@ where
 
     partitions
 }
-
-impl<Node: Idx> DirectedGraphOps<Node> for DirectedCSRGraph<Node> {}
-impl<Node: Idx> UndirectedGraphOps<Node> for UndirectedCSRGraph<Node> {}
-impl<Node: Idx, G: DirectedGraph<Node>> DirectedGraphOps<Node> for NodeLabeledCSRGraph<G> {}
-impl<Node: Idx, G: UndirectedGraph<Node>> UndirectedGraphOps<Node> for NodeLabeledCSRGraph<G> {}
 
 #[cfg(test)]
 mod tests {

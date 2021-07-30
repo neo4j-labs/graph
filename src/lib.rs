@@ -63,22 +63,13 @@ pub trait InputCapabilities<Node: Idx> {
 }
 
 pub trait UndirectedGraphOps<Node: Idx>: UndirectedGraph<Node> {
-    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
-        let batch_size = (self.edge_count() * Node::new(2)) / concurrency;
-        graph_ops::node_map_partition(|node| self.degree(node), self.node_count(), batch_size)
-    }
+    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
 }
 
 pub trait DirectedGraphOps<Node: Idx>: DirectedGraph<Node> {
-    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
-        let batch_size = self.edge_count() / concurrency;
-        graph_ops::node_map_partition(|node| self.out_degree(node), self.node_count(), batch_size)
-    }
+    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
 
-    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
-        let batch_size = self.edge_count() / concurrency;
-        graph_ops::node_map_partition(|node| self.in_degree(node), self.node_count(), batch_size)
-    }
+    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
 }
 
 pub struct Uninitialized {
