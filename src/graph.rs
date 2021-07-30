@@ -27,6 +27,11 @@ impl Default for CSROption {
     }
 }
 
+#[repr(transparent)]
+struct SharedMut<T>(*mut T);
+unsafe impl<T: Send> Send for SharedMut<T> {}
+unsafe impl<T: Sync> Sync for SharedMut<T> {}
+
 pub struct CSR<Node: Idx> {
     offsets: Box<[Node]>,
     targets: Box<[Node]>,
@@ -64,11 +69,6 @@ type CSRConfiguration<'a, Node> = (&'a EdgeList<Node>, Node, Direction, CSROptio
 
 impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
     fn from((edge_list, node_count, direction, csr_option): CSRConfiguration<'_, Node>) -> Self {
-        #[repr(transparent)]
-        struct TotallySafeSharedMut<T>(*mut T);
-        unsafe impl<T: Send> Send for TotallySafeSharedMut<T> {}
-        unsafe impl<T: Sync> Sync for TotallySafeSharedMut<T> {}
-
         let mut start = Instant::now();
 
         let degrees = edge_list.degrees(node_count, direction);
@@ -82,7 +82,7 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
         let targets_len = offsets[node_count.index()].load(Acquire);
 
         let mut targets = Vec::<Node>::with_capacity(targets_len.index());
-        let targets_ptr = TotallySafeSharedMut(targets.as_mut_ptr());
+        let targets_ptr = SharedMut(targets.as_mut_ptr());
 
         // The following loop writes all targets into their correct position.
         // The offsets are a prefix sum of all degrees, which will produce
@@ -238,6 +238,8 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
 
         let mut degree_node_pairs = Vec::with_capacity(node_count.index());
 
+        let start = Instant::now();
+
         (0..node_count.index())
             .into_par_iter()
             .map(Node::new)
@@ -246,6 +248,7 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
 
         // sort node-degree pairs descending by degree
         degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
+        info!("relabel: sort degree node pairs: {:?}", start.elapsed());
 
         let mut degrees = Vec::with_capacity(node_count.index());
         degrees.resize_with(node_count.index(), Node::Atomic::zero);
@@ -253,6 +256,7 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
         let mut new_ids = Vec::with_capacity(node_count.index());
         new_ids.resize_with(node_count.index(), Node::Atomic::zero);
 
+        let start = Instant::now();
         (0..node_count.index())
             .into_par_iter()
             .map(Node::new)
@@ -261,35 +265,49 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
                 degrees[n.index()].store(degree, SeqCst);
                 new_ids[node.index()].store(n, SeqCst);
             });
+        let new_ids = unsafe { transmute::<_, Vec<Node>>(new_ids) };
+        info!(
+            "relabel: store degrees and build mapping: {:?}",
+            start.elapsed()
+        );
 
         let offsets = prefix_sum(degrees);
+        let offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
+        let edge_count = offsets[node_count.index()].index();
 
-        let edge_count = offsets[node_count.index()].load(SeqCst).index();
-        let mut targets = Vec::with_capacity(edge_count);
-        targets.resize_with(edge_count, Node::Atomic::zero);
+        let mut targets = Vec::<Node>::with_capacity(edge_count);
+        let targets_ptr = SharedMut(targets.as_mut_ptr());
 
+        let start = Instant::now();
         (0..node_count.index())
             .into_par_iter()
             .map(Node::new)
             .for_each(|u| {
-                let new_u = new_ids[u.index()].load(SeqCst);
+                let new_u = new_ids[u.index()];
+                let start_offset = offsets[new_u.index()].index();
+                let mut end_offset = start_offset;
 
                 for &v in self.neighbors(u) {
-                    let new_v = new_ids[v.index()].load(SeqCst);
-                    let offset = offsets[new_u.index()].fetch_add(1, SeqCst);
-                    targets[offset.index()].store(new_v, SeqCst);
+                    unsafe {
+                        targets_ptr.0.add(end_offset).write(new_ids[v.index()]);
+                    }
+                    end_offset += 1;
                 }
+
+                unsafe {
+                    std::slice::from_raw_parts_mut(
+                        targets_ptr.0.add(start_offset),
+                        end_offset - start_offset,
+                    )
+                }
+                .sort_unstable();
             });
 
-        let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
-        let mut targets = unsafe { transmute::<_, Vec<Node>>(targets) };
+        unsafe {
+            targets.set_len(edge_count);
+        }
 
-        // the previous loop moves all offsets one index to the right
-        // we need to correct this to have proper offsets
-        offsets.rotate_right(1);
-        offsets[0] = Node::zero();
-
-        sort_targets(&offsets, &mut targets);
+        info!("relabel: build and sort targets took {:?}", start.elapsed());
 
         let csr = CSR {
             offsets: offsets.into_boxed_slice(),
@@ -402,6 +420,21 @@ fn prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
     last.add_ref(sums.last().unwrap());
     sums.push(last);
 
+    sums
+}
+
+fn prefix_sum_non_atomic<Node: Idx>(degrees: Vec<Node>) -> Vec<Node> {
+    let mut last = *degrees.last().unwrap();
+    let mut sums = degrees
+        .into_iter()
+        .scan(Node::zero(), |total, degree| {
+            let value = *total;
+            *total += degree;
+            Some(value)
+        })
+        .collect::<Vec<_>>();
+    last += *sums.last().unwrap();
+    sums.push(last);
     sums
 }
 

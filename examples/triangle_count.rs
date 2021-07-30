@@ -172,7 +172,7 @@ mod tests {
             .edges(edges)
             .build();
 
-        assert_eq!(global_triangle_count(g), 2);
+        assert_eq!(global_triangle_count(&g), 2);
     }
 
     #[test]
@@ -184,7 +184,7 @@ mod tests {
             .edges(edges)
             .build();
 
-        assert_eq!(global_triangle_count(g), 2);
+        assert_eq!(global_triangle_count(&g), 2);
     }
 
     #[test]
@@ -196,7 +196,7 @@ mod tests {
             .edges(edges)
             .build();
 
-        assert_eq!(global_triangle_count(g), 2);
+        assert_eq!(global_triangle_count(&g), 2);
     }
 }
 

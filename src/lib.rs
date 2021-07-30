@@ -1,6 +1,7 @@
 #![feature(slice_partition_dedup)]
 #![feature(vec_spare_capacity)]
 #![feature(maybe_uninit_write_slice)]
+#![feature(maybe_uninit_slice)]
 #![allow(dead_code)]
 pub mod graph;
 pub mod index;
