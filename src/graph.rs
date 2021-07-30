@@ -99,8 +99,8 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
 
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
-        offsets.pop();
-        offsets.insert(0, Node::zero());
+        offsets.rotate_right(1);
+        offsets[0] = Node::zero();
 
         sort_targets(&offsets, &mut targets);
         info!("sort_targets took {} ms", start.elapsed().as_millis());
@@ -252,8 +252,8 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
 
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
-        offsets.pop();
-        offsets.insert(0, Node::zero());
+        offsets.rotate_right(1);
+        offsets[0] = Node::zero();
 
         sort_targets(&offsets, &mut targets);
 
