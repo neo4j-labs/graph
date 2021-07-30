@@ -50,7 +50,7 @@ fn main() {
     }
 }
 
-fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) {
+fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> u64 {
     let start = Instant::now();
     // let graph = graph.relabel_by_degrees();
     info!(
@@ -87,17 +87,21 @@ fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) {
                                 if v > u {
                                     break;
                                 }
-                                let mut it = graph.neighbors(u).iter();
+
+                                let mut it = graph.neighbors(u);
 
                                 for &w in graph.neighbors(v) {
                                     if w > v {
                                         break;
                                     }
-
-                                    if let Some(x) = it.by_ref().find(|&tmp| *tmp >= w) {
-                                        if *x == w {
-                                            triangles += 1;
+                                    while let Some(&x) = it.first() {
+                                        if x >= w {
+                                            if x == w {
+                                                triangles += 1;
+                                            }
+                                            break;
                                         }
+                                        it = &it[1..];
                                     }
                                 }
                             }
@@ -120,17 +124,21 @@ fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) {
                     if v > u {
                         break;
                     }
-                    let mut it = graph.neighbors(u).iter();
+
+                    let mut it = graph.neighbors(u);
 
                     for &w in graph.neighbors(v) {
                         if w > v {
                             break;
                         }
-
-                        if let Some(x) = it.by_ref().find(|&tmp| *tmp >= w) {
-                            if *x == w {
-                                triangles += 1;
+                        while let Some(&x) = it.first() {
+                            if x >= w {
+                                if x == w {
+                                    triangles += 1;
+                                }
+                                break;
                             }
+                            it = &it[1..];
                         }
                     }
                 }
@@ -144,4 +152,50 @@ fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) {
         start.elapsed(),
         tc
     );
+
+    tc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CSROption;
+    use crate::GraphBuilder;
+    use crate::UndirectedCSRGraph;
+
+    #[test]
+    fn test_tc_two_components() {
+        let edges = vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)];
+
+        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
+            .csr_option(CSROption::Deduplicated)
+            .edges(edges)
+            .build();
+
+        assert_eq!(global_triangle_count(g), 2);
+    }
+
+    #[test]
+    fn test_tc_connected_triangles() {
+        let edges = vec![(0, 1), (0, 2), (1, 2), (0, 4), (0, 5), (4, 5)];
+
+        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
+            .csr_option(CSROption::Deduplicated)
+            .edges(edges)
+            .build();
+
+        assert_eq!(global_triangle_count(g), 2);
+    }
+
+    #[test]
+    fn test_tc_diamond() {
+        let edges = vec![(0, 1), (0, 2), (1, 2), (1, 4), (2, 4)];
+
+        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
+            .csr_option(CSROption::Deduplicated)
+            .edges(edges)
+            .build();
+
+        assert_eq!(global_triangle_count(g), 2);
+    }
 }
