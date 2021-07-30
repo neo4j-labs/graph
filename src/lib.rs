@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 pub mod graph;
+pub mod graph_ops;
 pub mod index;
 pub mod input;
 
@@ -31,11 +32,6 @@ pub trait UndirectedGraph<Node: Idx>: Graph<Node> {
     fn degree(&self, node: Node) -> Node;
 
     fn neighbors(&self, node: Node) -> &[Node];
-
-    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
-        let batch_size = (self.edge_count() * Node::new(2)) / concurrency;
-        graph::node_map_partition(|node| self.degree(node), self.node_count(), batch_size)
-    }
 }
 
 pub trait DirectedGraph<Node: Idx>: Graph<Node> {
@@ -46,16 +42,6 @@ pub trait DirectedGraph<Node: Idx>: Graph<Node> {
     fn in_degree(&self, node: Node) -> Node;
 
     fn in_neighbors(&self, node: Node) -> &[Node];
-
-    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
-        let batch_size = self.edge_count() / concurrency;
-        graph::node_map_partition(|node| self.out_degree(node), self.node_count(), batch_size)
-    }
-
-    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
-        let batch_size = self.edge_count() / concurrency;
-        graph::node_map_partition(|node| self.in_degree(node), self.node_count(), batch_size)
-    }
 }
 
 pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
@@ -74,6 +60,25 @@ pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
 
 pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
+}
+
+pub trait UndirectedGraphOps<Node: Idx>: UndirectedGraph<Node> {
+    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = (self.edge_count() * Node::new(2)) / concurrency;
+        graph_ops::node_map_partition(|node| self.degree(node), self.node_count(), batch_size)
+    }
+}
+
+pub trait DirectedGraphOps<Node: Idx>: DirectedGraph<Node> {
+    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = self.edge_count() / concurrency;
+        graph_ops::node_map_partition(|node| self.out_degree(node), self.node_count(), batch_size)
+    }
+
+    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>> {
+        let batch_size = self.edge_count() / concurrency;
+        graph_ops::node_map_partition(|node| self.in_degree(node), self.node_count(), batch_size)
+    }
 }
 
 pub struct Uninitialized {
