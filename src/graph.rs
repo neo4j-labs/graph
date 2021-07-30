@@ -1,7 +1,10 @@
 use log::info;
-use std::mem::MaybeUninit;
-use std::sync::atomic::Ordering::SeqCst;
-use std::{collections::HashMap, mem::transmute, time::Instant};
+use std::{
+    collections::HashMap,
+    mem::{transmute, MaybeUninit},
+    sync::atomic::Ordering::{Acquire, SeqCst},
+    time::Instant,
+};
 
 use rayon::prelude::*;
 
@@ -61,37 +64,61 @@ type CSRConfiguration<'a, Node> = (&'a EdgeList<Node>, Node, Direction, CSROptio
 
 impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
     fn from((edge_list, node_count, direction, csr_option): CSRConfiguration<'_, Node>) -> Self {
+        #[repr(transparent)]
+        struct TotallySafeSharedMut<T>(*mut T);
+        unsafe impl<T: Send> Send for TotallySafeSharedMut<T> {}
+        unsafe impl<T: Sync> Sync for TotallySafeSharedMut<T> {}
+
         let mut start = Instant::now();
 
         let degrees = edge_list.degrees(node_count, direction);
-        info!("degrees took {} ms", start.elapsed().as_millis());
+        info!("degrees took {:?}", start.elapsed());
         start = Instant::now();
 
         let offsets = prefix_sum(degrees);
-        info!("prefix_sum took {} ms", start.elapsed().as_millis());
+        info!("prefix_sum took {:?}", start.elapsed());
         start = Instant::now();
 
-        let targets_len = offsets[node_count.index()].load(SeqCst);
-        let mut targets = Vec::with_capacity(targets_len.index());
-        targets.resize_with(targets_len.index(), Node::Atomic::zero);
+        let targets_len = offsets[node_count.index()].load(Acquire);
 
-        match direction {
-            Direction::Outgoing => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[s.index()].fetch_add(1, SeqCst).index()].store(*t, SeqCst);
-            }),
-            Direction::Incoming => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[t.index()].fetch_add(1, SeqCst).index()].store(*s, SeqCst);
-            }),
-            Direction::Undirected => edge_list.par_iter().for_each(|(s, t)| {
-                targets[offsets[s.index()].fetch_add(1, SeqCst).index()].store(*t, SeqCst);
-                targets[offsets[t.index()].fetch_add(1, SeqCst).index()].store(*s, SeqCst);
-            }),
+        let mut targets = Vec::<Node>::with_capacity(targets_len.index());
+        let targets_ptr = TotallySafeSharedMut(targets.as_mut_ptr());
+
+        // The following loop writes all targets into their correct position.
+        // The offsets are a prefix sum of all degrees, which will produce
+        // non-overlapping positions for all node values
+        //
+        // SAFETY:
+        //   for any (s, t) tuple from the same edge_list we use the prefix_sum to find
+        //   a unique position for the target value, so that we only write once into each
+        //   position and every thread that might run will write into different positions.
+        if matches!(direction, Direction::Outgoing | Direction::Undirected) {
+            edge_list.par_iter().for_each(|(s, t)| {
+                let offset = offsets[s.index()].fetch_add(1, Acquire);
+
+                unsafe {
+                    targets_ptr.0.add(offset.index()).write(*t);
+                }
+            })
         }
-        info!("targets took {} ms", start.elapsed().as_millis());
+
+        if matches!(direction, Direction::Incoming | Direction::Undirected) {
+            edge_list.par_iter().for_each(|(s, t)| {
+                let offset = offsets[t.index()].fetch_add(1, Acquire);
+                unsafe {
+                    targets_ptr.0.add(offset.index()).write(*s);
+                }
+            })
+        }
+
+        unsafe {
+            targets.set_len(targets_len.index());
+        }
+
+        info!("targets took {:?}", start.elapsed());
         start = Instant::now();
 
         let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
-        let mut targets = unsafe { transmute::<_, Vec<Node>>(targets) };
 
         // the previous loop moves all offsets one index to the right
         // we need to correct this to have proper offsets
@@ -102,15 +129,12 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
             CSROption::Unsorted => (offsets, targets),
             CSROption::Sorted => {
                 sort_targets(&offsets, &mut targets);
-                info!("sort_targets took {} ms", start.elapsed().as_millis());
+                info!("sort_targets took {:?}", start.elapsed());
                 (offsets, targets)
             }
             CSROption::Deduplicated => {
                 let offsets_targets = sort_and_deduplicate_targets(&offsets, &mut targets);
-                info!(
-                    "sort_and_deduplicate_targets took {} ms",
-                    start.elapsed().as_millis()
-                );
+                info!("sort_and_deduplicate_targets took {:?}", start.elapsed());
                 offsets_targets
             }
         };

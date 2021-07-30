@@ -55,10 +55,7 @@ fn main() {
 fn global_triangle_count<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> u64 {
     let start = Instant::now();
     let graph = graph.relabel_by_degrees();
-    info!(
-        "relabel_by_degree() took {} ms",
-        start.elapsed().as_millis()
-    );
+    info!("relabel_by_degree() took {:?}", start.elapsed());
 
     let start = Instant::now();
 
