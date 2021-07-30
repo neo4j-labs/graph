@@ -73,14 +73,14 @@ impl<Node: Idx> EdgeList<Node> {
 
         match direction {
             Direction::Outgoing => self.par_iter().for_each(|(s, _)| {
-                degrees[s.index()].fetch_add(1, SeqCst);
+                degrees[s.index()].get_and_increment(SeqCst);
             }),
             Direction::Incoming => self.par_iter().for_each(|(_, t)| {
-                degrees[t.index()].fetch_add(1, SeqCst);
+                degrees[t.index()].get_and_increment(SeqCst);
             }),
             Direction::Undirected => self.par_iter().for_each(|(s, t)| {
-                degrees[s.index()].fetch_add(1, SeqCst);
-                degrees[t.index()].fetch_add(1, SeqCst);
+                degrees[s.index()].get_and_increment(SeqCst);
+                degrees[t.index()].get_and_increment(SeqCst);
             }),
         }
 

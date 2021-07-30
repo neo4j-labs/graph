@@ -2,7 +2,7 @@ use log::info;
 use std::{
     collections::HashMap,
     mem::{transmute, MaybeUninit},
-    sync::atomic::Ordering::{Acquire, SeqCst},
+    sync::atomic::Ordering::Acquire,
     time::Instant,
 };
 
@@ -94,7 +94,7 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
         //   position and every thread that might run will write into different positions.
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
             edge_list.par_iter().for_each(|(s, t)| {
-                let offset = offsets[s.index()].fetch_add(1, Acquire);
+                let offset = offsets[s.index()].get_and_increment(Acquire);
 
                 unsafe {
                     targets_ptr.0.add(offset.index()).write(*t);
@@ -104,7 +104,7 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
             edge_list.par_iter().for_each(|(s, t)| {
-                let offset = offsets[t.index()].fetch_add(1, Acquire);
+                let offset = offsets[t.index()].get_and_increment(Acquire);
                 unsafe {
                     targets_ptr.0.add(offset.index()).write(*s);
                 }
@@ -417,18 +417,18 @@ impl<Node: Idx, G: From<(EdgeList<Node>, CSROption)>> From<(DotGraph<Node>, CSRO
 }
 
 fn prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
-    let mut last = degrees.last().unwrap().copied();
+    let mut last = degrees.last().unwrap().load(Acquire);
     let mut sums = degrees
         .into_iter()
-        .scan(Node::zero(), |total, degree| {
-            let value = total.copied();
-            total.add(degree);
-            Some(value)
+        .scan(Node::Inner::zero(), |total, degree| {
+            let value = *total;
+            *total += degree.into_inner();
+            Some(value.atomic())
         })
         .collect::<Vec<_>>();
 
-    last.add_ref(sums.last().unwrap());
-    sums.push(last);
+    last += sums.last().unwrap().load(Acquire);
+    sums.push(last.atomic());
 
     sums
 }

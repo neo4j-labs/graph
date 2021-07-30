@@ -74,7 +74,7 @@ fn global_triangle_count<Node: Idx>(graph: &UndirectedCSRGraph<Node>) -> u64 {
                 let mut triangles = 0;
 
                 loop {
-                    let start = next_chunk.fetch_add(64, Ordering::AcqRel);
+                    let start = next_chunk.fetch_add(Node::new(64), Ordering::AcqRel);
                     if start >= graph.node_count() {
                         break;
                     }

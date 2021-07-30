@@ -30,21 +30,17 @@ pub trait Idx:
 }
 
 pub trait AtomicIdx: Send + Sync {
-    type Inner: Idx;
+    type Inner: Idx<Atomic = Self>;
 
     fn load(&self, order: Ordering) -> Self::Inner;
 
-    fn fetch_add(&self, val: usize, order: Ordering) -> Self::Inner;
+    fn fetch_add(&self, val: Self::Inner, order: Ordering) -> Self::Inner;
 
-    fn store(&self, val: Self::Inner, order: Ordering);
+    fn get_and_increment(&self, order: Ordering) -> Self::Inner;
 
     fn zero() -> Self;
 
-    fn copied(&self) -> Self;
-
-    fn add(&mut self, other: Self);
-
-    fn add_ref(&mut self, other: &Self);
+    fn into_inner(self) -> Self::Inner;
 }
 
 impl Idx for usize {
@@ -89,8 +85,8 @@ impl AtomicIdx for AtomicUsize {
     }
 
     #[inline]
-    fn store(&self, val: Self::Inner, order: Ordering) {
-        self.store(val.index(), order)
+    fn get_and_increment(&self, order: Ordering) -> Self::Inner {
+        self.fetch_add(1, order)
     }
 
     #[inline]
@@ -99,18 +95,8 @@ impl AtomicIdx for AtomicUsize {
     }
 
     #[inline]
-    fn copied(&self) -> Self {
-        AtomicUsize::new(self.load(Ordering::SeqCst))
-    }
-
-    #[inline]
-    fn add(&mut self, other: Self) {
-        *self.get_mut() += other.into_inner();
-    }
-
-    #[inline]
-    fn add_ref(&mut self, other: &Self) {
-        *self.get_mut() += other.load(Ordering::SeqCst);
+    fn into_inner(self) -> Self::Inner {
+        self.into_inner()
     }
 }
 
@@ -153,13 +139,13 @@ impl AtomicIdx for AtomicU32 {
     }
 
     #[inline]
-    fn fetch_add(&self, val: usize, order: Ordering) -> Self::Inner {
-        self.fetch_add(val as u32, order)
+    fn fetch_add(&self, val: u32, order: Ordering) -> Self::Inner {
+        self.fetch_add(val, order)
     }
 
     #[inline]
-    fn store(&self, val: Self::Inner, order: Ordering) {
-        self.store(val.index() as u32, order)
+    fn get_and_increment(&self, order: Ordering) -> Self::Inner {
+        self.fetch_add(1, order)
     }
 
     #[inline]
@@ -168,17 +154,7 @@ impl AtomicIdx for AtomicU32 {
     }
 
     #[inline]
-    fn copied(&self) -> Self {
-        AtomicU32::new(self.load(Ordering::SeqCst))
-    }
-
-    #[inline]
-    fn add(&mut self, other: Self) {
-        *self.get_mut() += other.into_inner();
-    }
-
-    #[inline]
-    fn add_ref(&mut self, other: &Self) {
-        *self.get_mut() += other.load(Ordering::SeqCst);
+    fn into_inner(self) -> Self::Inner {
+        self.into_inner()
     }
 }
