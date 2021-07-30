@@ -1,17 +1,9 @@
 use log::info;
 use std::mem::MaybeUninit;
-use std::{
-    collections::HashMap, mem::transmute, slice::SliceIndex, sync::atomic::Ordering::SeqCst,
-    time::Instant,
-};
+use std::sync::atomic::Ordering::SeqCst;
+use std::{collections::HashMap, mem::transmute, time::Instant};
 
-use rayon::iter::IndexedParallelIterator;
-use rayon::{
-    iter::{
-        IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
-    },
-    slice::ParallelSliceMut,
-};
+use rayon::prelude::*;
 
 use crate::{
     index::{AtomicIdx, Idx},
