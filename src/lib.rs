@@ -4,6 +4,7 @@
 #![feature(maybe_uninit_slice)]
 #![allow(dead_code)]
 pub mod graph;
+pub mod graph_ops;
 pub mod index;
 pub mod input;
 
@@ -12,7 +13,7 @@ use crate::index::Idx;
 use input::EdgeList;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::{collections::HashMap, path::Path as StdPath};
+use std::{collections::HashMap, ops::Range, path::Path as StdPath};
 
 use thiserror::Error;
 
@@ -63,6 +64,16 @@ pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
 
 pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
+}
+
+pub trait UndirectedGraphOps<Node: Idx>: UndirectedGraph<Node> {
+    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
+}
+
+pub trait DirectedGraphOps<Node: Idx>: DirectedGraph<Node> {
+    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
+
+    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
 }
 
 pub struct Uninitialized {
