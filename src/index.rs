@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::iter::Step;
+use std::iter::{Step, Sum};
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 use atoi::FromRadix10;
@@ -14,6 +14,7 @@ pub trait Idx:
     + Ord
     + Debug
     + Send
+    + Sum
     + Sync
     + Sized
     + Step
@@ -58,6 +59,7 @@ impl Idx for usize {
     fn zero() -> Self {
         0
     }
+
     #[inline]
     fn index(self) -> usize {
         self
