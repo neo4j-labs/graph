@@ -127,7 +127,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn split_by_3_partition() {
+    fn split_by_partition_3_parts() {
         let partition: Vec<Range<usize>> = vec![0..2, 2..5, 5..10];
         let mut slice: Vec<usize> = (0..10).into_iter().collect();
         let split = split_by_partition(&partition, &mut slice);
@@ -138,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn split_by_8_partition() {
+    fn split_by_partition_8_parts() {
         let partition: Vec<Range<usize>> = vec![0..1, 1..2, 2..3, 3..4, 4..6, 6..7, 7..8, 8..10];
         let mut slice: Vec<usize> = (0..10).into_iter().collect();
         let split = split_by_partition(&partition, &mut slice);
@@ -149,14 +149,14 @@ mod tests {
     }
 
     #[test]
-    fn node_map_1_partition() {
+    fn node_map_partition_1_part() {
         let partitions = node_map_partition(|_| 1_usize, 10, 10);
         assert_eq!(partitions.len(), 1);
         assert_eq!(partitions[0], 0..10);
     }
 
     #[test]
-    fn node_map_2_partitions() {
+    fn node_map_partition_2_parts() {
         let partitions = node_map_partition(|x| x % 2_usize, 10, 4);
         assert_eq!(partitions.len(), 2);
         assert_eq!(partitions[0], 0..8);
@@ -164,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn node_map_6_partitions() {
+    fn node_map_partition_6_parts() {
         let partitions = node_map_partition(|x| x as usize, 10, 6);
         assert_eq!(partitions.len(), 6);
         assert_eq!(partitions[0], 0..4);
