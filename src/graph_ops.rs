@@ -37,7 +37,7 @@ where
         partition_size += node_map(Node::new(i));
 
         if partition_size >= batch_size || i == node_count.index() - 1 {
-            partitions.push(partition_start..Node::new(i));
+            partitions.push(partition_start..Node::new(i + 1));
             partition_size = Node::zero();
             partition_start = Node::new(i + 1);
         }
@@ -54,26 +54,26 @@ mod tests {
     fn node_map_1_partition() {
         let partitions = node_map_partition(|_| 1_usize, 10, 10);
         assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0], 0..9);
+        assert_eq!(partitions[0], 0..10);
     }
 
     #[test]
     fn node_map_2_partitions() {
         let partitions = node_map_partition(|x| x % 2_usize, 10, 4);
         assert_eq!(partitions.len(), 2);
-        assert_eq!(partitions[0], 0..7);
-        assert_eq!(partitions[1], 8..9);
+        assert_eq!(partitions[0], 0..8);
+        assert_eq!(partitions[1], 8..10);
     }
 
     #[test]
     fn node_map_6_partitions() {
         let partitions = node_map_partition(|x| x as usize, 10, 6);
         assert_eq!(partitions.len(), 6);
-        assert_eq!(partitions[0], 0..3);
-        assert_eq!(partitions[1], 4..5);
-        assert_eq!(partitions[2], 6..6);
-        assert_eq!(partitions[3], 7..7);
-        assert_eq!(partitions[4], 8..8);
-        assert_eq!(partitions[5], 9..9);
+        assert_eq!(partitions[0], 0..4);
+        assert_eq!(partitions[1], 4..6);
+        assert_eq!(partitions[2], 6..7);
+        assert_eq!(partitions[3], 7..8);
+        assert_eq!(partitions[4], 8..9);
+        assert_eq!(partitions[5], 9..10);
     }
 }
