@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::iter::Step;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 use atoi::FromRadix10;
@@ -15,6 +16,7 @@ pub trait Idx:
     + Send
     + Sync
     + Sized
+    + Step
     + 'static
 {
     type Atomic: AtomicIdx<Inner = Self>;
