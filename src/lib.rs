@@ -2,6 +2,7 @@
 #![feature(vec_spare_capacity)]
 #![feature(maybe_uninit_write_slice)]
 #![feature(maybe_uninit_slice)]
+#![feature(step_trait)]
 #![allow(dead_code)]
 pub mod builder;
 pub mod graph;
@@ -24,7 +25,7 @@ pub enum Error {
     },
 }
 
-pub trait Graph<Node: Idx> {
+pub trait Graph<Node: Idx>: Sync {
     fn node_count(&self) -> Node;
 
     fn edge_count(&self) -> Node;
@@ -62,6 +63,18 @@ pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
 
 pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
+}
+
+pub trait GraphOps<Node: Idx>: Graph<Node> {
+    fn for_each_node<T, F>(
+        &self,
+        partition: &[Range<Node>],
+        per_node_mutable_state: &mut [T],
+        node_fn: F,
+    ) -> Result<(), std::io::Error>
+    where
+        T: Send,
+        F: Fn(&Self, Node, &mut T) + Send + Sync + Copy;
 }
 
 pub trait UndirectedGraphOps<Node: Idx>: UndirectedGraph<Node> {
