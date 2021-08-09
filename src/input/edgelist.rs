@@ -1,7 +1,6 @@
 use log::info;
 use rayon::prelude::*;
 use std::{
-    collections::HashMap,
     convert::TryFrom,
     fs::File,
     marker::PhantomData,
@@ -11,6 +10,8 @@ use std::{
 };
 
 use crate::{index::AtomicIdx, index::Idx, Error, InputCapabilities};
+
+use super::{Direction, MyPath};
 
 pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,
@@ -48,13 +49,6 @@ impl<Node: Idx> DerefMut for EdgeList<Node> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Direction {
-    Outgoing,
-    Incoming,
-    Undirected,
-}
-
 impl<Node: Idx> EdgeList<Node> {
     pub fn new(edges: Vec<(Node, Node)>) -> Self {
         Self(edges.into_boxed_slice())
@@ -89,8 +83,6 @@ impl<Node: Idx> EdgeList<Node> {
         degrees
     }
 }
-
-pub struct MyPath<P>(pub(crate) P);
 
 impl<Node: Idx, P> TryFrom<MyPath<P>> for EdgeList<Node>
 where
@@ -169,45 +161,11 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
     }
 }
 
-pub struct DotGraphInput<Node: Idx> {
-    _idx: PhantomData<Node>,
-}
-
-impl<Node: Idx> Default for DotGraphInput<Node> {
-    fn default() -> Self {
-        Self { _idx: PhantomData }
-    }
-}
-
-impl<Node: Idx> InputCapabilities<Node> for DotGraphInput<Node> {
-    type GraphInput = DotGraph<Node>;
-}
-
-pub struct DotGraph<Node: Idx> {
-    node_count: Node,
-    relationship_count: Node,
-    labels: Vec<usize>,
-    offsets: Vec<Node>,
-    neighbors: Vec<Node>,
-    max_degree: Node,
-    max_label: usize,
-    label_frequency: HashMap<usize, usize>,
-}
-
-impl<Node: Idx, P> TryFrom<MyPath<P>> for DotGraph<Node>
-where
-    P: AsRef<Path>,
-{
-    type Error = Error;
-
-    fn try_from(_: MyPath<P>) -> Result<Self, Self::Error> {
-        todo!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use crate::input::MyPath;
 
     use super::*;
 
