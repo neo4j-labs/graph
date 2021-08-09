@@ -12,7 +12,7 @@ pub mod input;
 pub mod prelude;
 
 use crate::index::Idx;
-use std::{collections::HashMap, ops::Range};
+use std::collections::HashMap;
 
 use thiserror::Error;
 
@@ -23,9 +23,13 @@ pub enum Error {
         #[from]
         source: std::io::Error,
     },
+    #[error("invalid partitioning")]
+    InvalidPartitioning,
+    #[error("number of node values must be the same as node count")]
+    InvalidNodeValues,
 }
 
-pub trait Graph<Node: Idx>: Sync {
+pub trait Graph<Node: Idx> {
     fn node_count(&self) -> Node;
 
     fn edge_count(&self) -> Node;
@@ -59,28 +63,6 @@ pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
     fn max_label_frequency(&self) -> Node;
 
     fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Node, Node>;
-}
-
-pub trait GraphOps<Node: Idx>: Graph<Node> {
-    fn for_each_node<T, F>(
-        &self,
-        partition: &[Range<Node>],
-        per_node_mutable_state: &mut [T],
-        node_fn: F,
-    ) -> Result<(), std::io::Error>
-    where
-        T: Send,
-        F: Fn(&Self, Node, &mut T) + Send + Sync + Copy;
-}
-
-pub trait UndirectedGraphOps<Node: Idx>: UndirectedGraph<Node> {
-    fn degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
-}
-
-pub trait DirectedGraphOps<Node: Idx>: DirectedGraph<Node> {
-    fn out_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
-
-    fn in_degree_partition(&self, concurrency: Node) -> Vec<Range<Node>>;
 }
 
 #[cfg(test)]
