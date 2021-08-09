@@ -80,8 +80,9 @@ mod tests {
 
     use crate::{
         builder::GraphBuilder,
-        graph::{CSROption, DirectedCSRGraph, NodeLabeledCSRGraph, UndirectedCSRGraph},
-        input::{DotGraphInput, EdgeListInput},
+        graph::csr::{CSROption, DirectedCSRGraph, UndirectedCSRGraph},
+        graph::labeled::NodeLabeledCSRGraph,
+        input::{dotgraph::DotGraphInput, edgelist::EdgeListInput},
     };
 
     use super::*;

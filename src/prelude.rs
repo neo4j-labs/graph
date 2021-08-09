@@ -1,13 +1,13 @@
 pub use crate::builder::GraphBuilder;
 
-pub use crate::graph::CSROption;
-pub use crate::graph::DirectedCSRGraph;
-pub use crate::graph::UndirectedCSRGraph;
+pub use crate::graph::csr::CSROption;
+pub use crate::graph::csr::DirectedCSRGraph;
+pub use crate::graph::csr::UndirectedCSRGraph;
 
 pub use crate::index::Idx;
 
-pub use crate::input::DotGraphInput;
-pub use crate::input::EdgeListInput;
+pub use crate::input::dotgraph::DotGraphInput;
+pub use crate::input::edgelist::EdgeListInput;
 
 pub use crate::DirectedGraph;
 pub use crate::Graph;
