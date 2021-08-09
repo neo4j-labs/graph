@@ -1,8 +1,8 @@
 use std::{collections::HashMap, convert::TryFrom, marker::PhantomData, path::Path};
 
-use crate::{index::Idx, Error, InputCapabilities};
+use crate::{index::Idx, Error};
 
-use super::MyPath;
+use super::{InputCapabilities, MyPath};
 
 pub struct DotGraphInput<Node: Idx> {
     _idx: PhantomData<Node>,

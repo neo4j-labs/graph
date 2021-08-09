@@ -1,6 +1,10 @@
 use std::{convert::TryFrom, marker::PhantomData};
 
-use crate::{graph::csr::CSROption, index::Idx, input::edgelist::EdgeList, InputCapabilities};
+use crate::{
+    graph::csr::CSROption,
+    index::Idx,
+    input::{edgelist::EdgeList, InputCapabilities},
+};
 use std::path::Path as StdPath;
 
 pub struct Uninitialized {

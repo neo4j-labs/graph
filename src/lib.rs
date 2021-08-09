@@ -61,10 +61,6 @@ pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
     fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Node, Node>;
 }
 
-pub trait InputCapabilities<Node: Idx> {
-    type GraphInput;
-}
-
 pub trait GraphOps<Node: Idx>: Graph<Node> {
     fn for_each_node<T, F>(
         &self,

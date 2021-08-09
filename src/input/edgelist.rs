@@ -9,9 +9,9 @@ use std::{
     sync::{atomic::Ordering::SeqCst, Arc, Mutex},
 };
 
-use crate::{index::AtomicIdx, index::Idx, Error, InputCapabilities};
+use crate::{index::AtomicIdx, index::Idx, Error};
 
-use super::{Direction, MyPath};
+use super::{Direction, InputCapabilities, MyPath};
 
 pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,
