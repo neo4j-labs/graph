@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::input::edgelist::EdgeList;
-use crate::{index::Idx, input::dotgraph::DotGraph, DirectedGraph, Graph, UndirectedGraph};
-
-use super::csr::CSROption;
+#[cfg(feature = "dotgraph")]
+use crate::input::dotgraph::DotGraph;
+use crate::{index::Idx, DirectedGraph, Graph, UndirectedGraph};
 
 pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
     fn label(&self, node: Node) -> Node;
@@ -42,7 +41,11 @@ impl<Node: Idx, G: Graph<Node>> Graph<Node> for NodeLabeledCSRGraph<G> {
     }
 }
 
-impl<Node: Idx, G: DirectedGraph<Node>> DirectedGraph<Node> for NodeLabeledCSRGraph<G> {
+impl<Node, G> DirectedGraph<Node> for NodeLabeledCSRGraph<G>
+where
+    Node: Idx,
+    G: DirectedGraph<Node>,
+{
     fn out_degree(&self, node: Node) -> Node {
         self.graph.out_degree(node)
     }
@@ -60,7 +63,11 @@ impl<Node: Idx, G: DirectedGraph<Node>> DirectedGraph<Node> for NodeLabeledCSRGr
     }
 }
 
-impl<Node: Idx, G: UndirectedGraph<Node>> UndirectedGraph<Node> for NodeLabeledCSRGraph<G> {
+impl<Node, G> UndirectedGraph<Node> for NodeLabeledCSRGraph<G>
+where
+    Node: Idx,
+    G: UndirectedGraph<Node>,
+{
     fn degree(&self, node: Node) -> Node {
         self.graph.degree(node)
     }
@@ -70,10 +77,34 @@ impl<Node: Idx, G: UndirectedGraph<Node>> UndirectedGraph<Node> for NodeLabeledC
     }
 }
 
+#[cfg(feature = "dotgraph")]
 impl<Node: Idx, G: From<(EdgeList<Node>, CSROption)>> From<(DotGraph<Node>, CSROption)>
     for NodeLabeledCSRGraph<G>
 {
     fn from(_: (DotGraph<Node>, CSROption)) -> Self {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "dotgraph")]
+    #[test]
+    fn should_compile_test() {
+        fn inner_test() -> Result<(), Error> {
+            let _g: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> = GraphBuilder::new()
+                .file_format(DotGraphInput::default())
+                .path("graph")
+                .build()?;
+
+            let _g: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> = GraphBuilder::new()
+                .file_format(DotGraphInput::default())
+                .path("graph")
+                .build()?;
+
+            Ok(())
+        }
+
+        assert!(inner_test().is_err())
     }
 }

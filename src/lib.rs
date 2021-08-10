@@ -57,8 +57,7 @@ mod tests {
     use crate::{
         builder::GraphBuilder,
         graph::csr::{CSROption, DirectedCSRGraph, UndirectedCSRGraph},
-        graph::labeled::NodeLabeledCSRGraph,
-        input::{dotgraph::DotGraphInput, edgelist::EdgeListInput},
+        input::edgelist::EdgeListInput,
     };
 
     use super::*;
@@ -78,16 +77,6 @@ mod tests {
 
             let _g: UndirectedCSRGraph<usize> = GraphBuilder::new()
                 .file_format(EdgeListInput::default())
-                .path("graph")
-                .build()?;
-
-            let _g: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> = GraphBuilder::new()
-                .file_format(DotGraphInput::default())
-                .path("graph")
-                .build()?;
-
-            let _g: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> = GraphBuilder::new()
-                .file_format(DotGraphInput::default())
                 .path("graph")
                 .build()?;
 

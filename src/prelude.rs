@@ -6,7 +6,6 @@ pub use crate::graph::csr::UndirectedCSRGraph;
 
 pub use crate::index::Idx;
 
-pub use crate::input::dotgraph::DotGraphInput;
 pub use crate::input::edgelist::EdgeListInput;
 
 pub use crate::DirectedGraph;

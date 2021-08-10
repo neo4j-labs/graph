@@ -1,5 +1,6 @@
 use crate::index::Idx;
 
+#[cfg(feature = "dotgraph")]
 pub mod dotgraph;
 pub mod edgelist;
 
