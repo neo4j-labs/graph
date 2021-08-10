@@ -6,12 +6,14 @@ use graph::prelude::*;
 
 use graph::index::AtomicIdx;
 
+const CHUNK_SIZE: usize = 64;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let cli::AppArgs {
         path,
         use_32_bit,
-        iterations,
+        runs,
         relabel,
     } = cli::create()?;
 
@@ -22,18 +24,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     if use_32_bit {
-        run::<u32>(path, relabel, iterations)
+        run::<u32>(path, relabel, runs)
     } else {
-        run::<usize>(path, relabel, iterations)
+        run::<usize>(path, relabel, runs)
     }
 }
 
 fn run<Node: Idx>(
     path: PathBuf,
     relabel: bool,
-    iterations: usize,
+    runs: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut g: UndirectedCSRGraph<Node> = GraphBuilder::new()
+    let mut graph: UndirectedCSRGraph<Node> = GraphBuilder::new()
         .csr_option(CSROption::Deduplicated)
         .file_format(EdgeListInput::default())
         .path(path)
@@ -41,11 +43,11 @@ fn run<Node: Idx>(
         .unwrap();
 
     if relabel {
-        g = relabel_graph(g);
+        graph = relabel_graph(graph);
     }
 
-    for _ in 0..iterations {
-        global_triangle_count(&g);
+    for _ in 0..runs {
+        global_triangle_count(&graph);
     }
 
     Ok(())
@@ -70,16 +72,14 @@ fn global_triangle_count<Node: Idx>(graph: &UndirectedCSRGraph<Node>) -> u64 {
                 let mut triangles = 0;
 
                 loop {
-                    let start = next_chunk.fetch_add(Node::new(64), Ordering::AcqRel);
+                    let start = next_chunk.fetch_add(Node::new(CHUNK_SIZE), Ordering::AcqRel);
                     if start >= graph.node_count() {
                         break;
                     }
 
-                    let end = (start + Node::new(64)).min(graph.node_count());
+                    let end = (start + Node::new(CHUNK_SIZE)).min(graph.node_count());
 
-                    for n in start.index()..end.index() {
-                        let u = Node::new(n);
-
+                    for u in start..end {
                         for &v in graph.neighbors(u) {
                             if v > u {
                                 break;
@@ -127,7 +127,7 @@ mod cli {
     #[derive(Debug)]
     pub(crate) struct AppArgs {
         pub(crate) path: std::path::PathBuf,
-        pub(crate) iterations: usize,
+        pub(crate) runs: usize,
         pub(crate) use_32_bit: bool,
         pub(crate) relabel: bool,
     }
@@ -141,9 +141,7 @@ mod cli {
 
         let args = AppArgs {
             path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
-            iterations: pargs
-                .opt_value_from_str(["-i", "--iterations"])?
-                .unwrap_or(1),
+            runs: pargs.opt_value_from_str(["-r", "--runs"])?.unwrap_or(1),
             use_32_bit: pargs.contains("--use-32-bit"),
             relabel: pargs.contains("--relabel"),
         };
