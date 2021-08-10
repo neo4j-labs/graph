@@ -3,7 +3,7 @@ use std::{convert::TryFrom, marker::PhantomData};
 use crate::{
     graph::csr::CSROption,
     index::Idx,
-    input::{edgelist::EdgeList, InputCapabilities},
+    input::{EdgeList, InputCapabilities},
 };
 use std::path::Path as StdPath;
 

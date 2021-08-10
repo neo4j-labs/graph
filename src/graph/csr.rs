@@ -9,7 +9,7 @@ use rayon::prelude::*;
 
 use crate::{
     index::{AtomicIdx, Idx},
-    input::{edgelist::EdgeList, Direction},
+    input::{Direction, EdgeList},
     DirectedGraph, Graph, UndirectedGraph,
 };
 

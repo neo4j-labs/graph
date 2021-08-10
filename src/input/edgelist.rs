@@ -1,17 +1,15 @@
 use log::info;
-use rayon::prelude::*;
 use std::{
     convert::TryFrom,
     fs::File,
     marker::PhantomData,
-    ops::{Deref, DerefMut},
     path::Path,
-    sync::{atomic::Ordering::SeqCst, Arc, Mutex},
+    sync::{Arc, Mutex},
 };
 
-use crate::{index::AtomicIdx, index::Idx, Error};
+use crate::{index::Idx, Error};
 
-use super::{Direction, InputCapabilities, MyPath};
+use super::{EdgeList, InputCapabilities, MyPath};
 
 pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,
@@ -25,63 +23,6 @@ impl<Node: Idx> Default for EdgeListInput<Node> {
 
 impl<Node: Idx> InputCapabilities<Node> for EdgeListInput<Node> {
     type GraphInput = EdgeList<Node>;
-}
-
-pub struct EdgeList<Node: Idx>(Box<[(Node, Node)]>);
-
-impl<Node: Idx> AsRef<[(Node, Node)]> for EdgeList<Node> {
-    fn as_ref(&self) -> &[(Node, Node)] {
-        &self.0
-    }
-}
-
-impl<Node: Idx> Deref for EdgeList<Node> {
-    type Target = [(Node, Node)];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<Node: Idx> DerefMut for EdgeList<Node> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<Node: Idx> EdgeList<Node> {
-    pub fn new(edges: Vec<(Node, Node)>) -> Self {
-        Self(edges.into_boxed_slice())
-    }
-
-    pub(crate) fn max_node_id(&self) -> Node {
-        self.0
-            .par_iter()
-            .map(|(s, t)| Node::max(*s, *t))
-            .reduce(Node::zero, Node::max)
-    }
-
-    pub(crate) fn degrees(&self, node_count: Node, direction: Direction) -> Vec<Node::Atomic> {
-        let mut degrees = Vec::with_capacity(node_count.index());
-        degrees.resize_with(node_count.index(), Node::Atomic::zero);
-
-        match direction {
-            Direction::Outgoing => self.par_iter().for_each(|(s, _)| {
-                degrees[s.index()].get_and_increment(SeqCst);
-            }),
-            Direction::Incoming => self.par_iter().for_each(|(_, t)| {
-                degrees[t.index()].get_and_increment(SeqCst);
-            }),
-            Direction::Undirected => self.par_iter().for_each(|(s, t)| {
-                degrees[s.index()].get_and_increment(SeqCst);
-                degrees[t.index()].get_and_increment(SeqCst);
-            }),
-        }
-
-        // This is safe, since AtomicNode is guaranteed to have the same memory layout as Node.
-        // unsafe { std::mem::transmute(degrees) }
-        degrees
-    }
 }
 
 impl<Node: Idx, P> TryFrom<MyPath<P>> for EdgeList<Node>
