@@ -3,7 +3,7 @@ use std::{convert::TryFrom, marker::PhantomData};
 use crate::{
     graph::csr::CSROption,
     index::Idx,
-    input::{EdgeList, InputCapabilities},
+    input::{EdgeList, InputCapabilities, InputPath},
 };
 use std::path::Path as StdPath;
 
@@ -26,7 +26,7 @@ where
     P: AsRef<StdPath>,
     Node: Idx,
     Format: InputCapabilities<Node>,
-    Format::GraphInput: TryFrom<crate::input::MyPath<P>>,
+    Format::GraphInput: TryFrom<InputPath<P>>,
 {
     csr_option: CSROption,
     format: Format,
@@ -39,7 +39,7 @@ where
     P: AsRef<StdPath>,
     Node: Idx,
     Format: InputCapabilities<Node>,
-    Format::GraphInput: TryFrom<crate::input::MyPath<P>>,
+    Format::GraphInput: TryFrom<InputPath<P>>,
 {
     csr_option: CSROption,
     format: Format,
@@ -93,7 +93,7 @@ impl GraphBuilder<Uninitialized> {
         Path: AsRef<StdPath>,
         Node: Idx,
         Format: InputCapabilities<Node>,
-        Format::GraphInput: TryFrom<crate::input::MyPath<Path>>,
+        Format::GraphInput: TryFrom<InputPath<Path>>,
     {
         GraphBuilder {
             state: FromInput {
@@ -127,7 +127,7 @@ where
     Path: AsRef<StdPath>,
     Node: Idx,
     Format: InputCapabilities<Node>,
-    Format::GraphInput: TryFrom<crate::input::MyPath<Path>>,
+    Format::GraphInput: TryFrom<InputPath<Path>>,
 {
     pub fn path(self, path: Path) -> GraphBuilder<FromPath<Node, Path, Format>> {
         GraphBuilder {
@@ -146,16 +146,16 @@ where
     Path: AsRef<StdPath>,
     Node: Idx,
     Format: InputCapabilities<Node>,
-    Format::GraphInput: TryFrom<crate::input::MyPath<Path>>,
+    Format::GraphInput: TryFrom<InputPath<Path>>,
 {
     pub fn build<Graph>(
         self,
-    ) -> Result<Graph, <Format::GraphInput as TryFrom<crate::input::MyPath<Path>>>::Error>
+    ) -> Result<Graph, <Format::GraphInput as TryFrom<InputPath<Path>>>::Error>
     where
         Graph: From<(Format::GraphInput, CSROption)>,
     {
         Ok(Graph::from((
-            Format::GraphInput::try_from(crate::input::MyPath(self.state.path))?,
+            Format::GraphInput::try_from(InputPath(self.state.path))?,
             self.state.csr_option,
         )))
     }

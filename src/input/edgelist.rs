@@ -9,7 +9,7 @@ use std::{
 
 use crate::{index::Idx, Error};
 
-use super::{EdgeList, InputCapabilities, MyPath};
+use super::{EdgeList, InputCapabilities, InputPath};
 
 pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,
@@ -25,13 +25,13 @@ impl<Node: Idx> InputCapabilities<Node> for EdgeListInput<Node> {
     type GraphInput = EdgeList<Node>;
 }
 
-impl<Node: Idx, P> TryFrom<MyPath<P>> for EdgeList<Node>
+impl<Node: Idx, P> TryFrom<InputPath<P>> for EdgeList<Node>
 where
     P: AsRef<Path>,
 {
     type Error = Error;
 
-    fn try_from(path: MyPath<P>) -> Result<Self, Self::Error> {
+    fn try_from(path: InputPath<P>) -> Result<Self, Self::Error> {
         let file = File::open(path.0.as_ref())?;
         let mmap = unsafe { memmap2::MmapOptions::new().populate().map(&file)? };
         EdgeList::try_from(mmap.as_ref())
@@ -106,7 +106,7 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::input::MyPath;
+    use crate::input::InputPath;
 
     use super::*;
 
@@ -116,7 +116,7 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let edge_list = EdgeList::<usize>::try_from(MyPath(path.as_path())).unwrap();
+        let edge_list = EdgeList::<usize>::try_from(InputPath(path.as_path())).unwrap();
 
         assert_eq!(2, edge_list.max_node_id());
     }

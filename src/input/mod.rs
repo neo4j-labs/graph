@@ -10,7 +10,7 @@ use std::{
 pub mod dotgraph;
 pub mod edgelist;
 
-pub struct MyPath<P>(pub(crate) P);
+pub struct InputPath<P>(pub(crate) P);
 
 pub trait InputCapabilities<Node: Idx> {
     type GraphInput;
