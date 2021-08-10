@@ -70,11 +70,11 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
         let mut start = Instant::now();
 
         let degrees = edge_list.degrees(node_count, direction);
-        info!("degrees took {:?}", start.elapsed());
+        info!("Computed degrees in {:?}", start.elapsed());
         start = Instant::now();
 
         let offsets = prefix_sum(degrees);
-        info!("prefix_sum took {:?}", start.elapsed());
+        info!("Computed prefix sum in {:?}", start.elapsed());
         start = Instant::now();
 
         let targets_len = offsets[node_count.index()].load(Acquire);
@@ -113,7 +113,7 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
             targets.set_len(targets_len.index());
         }
 
-        info!("targets took {:?}", start.elapsed());
+        info!("Computed target array in {:?}", start.elapsed());
         start = Instant::now();
 
         let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
@@ -127,12 +127,12 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
             CSROption::Unsorted => (offsets, targets),
             CSROption::Sorted => {
                 sort_targets(&offsets, &mut targets);
-                info!("sort_targets took {:?}", start.elapsed());
+                info!("Sorted targets in {:?}", start.elapsed());
                 (offsets, targets)
             }
             CSROption::Deduplicated => {
                 let offsets_targets = sort_and_deduplicate_targets(&offsets, &mut targets);
-                info!("sort_and_deduplicate_targets took {:?}", start.elapsed());
+                info!("Sorted and deduplicated targets in {:?}", start.elapsed());
                 offsets_targets
             }
         };

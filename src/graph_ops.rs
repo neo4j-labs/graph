@@ -194,7 +194,7 @@ where
 
     // sort node-degree pairs descending by degree
     degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
-    info!("relabel: sort degree node pairs: {:?}", start.elapsed());
+    info!("Relabel: sorted degree-node-pairs in {:?}", start.elapsed());
 
     let mut degrees = Vec::<Node>::with_capacity(node_count.index());
     let mut new_ids = Vec::<Node>::with_capacity(node_count.index());
@@ -224,7 +224,7 @@ where
     }
 
     info!(
-        "relabel: store degrees and build mapping: {:?}",
+        "Relabel: built degrees and node mapping in {:?}",
         start.elapsed()
     );
 
@@ -263,7 +263,7 @@ where
         targets.set_len(edge_count);
     }
 
-    info!("relabel: build and sort targets took {:?}", start.elapsed());
+    info!("Relabel: built and sorted targets in {:?}", start.elapsed());
 
     G::from(CSR::new(
         offsets.into_boxed_slice(),

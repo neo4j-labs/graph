@@ -1,4 +1,5 @@
 use log::info;
+use num_format::{Locale, ToFormattedString};
 use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 
 use graph::prelude::*;
@@ -53,7 +54,7 @@ fn run<Node: Idx>(
 fn relabel_graph<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> UndirectedCSRGraph<Node> {
     let start = Instant::now();
     let graph = graph.relabel_by_degree();
-    info!("relabel_by_degree() took {:?}", start.elapsed());
+    info!("Relabeled graph in {:?}", start.elapsed());
     graph
 }
 
@@ -111,9 +112,9 @@ fn global_triangle_count<Node: Idx>(graph: &UndirectedCSRGraph<Node>) -> u64 {
     let tc = total_triangles.load(Ordering::SeqCst);
 
     info!(
-        "Triangle counting finished in {:?} seconds .. global triangle count = {}",
-        start.elapsed(),
-        tc
+        "Computed {} triangles in {:?}",
+        tc.to_formatted_string(&Locale::en),
+        start.elapsed()
     );
 
     tc
