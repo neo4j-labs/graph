@@ -22,7 +22,7 @@ pub trait ForEachNodeOp<Node: Idx> {
     fn for_each_node<T, F>(
         &self,
         partition: &[Range<Node>],
-        per_node_mutable_state: &mut [T],
+        node_values: &mut [T],
         node_fn: F,
     ) -> Result<(), Error>
     where
