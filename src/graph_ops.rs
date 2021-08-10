@@ -212,7 +212,7 @@ where
             //   from 0..node_count -- the values are all distinct and we will
             //   not write into the same location in parallel
             unsafe {
-                new_ids_ptr.0.add(node.index()).write(Node::new(n));
+                new_ids_ptr.add(node.index()).write(Node::new(n));
             }
 
             degree
@@ -245,14 +245,14 @@ where
 
             for &v in graph.neighbors(u) {
                 unsafe {
-                    targets_ptr.0.add(end_offset).write(new_ids[v.index()]);
+                    targets_ptr.add(end_offset).write(new_ids[v.index()]);
                 }
                 end_offset += 1;
             }
 
             unsafe {
                 std::slice::from_raw_parts_mut(
-                    targets_ptr.0.add(start_offset),
+                    targets_ptr.add(start_offset),
                     end_offset - start_offset,
                 )
             }

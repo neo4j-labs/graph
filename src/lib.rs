@@ -53,15 +53,19 @@ pub trait DirectedGraph<Node: Idx>: Graph<Node> {
 }
 
 #[repr(transparent)]
-pub struct SharedMut<T>(pub *mut T);
+pub struct SharedMut<T>(*mut T);
 unsafe impl<T: Send> Send for SharedMut<T> {}
 unsafe impl<T: Sync> Sync for SharedMut<T> {}
 
-impl<T> Deref for SharedMut<T> {
-    type Target = *mut T;
+impl<T> SharedMut<T> {
+    pub fn new(ptr: *mut T) -> Self {
+        SharedMut(ptr)
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    delegate::delegate! {
+        to self.0 {
+            pub unsafe fn add(&self, count: usize) -> *mut T;
+        }
     }
 }
 
