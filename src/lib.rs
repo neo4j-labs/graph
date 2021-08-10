@@ -11,6 +11,8 @@ pub mod index;
 pub mod input;
 pub mod prelude;
 
+use std::ops::Deref;
+
 use crate::index::Idx;
 
 use thiserror::Error;
@@ -51,9 +53,17 @@ pub trait DirectedGraph<Node: Idx>: Graph<Node> {
 }
 
 #[repr(transparent)]
-struct SharedMut<T>(*mut T);
+pub struct SharedMut<T>(pub *mut T);
 unsafe impl<T: Send> Send for SharedMut<T> {}
 unsafe impl<T: Sync> Sync for SharedMut<T> {}
+
+impl<T> Deref for SharedMut<T> {
+    type Target = *mut T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[cfg(test)]
 mod tests {
