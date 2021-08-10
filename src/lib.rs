@@ -12,7 +12,6 @@ pub mod input;
 pub mod prelude;
 
 use crate::index::Idx;
-use std::collections::HashMap;
 
 use thiserror::Error;
 
@@ -49,20 +48,6 @@ pub trait DirectedGraph<Node: Idx>: Graph<Node> {
     fn in_degree(&self, node: Node) -> Node;
 
     fn in_neighbors(&self, node: Node) -> &[Node];
-}
-
-pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
-    fn label(&self, node: Node) -> Node;
-
-    fn nodes_by_label(&self, label: Node) -> &[Node];
-
-    fn label_count(&self) -> Node;
-
-    fn max_label(&self) -> Node;
-
-    fn max_label_frequency(&self) -> Node;
-
-    fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Node, Node>;
 }
 
 #[cfg(test)]
