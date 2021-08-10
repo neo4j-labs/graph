@@ -1,10 +1,13 @@
+use log::info;
 use rayon::prelude::*;
 
+use crate::graph::csr::{prefix_sum_non_atomic, CSR};
 use crate::index::Idx;
-use crate::{DirectedGraph, Error, Graph, UndirectedGraph};
+use crate::{DirectedGraph, Error, Graph, SharedMut, UndirectedGraph};
 
 use std::ops::Range;
 use std::sync::Arc;
+use std::time::Instant;
 
 pub trait DegreePartitionOp<Node: Idx> {
     fn degree_partition(&self, concurrency: usize) -> Vec<Range<Node>>;
@@ -28,6 +31,20 @@ pub trait ForEachNodeOp<Node: Idx> {
     where
         T: Send,
         F: Fn(&Self, Node, &mut T) + Send + Sync;
+}
+
+pub trait RelabelByDegreeOp<Node: Idx> {
+    fn relabel_by_degree(self) -> Self;
+}
+
+impl<Node, G> RelabelByDegreeOp<Node> for G
+where
+    Node: Idx,
+    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+{
+    fn relabel_by_degree(self) -> Self {
+        relabel_by_degree(self)
+    }
 }
 
 impl<Node, G> ForEachNodeOp<Node> for G
@@ -156,6 +173,102 @@ where
     }
 
     partitions
+}
+
+fn relabel_by_degree<Node, G>(graph: G) -> G
+where
+    Node: Idx,
+    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+{
+    let node_count = graph.node_count();
+
+    let mut degree_node_pairs = Vec::with_capacity(node_count.index());
+
+    let start = Instant::now();
+
+    (0..node_count.index())
+        .into_par_iter()
+        .map(Node::new)
+        .map(|node_id| (graph.degree(node_id), node_id))
+        .collect_into_vec(&mut degree_node_pairs);
+
+    // sort node-degree pairs descending by degree
+    degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
+    info!("relabel: sort degree node pairs: {:?}", start.elapsed());
+
+    let mut degrees = Vec::<Node>::with_capacity(node_count.index());
+    let mut new_ids = Vec::<Node>::with_capacity(node_count.index());
+
+    let new_ids_ptr = SharedMut(new_ids.as_mut_ptr());
+
+    let start = Instant::now();
+    (0..node_count.index())
+        .into_par_iter()
+        .map(|n| {
+            let (degree, node) = degree_node_pairs[n.index()];
+
+            // SAFETY:
+            //   node is the node_id from degree_node_pairs which is created
+            //   from 0..node_count -- the values are all distinct and we will
+            //   not write into the same location in parallel
+            unsafe {
+                new_ids_ptr.0.add(node.index()).write(Node::new(n));
+            }
+
+            degree
+        })
+        .collect_into_vec(&mut degrees);
+
+    unsafe {
+        new_ids.set_len(node_count.index());
+    }
+
+    info!(
+        "relabel: store degrees and build mapping: {:?}",
+        start.elapsed()
+    );
+
+    let offsets = prefix_sum_non_atomic(degrees);
+    let edge_count = offsets[node_count.index()].index();
+
+    let mut targets = Vec::<Node>::with_capacity(edge_count);
+    let targets_ptr = SharedMut(targets.as_mut_ptr());
+
+    let start = Instant::now();
+    (0..node_count.index())
+        .into_par_iter()
+        .map(Node::new)
+        .for_each(|u| {
+            let new_u = new_ids[u.index()];
+            let start_offset = offsets[new_u.index()].index();
+            let mut end_offset = start_offset;
+
+            for &v in graph.neighbors(u) {
+                unsafe {
+                    targets_ptr.0.add(end_offset).write(new_ids[v.index()]);
+                }
+                end_offset += 1;
+            }
+
+            unsafe {
+                std::slice::from_raw_parts_mut(
+                    targets_ptr.0.add(start_offset),
+                    end_offset - start_offset,
+                )
+            }
+            .sort_unstable();
+        });
+
+    unsafe {
+        targets.set_len(edge_count);
+    }
+
+    info!("relabel: build and sort targets took {:?}", start.elapsed());
+
+    G::from(CSR::new(
+        offsets.into_boxed_slice(),
+        targets.into_boxed_slice(),
+    ))
 }
 
 #[cfg(test)]

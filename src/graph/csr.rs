@@ -10,7 +10,7 @@ use rayon::prelude::*;
 use crate::{
     index::{AtomicIdx, Idx},
     input::{Direction, EdgeList},
-    DirectedGraph, Graph, UndirectedGraph,
+    DirectedGraph, Graph, SharedMut, UndirectedGraph,
 };
 
 #[derive(Clone, Copy)]
@@ -26,17 +26,16 @@ impl Default for CSROption {
     }
 }
 
-#[repr(transparent)]
-struct SharedMut<T>(*mut T);
-unsafe impl<T: Send> Send for SharedMut<T> {}
-unsafe impl<T: Sync> Sync for SharedMut<T> {}
-
 pub struct CSR<Node: Idx> {
     offsets: Box<[Node]>,
     targets: Box<[Node]>,
 }
 
 impl<Node: Idx> CSR<Node> {
+    pub(crate) fn new(offsets: Box<[Node]>, targets: Box<[Node]>) -> Self {
+        Self { offsets, targets }
+    }
+
     #[inline]
     fn node_count(&self) -> Node {
         Node::new(self.offsets.len() - 1)
@@ -215,6 +214,12 @@ pub struct UndirectedCSRGraph<Node: Idx> {
     edges: CSR<Node>,
 }
 
+impl<Node: Idx> From<CSR<Node>> for UndirectedCSRGraph<Node> {
+    fn from(csr: CSR<Node>) -> Self {
+        UndirectedCSRGraph::new(csr)
+    }
+}
+
 impl<Node: Idx> UndirectedCSRGraph<Node> {
     pub fn new(edges: CSR<Node>) -> Self {
         let node_count = edges.node_count();
@@ -230,100 +235,6 @@ impl<Node: Idx> UndirectedCSRGraph<Node> {
             edge_count,
             edges,
         }
-    }
-
-    pub fn relabel_by_degrees(self) -> Self {
-        let node_count = self.node_count();
-
-        let mut degree_node_pairs = Vec::with_capacity(node_count.index());
-
-        let start = Instant::now();
-
-        (0..node_count.index())
-            .into_par_iter()
-            .map(Node::new)
-            .map(|node_id| (self.degree(node_id), node_id))
-            .collect_into_vec(&mut degree_node_pairs);
-
-        // sort node-degree pairs descending by degree
-        degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
-        info!("relabel: sort degree node pairs: {:?}", start.elapsed());
-
-        let mut degrees = Vec::<Node>::with_capacity(node_count.index());
-        let mut new_ids = Vec::<Node>::with_capacity(node_count.index());
-
-        let new_ids_ptr = SharedMut(new_ids.as_mut_ptr());
-
-        let start = Instant::now();
-        (0..node_count.index())
-            .into_par_iter()
-            .map(|n| {
-                let (degree, node) = degree_node_pairs[n.index()];
-
-                // SAFETY:
-                //   node is the node_id from degree_node_pairs which is created
-                //   from 0..node_count -- the values are all distinct and we will
-                //   not write into the same location in parallel
-                unsafe {
-                    new_ids_ptr.0.add(node.index()).write(Node::new(n));
-                }
-
-                degree
-            })
-            .collect_into_vec(&mut degrees);
-
-        unsafe {
-            new_ids.set_len(node_count.index());
-        }
-
-        info!(
-            "relabel: store degrees and build mapping: {:?}",
-            start.elapsed()
-        );
-
-        let offsets = prefix_sum_non_atomic(degrees);
-        let edge_count = offsets[node_count.index()].index();
-
-        let mut targets = Vec::<Node>::with_capacity(edge_count);
-        let targets_ptr = SharedMut(targets.as_mut_ptr());
-
-        let start = Instant::now();
-        (0..node_count.index())
-            .into_par_iter()
-            .map(Node::new)
-            .for_each(|u| {
-                let new_u = new_ids[u.index()];
-                let start_offset = offsets[new_u.index()].index();
-                let mut end_offset = start_offset;
-
-                for &v in self.neighbors(u) {
-                    unsafe {
-                        targets_ptr.0.add(end_offset).write(new_ids[v.index()]);
-                    }
-                    end_offset += 1;
-                }
-
-                unsafe {
-                    std::slice::from_raw_parts_mut(
-                        targets_ptr.0.add(start_offset),
-                        end_offset - start_offset,
-                    )
-                }
-                .sort_unstable();
-            });
-
-        unsafe {
-            targets.set_len(edge_count);
-        }
-
-        info!("relabel: build and sort targets took {:?}", start.elapsed());
-
-        let csr = CSR {
-            offsets: offsets.into_boxed_slice(),
-            targets: targets.into_boxed_slice(),
-        };
-
-        UndirectedCSRGraph::new(csr)
     }
 }
 
@@ -373,7 +284,7 @@ fn prefix_sum<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
     sums
 }
 
-fn prefix_sum_non_atomic<Node: Idx>(degrees: Vec<Node>) -> Vec<Node> {
+pub(crate) fn prefix_sum_non_atomic<Node: Idx>(degrees: Vec<Node>) -> Vec<Node> {
     let mut last = *degrees.last().unwrap();
     let mut sums = degrees
         .into_iter()

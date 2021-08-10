@@ -50,6 +50,11 @@ pub trait DirectedGraph<Node: Idx>: Graph<Node> {
     fn in_neighbors(&self, node: Node) -> &[Node];
 }
 
+#[repr(transparent)]
+struct SharedMut<T>(*mut T);
+unsafe impl<T: Send> Send for SharedMut<T> {}
+unsafe impl<T: Sync> Sync for SharedMut<T> {}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
