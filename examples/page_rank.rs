@@ -82,8 +82,8 @@ fn page_rank<Node: Idx>(
 
     let mut scores = Vec::with_capacity(node_count);
 
-    let scores_ptr = SharedMut(scores.as_mut_ptr());
-    let out_scores_ptr = SharedMut(out_scores.as_mut_ptr());
+    let scores_ptr = SharedMut::new(scores.as_mut_ptr());
+    let out_scores_ptr = SharedMut::new(out_scores.as_mut_ptr());
 
     unsafe {
         scores.set_len(node_count);

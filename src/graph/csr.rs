@@ -95,7 +95,7 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
                 let offset = offsets[s.index()].get_and_increment(Acquire);
 
                 unsafe {
-                    targets_ptr.0.add(offset.index()).write(*t);
+                    targets_ptr.add(offset.index()).write(*t);
                 }
             })
         }
@@ -104,7 +104,7 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
             edge_list.par_iter().for_each(|(s, t)| {
                 let offset = offsets[t.index()].get_and_increment(Acquire);
                 unsafe {
-                    targets_ptr.0.add(offset.index()).write(*s);
+                    targets_ptr.add(offset.index()).write(*s);
                 }
             })
         }
