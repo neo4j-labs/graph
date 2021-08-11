@@ -1,7 +1,10 @@
 [package]
 name = "graph"
 version = "0.1.0"
-authors = ["Martin Junghanns <nerdfaktor42@mailbox.org>"]
+authors = [
+    "Martin Junghanns <nerdfaktor42@mailbox.org>",
+    "Paul Horn <developer@knutwalker.de>",
+]
 description = "A graph representation designed for large-scale graph processing."
 keywords = ["graph", "csr", "algorithms"]
 edition = "2018"
