@@ -42,6 +42,32 @@ pub trait RelabelByDegreeOp<Node: Idx> {
     ///
     /// Note, that this method creates a new graph with the same space
     /// requirements as the input graph.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let graph: UndirectedCSRGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(0, 1), (1, 2), (1, 3), (3, 0)])
+    ///     .build();
+    ///
+    /// assert_eq!(graph.degree(0), 2);
+    /// assert_eq!(graph.degree(1), 3);
+    /// assert_eq!(graph.degree(2), 1);
+    /// assert_eq!(graph.degree(3), 2);
+    ///
+    /// assert_eq!(graph.neighbors(0), &[1, 3]);
+    ///
+    /// let graph = graph.to_degree_ordered();
+    ///
+    /// assert_eq!(graph.degree(0), 3);
+    /// assert_eq!(graph.degree(1), 2);
+    /// assert_eq!(graph.degree(2), 2);
+    /// assert_eq!(graph.degree(3), 1);
+    ///
+    /// assert_eq!(graph.neighbors(0), &[1, 2, 3]);
+    /// ```
     fn to_degree_ordered(&self) -> Self;
 }
 
