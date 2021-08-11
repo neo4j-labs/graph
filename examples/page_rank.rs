@@ -80,14 +80,10 @@ fn page_rank<Node: Idx>(
         .map(|node| init_score / graph.out_degree(node).index() as f32)
         .collect_into_vec(&mut out_scores);
 
-    let mut scores = Vec::with_capacity(node_count);
+    let mut scores = vec![init_score; node_count];
 
     let scores_ptr = SharedMut::new(scores.as_mut_ptr());
     let out_scores_ptr = SharedMut::new(out_scores.as_mut_ptr());
-
-    unsafe {
-        scores.set_len(node_count);
-    }
 
     let mut iteration = 0;
 
