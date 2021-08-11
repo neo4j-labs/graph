@@ -34,7 +34,15 @@ pub trait ForEachNodeOp<Node: Idx> {
 }
 
 pub trait RelabelByDegreeOp<Node: Idx> {
-    fn to_relabeled_graph(&self) -> Self;
+    /// Creates a new graph by relabeling the node ids of the given graph.
+    ///
+    /// Ids are relabaled using descending degree-order, i.e., given `n` nodes,
+    /// the node with the largest degree will become node id `0`, the node with
+    /// the smallest degree will become node id `n - 1`.
+    ///
+    /// Note, that this method creates a new graph with the same space
+    /// requirements as the input graph.
+    fn to_degree_ordered(&self) -> Self;
 }
 
 impl<Node, G> RelabelByDegreeOp<Node> for G
@@ -42,7 +50,7 @@ where
     Node: Idx,
     G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
 {
-    fn to_relabeled_graph(&self) -> Self {
+    fn to_degree_ordered(&self) -> Self {
         relabel_by_degree(self)
     }
 }
@@ -409,7 +417,7 @@ mod tests {
             ])
             .build();
 
-        let relabeled_graph = graph.to_relabeled_graph();
+        let relabeled_graph = graph.to_degree_ordered();
 
         assert_eq!(graph.node_count(), relabeled_graph.node_count());
         assert_eq!(graph.edge_count(), relabeled_graph.edge_count());

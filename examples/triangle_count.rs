@@ -55,7 +55,7 @@ fn run<Node: Idx>(
 
 fn relabel_graph<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> UndirectedCSRGraph<Node> {
     let start = Instant::now();
-    let graph = graph.to_relabeled_graph();
+    let graph = graph.to_degree_ordered();
     info!("Relabeled graph in {:?}", start.elapsed());
     graph
 }
