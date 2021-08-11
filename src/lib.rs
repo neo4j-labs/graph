@@ -11,8 +11,6 @@ pub mod index;
 pub mod input;
 pub mod prelude;
 
-use std::ops::Deref;
-
 use crate::index::Idx;
 
 use thiserror::Error;
