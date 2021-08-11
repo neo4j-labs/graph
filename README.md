@@ -11,6 +11,10 @@ to parallelize all steps during graph creation.
 The implementation uses a Compressed-Sparse-Row (CSR) data structure which
 is tailored for fast and concurrent access to the graph topology.
 
+**Note**: The development is mainly driven by
+[Neo4j](https://github.com/neo4j/neo4j) developers. However, the library is
+__not__ an official product of Neo4j.
+
 ## What is a graph?
 
 A graph consists of nodes and edges where edges connect exactly two nodes. A
@@ -102,7 +106,7 @@ assert_eq!(graph.in_neighbors(1), &[0]);
 ## Examples?
 
 Check the [TriangleCount](./examples/triangle_count.rs) and
-[PageRank](./examples/page_rank.rs) implementations  to see how the library is
-used to implement high-performant graph algorithms.
+[PageRank](./examples/page_rank.rs) implementations  to see how the library
+is used to implement high-performant graph algorithms.
 
 License: MIT
