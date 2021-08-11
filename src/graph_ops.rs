@@ -34,7 +34,7 @@ pub trait ForEachNodeOp<Node: Idx> {
 }
 
 pub trait RelabelByDegreeOp<Node: Idx> {
-    fn relabel_by_degree(self) -> Self;
+    fn to_relabeled_graph(&self) -> Self;
 }
 
 impl<Node, G> RelabelByDegreeOp<Node> for G
@@ -42,7 +42,7 @@ where
     Node: Idx,
     G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
 {
-    fn relabel_by_degree(self) -> Self {
+    fn to_relabeled_graph(&self) -> Self {
         relabel_by_degree(self)
     }
 }
@@ -175,13 +175,13 @@ where
     partitions
 }
 
-fn relabel_by_degree<Node, G>(graph: G) -> G
+fn relabel_by_degree<Node, G>(graph: &G) -> G
 where
     Node: Idx,
     G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
 {
     let start = Instant::now();
-    let degree_node_pairs = sort_by_degree_desc(&graph);
+    let degree_node_pairs = sort_by_degree_desc(graph);
     info!("Relabel: sorted degree-node-pairs in {:?}", start.elapsed());
 
     let start = Instant::now();
@@ -256,7 +256,7 @@ fn unzip_degrees_and_nodes<Node: Idx>(
 }
 
 // Relabel target ids according to the given node mapping and offsets.
-fn relabel_targets<Node, G>(graph: G, nodes: Vec<Node>, offsets: &[Node]) -> Vec<Node>
+fn relabel_targets<Node, G>(graph: &G, nodes: Vec<Node>, offsets: &[Node]) -> Vec<Node>
 where
     Node: Idx,
     G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
@@ -306,6 +306,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        builder::GraphBuilder, graph::csr::UndirectedCSRGraph, graph_ops::unzip_degrees_and_nodes,
+    };
+
     use super::*;
 
     #[test]
@@ -357,5 +361,72 @@ mod tests {
         assert_eq!(partitions[3], 7..8);
         assert_eq!(partitions[4], 8..9);
         assert_eq!(partitions[5], 9..10);
+    }
+
+    #[test]
+    fn sort_by_degree_test() {
+        let graph: UndirectedCSRGraph<_> = GraphBuilder::new()
+            .edges::<u32, _>(vec![
+                (0, 1),
+                (1, 2),
+                (1, 3),
+                (2, 0),
+                (2, 1),
+                (2, 3),
+                (3, 0),
+                (3, 2),
+            ])
+            .build();
+
+        assert_eq!(
+            sort_by_degree_desc(&graph),
+            vec![(5, 2), (4, 3), (4, 1), (3, 0)]
+        );
+    }
+
+    #[test]
+    fn unzip_degrees_and_nodes_test() {
+        let degrees_and_nodes = vec![(5, 2), (4, 3), (4, 1), (3, 0)];
+
+        let (degrees, nodes) = unzip_degrees_and_nodes::<u32>(degrees_and_nodes);
+
+        assert_eq!(degrees, vec![5, 4, 4, 3]);
+        assert_eq!(nodes, vec![3, 2, 0, 1]);
+    }
+
+    #[test]
+    fn relabel_by_degree_test() {
+        let graph: UndirectedCSRGraph<_> = GraphBuilder::new()
+            .edges::<u32, _>(vec![
+                (0, 1),
+                (1, 2),
+                (1, 3),
+                (2, 0),
+                (2, 1),
+                (2, 3),
+                (3, 0),
+                (3, 2),
+            ])
+            .build();
+
+        let relabeled_graph = graph.to_relabeled_graph();
+
+        assert_eq!(graph.node_count(), relabeled_graph.node_count());
+        assert_eq!(graph.edge_count(), relabeled_graph.edge_count());
+
+        // old -> new
+        //   0 -> 3
+        //   1 -> 2
+        //   2 -> 0
+        //   3 -> 1
+        assert_eq!(relabeled_graph.degree(0), 5);
+        assert_eq!(relabeled_graph.degree(1), 4);
+        assert_eq!(relabeled_graph.degree(2), 4);
+        assert_eq!(relabeled_graph.degree(3), 3);
+
+        assert_eq!(relabeled_graph.neighbors(0), &[1, 1, 2, 2, 3]);
+        assert_eq!(relabeled_graph.neighbors(1), &[0, 0, 2, 3]);
+        assert_eq!(relabeled_graph.neighbors(2), &[0, 0, 1, 3]);
+        assert_eq!(relabeled_graph.neighbors(3), &[0, 1, 2]);
     }
 }
