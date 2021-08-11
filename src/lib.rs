@@ -62,6 +62,9 @@ impl<T> SharedMut<T> {
 
     delegate::delegate! {
         to self.0 {
+            /// # Safety
+            ///
+            /// Ensure that `count` does not exceed the capacity of the Vec.
             pub unsafe fn add(&self, count: usize) -> *mut T;
         }
     }

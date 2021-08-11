@@ -180,76 +180,113 @@ where
     Node: Idx,
     G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
 {
-    let node_count = graph.node_count();
-
-    let mut degree_node_pairs = Vec::with_capacity(node_count.index());
+    let start = Instant::now();
+    let degree_node_pairs = sort_by_degree_desc(&graph);
+    info!("Relabel: sorted degree-node-pairs in {:?}", start.elapsed());
 
     let start = Instant::now();
+    let (degrees, nodes) = unzip_degrees_and_nodes(degree_node_pairs);
+    info!("Relabel: built degrees and id map in {:?}", start.elapsed());
 
-    (0..node_count.index())
+    let start = Instant::now();
+    let offsets = prefix_sum_non_atomic(degrees);
+    let targets = relabel_targets(graph, nodes, &offsets);
+    info!("Relabel: built and sorted targets in {:?}", start.elapsed());
+
+    G::from(CSR::new(
+        offsets.into_boxed_slice(),
+        targets.into_boxed_slice(),
+    ))
+}
+
+// Extracts (degree, node_id) pairs from the given graph and sorts them by
+// degree descending.
+fn sort_by_degree_desc<Node, G>(graph: &G) -> Vec<(Node, Node)>
+where
+    Node: Idx,
+    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+{
+    let node_count = graph.node_count().index();
+    let mut degree_node_pairs = Vec::with_capacity(node_count);
+
+    (0..node_count)
         .into_par_iter()
         .map(Node::new)
         .map(|node_id| (graph.degree(node_id), node_id))
         .collect_into_vec(&mut degree_node_pairs);
-
-    // sort node-degree pairs descending by degree
     degree_node_pairs.par_sort_unstable_by(|left, right| left.cmp(right).reverse());
-    info!("Relabel: sorted degree-node-pairs in {:?}", start.elapsed());
 
-    let mut degrees = Vec::<Node>::with_capacity(node_count.index());
-    let mut new_ids = Vec::<Node>::with_capacity(node_count.index());
+    degree_node_pairs
+}
 
-    let new_ids_ptr = SharedMut(new_ids.as_mut_ptr());
+// Unzips (degree, node-id) pairs into `degrees` and `nodes`
+//
+// `degrees` maps a new node id to its degree.
+// `nodes` maps the previous node id to the new node id.
+fn unzip_degrees_and_nodes<Node: Idx>(
+    degree_node_pairs: Vec<(Node, Node)>,
+) -> (Vec<Node>, Vec<Node>) {
+    let node_count = degree_node_pairs.len();
+    let mut degrees = Vec::<Node>::with_capacity(node_count);
+    let mut nodes = Vec::<Node>::with_capacity(node_count);
+    let nodes_ptr = SharedMut::new(nodes.as_mut_ptr());
 
-    let start = Instant::now();
-    (0..node_count.index())
+    (0..node_count)
         .into_par_iter()
         .map(|n| {
-            let (degree, node) = degree_node_pairs[n.index()];
+            let (degree, node) = degree_node_pairs[n];
 
-            // SAFETY:
-            //   node is the node_id from degree_node_pairs which is created
-            //   from 0..node_count -- the values are all distinct and we will
-            //   not write into the same location in parallel
+            // SAFETY: node is the node_id from degree_node_pairs which is
+            // created from 0..node_count -- the values are all distinct and we
+            // will not write into the same location in parallel
             unsafe {
-                new_ids_ptr.add(node.index()).write(Node::new(n));
+                nodes_ptr.add(node.index()).write(Node::new(n));
             }
 
             degree
         })
         .collect_into_vec(&mut degrees);
 
+    // SAFETY: degree_node_pairs contains each value in 0..node_count once
     unsafe {
-        new_ids.set_len(node_count.index());
+        nodes.set_len(node_count);
     }
 
-    info!(
-        "Relabel: built degrees and node mapping in {:?}",
-        start.elapsed()
-    );
+    (degrees, nodes)
+}
 
-    let offsets = prefix_sum_non_atomic(degrees);
-    let edge_count = offsets[node_count.index()].index();
-
+// Relabel target ids according to the given node mapping and offsets.
+fn relabel_targets<Node, G>(graph: G, nodes: Vec<Node>, offsets: &[Node]) -> Vec<Node>
+where
+    Node: Idx,
+    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+{
+    let node_count = graph.node_count().index();
+    let edge_count = offsets[node_count].index();
     let mut targets = Vec::<Node>::with_capacity(edge_count);
-    let targets_ptr = SharedMut(targets.as_mut_ptr());
+    let targets_ptr = SharedMut::new(targets.as_mut_ptr());
 
-    let start = Instant::now();
-    (0..node_count.index())
+    (0..node_count)
         .into_par_iter()
         .map(Node::new)
         .for_each(|u| {
-            let new_u = new_ids[u.index()];
+            let new_u = nodes[u.index()];
             let start_offset = offsets[new_u.index()].index();
             let mut end_offset = start_offset;
 
             for &v in graph.neighbors(u) {
+                let new_v = nodes[v.index()];
+                // SAFETY: a node u is processed by at most one thread. We write
+                // into a non-overlapping range defined by the offsets for that
+                // node. No two threads will write into the same range.
                 unsafe {
-                    targets_ptr.add(end_offset).write(new_ids[v.index()]);
+                    targets_ptr.add(end_offset).write(new_v);
                 }
                 end_offset += 1;
             }
 
+            // SAFETY: start_offset..end_offset is a non-overlapping range for
+            // a node u which is processed by exactly one thread.
             unsafe {
                 std::slice::from_raw_parts_mut(
                     targets_ptr.add(start_offset),
@@ -259,16 +296,12 @@ where
             .sort_unstable();
         });
 
+    // SAFETY: we inserted every relabeled target id of which there are edge_count many.
     unsafe {
         targets.set_len(edge_count);
     }
 
-    info!("Relabel: built and sorted targets in {:?}", start.elapsed());
-
-    G::from(CSR::new(
-        offsets.into_boxed_slice(),
-        targets.into_boxed_slice(),
-    ))
+    targets
 }
 
 #[cfg(test)]

@@ -68,23 +68,22 @@ type CSRConfiguration<'a, Node> = (&'a EdgeList<Node>, Node, Direction, CSROptio
 impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
     fn from((edge_list, node_count, direction, csr_option): CSRConfiguration<'_, Node>) -> Self {
         let mut start = Instant::now();
-
         let degrees = edge_list.degrees(node_count, direction);
         info!("Computed degrees in {:?}", start.elapsed());
-        start = Instant::now();
 
+        start = Instant::now();
         let offsets = prefix_sum(degrees);
         info!("Computed prefix sum in {:?}", start.elapsed());
+
         start = Instant::now();
+        let edge_count = offsets[node_count.index()].load(Acquire).index();
 
-        let targets_len = offsets[node_count.index()].load(Acquire);
-
-        let mut targets = Vec::<Node>::with_capacity(targets_len.index());
-        let targets_ptr = SharedMut(targets.as_mut_ptr());
+        let mut targets = Vec::<Node>::with_capacity(edge_count);
+        let targets_ptr = SharedMut::new(targets.as_mut_ptr());
 
         // The following loop writes all targets into their correct position.
         // The offsets are a prefix sum of all degrees, which will produce
-        // non-overlapping positions for all node values
+        // non-overlapping positions for all node values.
         //
         // SAFETY:
         //   for any (s, t) tuple from the same edge_list we use the prefix_sum to find
@@ -110,27 +109,30 @@ impl<Node: Idx> From<CSRConfiguration<'_, Node>> for CSR<Node> {
         }
 
         unsafe {
-            targets.set_len(targets_len.index());
+            targets.set_len(edge_count);
         }
 
         info!("Computed target array in {:?}", start.elapsed());
-        start = Instant::now();
 
+        start = Instant::now();
         let mut offsets = unsafe { transmute::<_, Vec<Node>>(offsets) };
 
-        // the previous loop moves all offsets one index to the right
-        // we need to correct this to have proper offsets
+        // Building the targets moved all offsets one index to the right.
+        // We need to correct this to have proper offsets.
         offsets.rotate_right(1);
         offsets[0] = Node::zero();
+        info!("Finalized offset array in {:?}", start.elapsed());
 
         let (offsets, targets) = match csr_option {
             CSROption::Unsorted => (offsets, targets),
             CSROption::Sorted => {
+                start = Instant::now();
                 sort_targets(&offsets, &mut targets);
                 info!("Sorted targets in {:?}", start.elapsed());
                 (offsets, targets)
             }
             CSROption::Deduplicated => {
+                start = Instant::now();
                 let offsets_targets = sort_and_deduplicate_targets(&offsets, &mut targets);
                 info!("Sorted and deduplicated targets in {:?}", start.elapsed());
                 offsets_targets
