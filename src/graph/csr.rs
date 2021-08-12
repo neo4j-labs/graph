@@ -384,7 +384,8 @@ fn sort_and_deduplicate_targets<Node: Idx>(
             MaybeUninit::write_slice(new_slice, &old_slice[..new_slice.len()]);
         });
 
-    // SAFETY: We copied all (potentially shortened) target ids from the old target list to the new one.
+    // SAFETY: We copied all (potentially shortened) target ids from the old
+    // target list to the new one.
     unsafe {
         new_targets.set_len(edge_count);
     }
@@ -409,4 +410,67 @@ fn to_mut_slices<'targets, Node: Idx, T>(
     }
 
     target_slices
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+
+    use super::*;
+
+    #[test]
+    fn to_mut_slices_test() {
+        let offsets = &[0, 2, 5, 5, 8];
+        let targets = &mut [0, 1, 2, 3, 4, 5, 6, 7];
+        let slices = to_mut_slices::<usize, usize>(offsets, targets);
+
+        assert_eq!(
+            slices,
+            vec![vec![0, 1], vec![2, 3, 4], vec![], vec![5, 6, 7]]
+        );
+    }
+
+    #[test]
+    fn sort_targets_test() {
+        let offsets = &[0, 2, 5, 5, 8];
+        let mut targets = vec![1, 0, 4, 2, 3, 5, 6, 7];
+        sort_targets::<usize>(offsets, &mut targets);
+
+        assert_eq!(targets, vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn sort_and_deduplicate_targets_test() {
+        let offsets = &[0, 3, 7, 7, 10];
+        // 0: [1, 1, 0]    => [1] (removed duplicate and self loop)
+        // 1: [4, 2, 3, 2] => [2, 3, 4] (removed duplicate)
+        let mut targets = vec![1, 1, 0, 4, 2, 3, 2, 5, 6, 7];
+        let (offsets, targets) = sort_and_deduplicate_targets::<usize>(offsets, &mut targets);
+
+        assert_eq!(offsets, vec![0, 1, 4, 4, 7]);
+        assert_eq!(targets, vec![1, 2, 3, 4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn prefix_sum_test() {
+        let degrees = vec![42, 0, 1337, 4, 2, 0];
+        let prefix_sum = prefix_sum::<usize>(degrees);
+
+        assert_eq!(prefix_sum, vec![0, 42, 42, 1379, 1383, 1385, 1385]);
+    }
+
+    #[test]
+    fn prefix_sum_atomic_test() {
+        let degrees = vec![42, 0, 1337, 4, 2, 0]
+            .into_iter()
+            .map(AtomicUsize::new)
+            .collect::<Vec<_>>();
+
+        let prefix_sum = prefix_sum_atomic(degrees)
+            .into_iter()
+            .map(|n| n.load(SeqCst))
+            .collect::<Vec<_>>();
+
+        assert_eq!(prefix_sum, vec![0, 42, 42, 1379, 1383, 1385, 1385]);
+    }
 }
