@@ -41,7 +41,7 @@ identifier, one can use the builder like so:
 ```rust
 use graph::prelude::*;
 
-let graph: DirectedCSRGraph<usize> = GraphBuilder::new()
+let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
     .build();
 
@@ -61,7 +61,7 @@ change the expected types:
 ```rust
 use graph::prelude::*;
 
-let graph: UndirectedCSRGraph<u32> = GraphBuilder::new()
+let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
     .build();
 
@@ -86,8 +86,8 @@ let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.el"]
     .iter()
     .collect::<PathBuf>();
 
-let graph: DirectedCSRGraph<usize> = GraphBuilder::new()
-    .csr_option(CSROption::Sorted)
+let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+    .csr_layout(CsrLayout::Sorted)
     .file_format(EdgeListInput::default())
     .path(path)
     .build()

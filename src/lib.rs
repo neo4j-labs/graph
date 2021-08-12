@@ -46,7 +46,7 @@
 //! ```
 //! use graph::prelude::*;
 //!
-//! let graph: DirectedCSRGraph<usize> = GraphBuilder::new()
+//! let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
 //!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
 //!     .build();
 //!
@@ -66,7 +66,7 @@
 //! ```
 //! use graph::prelude::*;
 //!
-//! let graph: UndirectedCSRGraph<u32> = GraphBuilder::new()
+//! let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
 //!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
 //!     .build();
 //!
@@ -91,8 +91,8 @@
 //!     .iter()
 //!     .collect::<PathBuf>();
 //!
-//! let graph: DirectedCSRGraph<usize> = GraphBuilder::new()
-//!     .csr_option(CSROption::Sorted)
+//! let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+//!     .csr_layout(CsrLayout::Sorted)
 //!     .file_format(EdgeListInput::default())
 //!     .path(path)
 //!     .build()
@@ -212,7 +212,7 @@ mod tests {
 
     use crate::{
         builder::GraphBuilder,
-        graph::csr::{CSROption, DirectedCSRGraph, UndirectedCSRGraph},
+        graph::csr::{CsrLayout, DirectedCsrGraph, UndirectedCsrGraph},
         input::edgelist::EdgeListInput,
     };
 
@@ -221,17 +221,17 @@ mod tests {
     #[test]
     fn should_compile_test() {
         fn inner_test() -> Result<(), Error> {
-            let _g: DirectedCSRGraph<usize> = GraphBuilder::new()
+            let _g: DirectedCsrGraph<usize> = GraphBuilder::new()
                 .file_format(EdgeListInput::default())
                 .path("graph")
                 .build()?;
 
-            let _g: DirectedCSRGraph<_> = GraphBuilder::new()
+            let _g: DirectedCsrGraph<_> = GraphBuilder::new()
                 .file_format(EdgeListInput::<usize>::default())
                 .path("graph")
                 .build()?;
 
-            let _g: UndirectedCSRGraph<usize> = GraphBuilder::new()
+            let _g: UndirectedCsrGraph<usize> = GraphBuilder::new()
                 .file_format(EdgeListInput::default())
                 .path("graph")
                 .build()?;
@@ -269,7 +269,7 @@ mod tests {
             .collect::<PathBuf>();
 
         let graph = GraphBuilder::new()
-            .csr_option(CSROption::Sorted)
+            .csr_layout(CsrLayout::Sorted)
             .file_format(EdgeListInput::default())
             .path(path)
             .build()
@@ -285,7 +285,7 @@ mod tests {
             .collect::<PathBuf>();
 
         let graph = GraphBuilder::new()
-            .csr_option(CSROption::Sorted)
+            .csr_layout(CsrLayout::Sorted)
             .file_format(EdgeListInput::default())
             .path(path)
             .build()
@@ -301,7 +301,7 @@ mod tests {
             .collect::<PathBuf>();
 
         let graph = GraphBuilder::new()
-            .csr_option(CSROption::Sorted)
+            .csr_layout(CsrLayout::Sorted)
             .file_format(EdgeListInput::default())
             .path(path)
             .build()
@@ -317,7 +317,7 @@ mod tests {
             .collect::<PathBuf>();
 
         let graph = GraphBuilder::new()
-            .csr_option(CSROption::Sorted)
+            .csr_layout(CsrLayout::Sorted)
             .file_format(EdgeListInput::default())
             .path(path)
             .build()
@@ -326,7 +326,7 @@ mod tests {
         assert_undirected_graph::<u32>(graph);
     }
 
-    fn assert_directed_graph<Node: Idx>(g: DirectedCSRGraph<Node>) {
+    fn assert_directed_graph<Node: Idx>(g: DirectedCsrGraph<Node>) {
         assert_eq!(g.node_count(), Node::new(3));
         assert_eq!(g.edge_count(), Node::new(2));
 
@@ -347,7 +347,7 @@ mod tests {
         assert_eq!(g.in_neighbors(Node::new(2)), &[Node::new(0)]);
     }
 
-    fn assert_undirected_graph<Node: Idx>(g: UndirectedCSRGraph<Node>) {
+    fn assert_undirected_graph<Node: Idx>(g: UndirectedCsrGraph<Node>) {
         assert_eq!(g.node_count(), Node::new(3));
         assert_eq!(g.edge_count(), Node::new(2));
 

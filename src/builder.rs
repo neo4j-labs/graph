@@ -1,14 +1,14 @@
 use std::{convert::TryFrom, marker::PhantomData};
 
 use crate::{
-    graph::csr::CSROption,
+    graph::csr::CsrLayout,
     index::Idx,
     input::{EdgeList, InputCapabilities, InputPath},
 };
 use std::path::Path as StdPath;
 
 pub struct Uninitialized {
-    csr_option: CSROption,
+    csr_layout: CsrLayout,
 }
 
 pub struct FromEdges<Node, Edges>
@@ -16,7 +16,7 @@ where
     Node: Idx,
     Edges: IntoIterator<Item = (Node, Node)>,
 {
-    csr_option: CSROption,
+    csr_layout: CsrLayout,
     edges: Edges,
     _node: PhantomData<Node>,
 }
@@ -28,7 +28,7 @@ where
     Format: InputCapabilities<Node>,
     Format::GraphInput: TryFrom<InputPath<P>>,
 {
-    csr_option: CSROption,
+    csr_layout: CsrLayout,
     format: Format,
     _idx: PhantomData<Node>,
     _path: PhantomData<P>,
@@ -41,7 +41,7 @@ where
     Format: InputCapabilities<Node>,
     Format::GraphInput: TryFrom<InputPath<P>>,
 {
-    csr_option: CSROption,
+    csr_layout: CsrLayout,
     format: Format,
     path: P,
     _idx: PhantomData<Node>,
@@ -61,13 +61,13 @@ impl GraphBuilder<Uninitialized> {
     pub fn new() -> Self {
         Self {
             state: Uninitialized {
-                csr_option: CSROption::default(),
+                csr_layout: CsrLayout::default(),
             },
         }
     }
 
-    pub fn csr_option(mut self, csr_option: CSROption) -> Self {
-        self.state.csr_option = csr_option;
+    pub fn csr_layout(mut self, csr_layout: CsrLayout) -> Self {
+        self.state.csr_layout = csr_layout;
         self
     }
 
@@ -78,7 +78,7 @@ impl GraphBuilder<Uninitialized> {
     {
         GraphBuilder {
             state: FromEdges {
-                csr_option: self.state.csr_option,
+                csr_layout: self.state.csr_layout,
                 edges,
                 _node: PhantomData,
             },
@@ -97,7 +97,7 @@ impl GraphBuilder<Uninitialized> {
     {
         GraphBuilder {
             state: FromInput {
-                csr_option: self.state.csr_option,
+                csr_layout: self.state.csr_layout,
                 format,
                 _idx: PhantomData,
                 _path: PhantomData,
@@ -113,11 +113,11 @@ where
 {
     pub fn build<Graph>(self) -> Graph
     where
-        Graph: From<(EdgeList<Node>, CSROption)>,
+        Graph: From<(EdgeList<Node>, CsrLayout)>,
     {
         Graph::from((
             EdgeList::new(self.state.edges.into_iter().collect()),
-            self.state.csr_option,
+            self.state.csr_layout,
         ))
     }
 }
@@ -132,7 +132,7 @@ where
     pub fn path(self, path: Path) -> GraphBuilder<FromPath<Node, Path, Format>> {
         GraphBuilder {
             state: FromPath {
-                csr_option: self.state.csr_option,
+                csr_layout: self.state.csr_layout,
                 format: self.state.format,
                 path,
                 _idx: PhantomData,
@@ -152,11 +152,11 @@ where
         self,
     ) -> Result<Graph, <Format::GraphInput as TryFrom<InputPath<Path>>>::Error>
     where
-        Graph: From<(Format::GraphInput, CSROption)>,
+        Graph: From<(Format::GraphInput, CsrLayout)>,
     {
         Ok(Graph::from((
             Format::GraphInput::try_from(InputPath(self.state.path))?,
-            self.state.csr_option,
+            self.state.csr_layout,
         )))
     }
 }

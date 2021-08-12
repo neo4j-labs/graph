@@ -39,8 +39,8 @@ fn run<Node: Idx>(
     max_iterations: usize,
     tolerance: f64,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let graph: DirectedCSRGraph<Node> = GraphBuilder::new()
-        .csr_option(CSROption::Sorted)
+    let graph: DirectedCsrGraph<Node> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
         .file_format(EdgeListInput::default())
         .path(path)
         .build()
@@ -63,7 +63,7 @@ fn run<Node: Idx>(
 }
 
 fn page_rank<Node: Idx>(
-    graph: &DirectedCSRGraph<Node>,
+    graph: &DirectedCsrGraph<Node>,
     max_iterations: usize,
     tolerance: f64,
 ) -> (Vec<f32>, usize, f64) {
@@ -113,7 +113,7 @@ fn page_rank<Node: Idx>(
 }
 
 fn page_rank_iteration<Node: Idx>(
-    graph: &DirectedCSRGraph<Node>,
+    graph: &DirectedCsrGraph<Node>,
     base_score: f32,
     damping_factor: f32,
     out_scores: &SharedMut<f32>,
@@ -203,15 +203,15 @@ mod cli {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CSROption;
+    use crate::CsrLayout;
     use crate::GraphBuilder;
 
     #[test]
     fn test_pr_two_components() {
         let edges = vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)];
 
-        let graph: DirectedCSRGraph<usize> = GraphBuilder::new()
-            .csr_option(CSROption::Sorted)
+        let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
             .edges(edges)
             .build();
 

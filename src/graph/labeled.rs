@@ -18,7 +18,7 @@ pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
     fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Node, Node>;
 }
 
-pub struct NodeLabeledCSRGraph<G> {
+pub struct NodeLabeledCsrGraph<G> {
     graph: G,
     label_index: Box<[usize]>,
     label_index_offsets: Box<[usize]>,
@@ -29,7 +29,7 @@ pub struct NodeLabeledCSRGraph<G> {
     neighbor_label_frequencies: Option<Box<[HashMap<usize, usize>]>>,
 }
 
-impl<Node: Idx, G: Graph<Node>> Graph<Node> for NodeLabeledCSRGraph<G> {
+impl<Node: Idx, G: Graph<Node>> Graph<Node> for NodeLabeledCsrGraph<G> {
     #[inline]
     fn node_count(&self) -> Node {
         self.graph.node_count()
@@ -41,7 +41,7 @@ impl<Node: Idx, G: Graph<Node>> Graph<Node> for NodeLabeledCSRGraph<G> {
     }
 }
 
-impl<Node, G> DirectedGraph<Node> for NodeLabeledCSRGraph<G>
+impl<Node, G> DirectedGraph<Node> for NodeLabeledCsrGraph<G>
 where
     Node: Idx,
     G: DirectedGraph<Node>,
@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<Node, G> UndirectedGraph<Node> for NodeLabeledCSRGraph<G>
+impl<Node, G> UndirectedGraph<Node> for NodeLabeledCsrGraph<G>
 where
     Node: Idx,
     G: UndirectedGraph<Node>,
@@ -78,10 +78,10 @@ where
 }
 
 #[cfg(feature = "dotgraph")]
-impl<Node: Idx, G: From<(EdgeList<Node>, CSROption)>> From<(DotGraph<Node>, CSROption)>
-    for NodeLabeledCSRGraph<G>
+impl<Node: Idx, G: From<(EdgeList<Node>, CsrLayout)>> From<(DotGraph<Node>, CsrLayout)>
+    for NodeLabeledCsrGraph<G>
 {
-    fn from(_: (DotGraph<Node>, CSROption)) -> Self {
+    fn from(_: (DotGraph<Node>, CsrLayout)) -> Self {
         todo!()
     }
 }
@@ -92,12 +92,12 @@ mod tests {
     #[test]
     fn should_compile_test() {
         fn inner_test() -> Result<(), Error> {
-            let _g: NodeLabeledCSRGraph<DirectedCSRGraph<usize>> = GraphBuilder::new()
+            let _g: NodeLabeledCsrGraph<DirectedCSRGraph<usize>> = GraphBuilder::new()
                 .file_format(DotGraphInput::default())
                 .path("graph")
                 .build()?;
 
-            let _g: NodeLabeledCSRGraph<UndirectedCSRGraph<usize>> = GraphBuilder::new()
+            let _g: NodeLabeledCsrGraph<UndirectedCSRGraph<usize>> = GraphBuilder::new()
                 .file_format(DotGraphInput::default())
                 .path("graph")
                 .build()?;

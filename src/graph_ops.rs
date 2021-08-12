@@ -1,7 +1,7 @@
 use log::info;
 use rayon::prelude::*;
 
-use crate::graph::csr::{prefix_sum_non_atomic, CSR};
+use crate::graph::csr::{prefix_sum, Csr};
 use crate::index::Idx;
 use crate::{DirectedGraph, Error, Graph, SharedMut, UndirectedGraph};
 
@@ -48,7 +48,7 @@ pub trait RelabelByDegreeOp<Node: Idx> {
     /// ```
     /// use graph::prelude::*;
     ///
-    /// let graph: UndirectedCSRGraph<u32> = GraphBuilder::new()
+    /// let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (1, 2), (1, 3), (3, 0)])
     ///     .build();
     ///
@@ -74,7 +74,7 @@ pub trait RelabelByDegreeOp<Node: Idx> {
 impl<Node, G> RelabelByDegreeOp<Node> for G
 where
     Node: Idx,
-    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     fn to_degree_ordered(&self) -> Self {
         relabel_by_degree(self)
@@ -212,7 +212,7 @@ where
 fn relabel_by_degree<Node, G>(graph: &G) -> G
 where
     Node: Idx,
-    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     let start = Instant::now();
     let degree_node_pairs = sort_by_degree_desc(graph);
@@ -223,11 +223,11 @@ where
     info!("Relabel: built degrees and id map in {:?}", start.elapsed());
 
     let start = Instant::now();
-    let offsets = prefix_sum_non_atomic(degrees);
+    let offsets = prefix_sum(degrees);
     let targets = relabel_targets(graph, nodes, &offsets);
     info!("Relabel: built and sorted targets in {:?}", start.elapsed());
 
-    G::from(CSR::new(
+    G::from(Csr::new(
         offsets.into_boxed_slice(),
         targets.into_boxed_slice(),
     ))
@@ -238,7 +238,7 @@ where
 fn sort_by_degree_desc<Node, G>(graph: &G) -> Vec<(Node, Node)>
 where
     Node: Idx,
-    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     let node_count = graph.node_count().index();
     let mut degree_node_pairs = Vec::with_capacity(node_count);
@@ -293,7 +293,7 @@ fn unzip_degrees_and_nodes<Node: Idx>(
 fn relabel_targets<Node, G>(graph: &G, nodes: Vec<Node>, offsets: &[Node]) -> Vec<Node>
 where
     Node: Idx,
-    G: From<CSR<Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     let node_count = graph.node_count().index();
     let edge_count = offsets[node_count].index();
@@ -341,7 +341,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        builder::GraphBuilder, graph::csr::UndirectedCSRGraph, graph_ops::unzip_degrees_and_nodes,
+        builder::GraphBuilder, graph::csr::UndirectedCsrGraph, graph_ops::unzip_degrees_and_nodes,
     };
 
     use super::*;
@@ -399,7 +399,7 @@ mod tests {
 
     #[test]
     fn sort_by_degree_test() {
-        let graph: UndirectedCSRGraph<_> = GraphBuilder::new()
+        let graph: UndirectedCsrGraph<_> = GraphBuilder::new()
             .edges::<u32, _>(vec![
                 (0, 1),
                 (1, 2),
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn relabel_by_degree_test() {
-        let graph: UndirectedCSRGraph<_> = GraphBuilder::new()
+        let graph: UndirectedCsrGraph<_> = GraphBuilder::new()
             .edges::<u32, _>(vec![
                 (0, 1),
                 (1, 2),

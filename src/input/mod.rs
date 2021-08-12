@@ -3,7 +3,7 @@ use crate::index::{AtomicIdx, Idx};
 use rayon::prelude::*;
 use std::{
     ops::{Deref, DerefMut},
-    sync::atomic::Ordering::SeqCst,
+    sync::atomic::Ordering::AcqRel,
 };
 
 #[cfg(feature = "dotgraph")]
@@ -51,8 +51,7 @@ impl<Node: Idx> EdgeList<Node> {
     }
 
     pub(crate) fn max_node_id(&self) -> Node {
-        self.0
-            .par_iter()
+        self.par_iter()
             .map(|(s, t)| Node::max(*s, *t))
             .reduce(Node::zero, Node::max)
     }
@@ -61,17 +60,16 @@ impl<Node: Idx> EdgeList<Node> {
         let mut degrees = Vec::with_capacity(node_count.index());
         degrees.resize_with(node_count.index(), Node::Atomic::zero);
 
-        match direction {
-            Direction::Outgoing => self.par_iter().for_each(|(s, _)| {
-                degrees[s.index()].get_and_increment(SeqCst);
-            }),
-            Direction::Incoming => self.par_iter().for_each(|(_, t)| {
-                degrees[t.index()].get_and_increment(SeqCst);
-            }),
-            Direction::Undirected => self.par_iter().for_each(|(s, t)| {
-                degrees[s.index()].get_and_increment(SeqCst);
-                degrees[t.index()].get_and_increment(SeqCst);
-            }),
+        if matches!(direction, Direction::Outgoing | Direction::Undirected) {
+            self.par_iter().for_each(|(s, _)| {
+                degrees[s.index()].get_and_increment(AcqRel);
+            });
+        }
+
+        if matches!(direction, Direction::Incoming | Direction::Undirected) {
+            self.par_iter().for_each(|(_, t)| {
+                degrees[t.index()].get_and_increment(AcqRel);
+            });
         }
 
         degrees

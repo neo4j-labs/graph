@@ -35,8 +35,8 @@ fn run<Node: Idx>(
     relabel: bool,
     runs: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut graph: UndirectedCSRGraph<Node> = GraphBuilder::new()
-        .csr_option(CSROption::Deduplicated)
+    let mut graph: UndirectedCsrGraph<Node> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Deduplicated)
         .file_format(EdgeListInput::default())
         .path(path)
         .build()
@@ -53,14 +53,14 @@ fn run<Node: Idx>(
     Ok(())
 }
 
-fn relabel_graph<Node: Idx>(graph: UndirectedCSRGraph<Node>) -> UndirectedCSRGraph<Node> {
+fn relabel_graph<Node: Idx>(graph: UndirectedCsrGraph<Node>) -> UndirectedCsrGraph<Node> {
     let start = Instant::now();
     let graph = graph.to_degree_ordered();
     info!("Relabeled graph in {:?}", start.elapsed());
     graph
 }
 
-fn global_triangle_count<Node: Idx>(graph: &UndirectedCSRGraph<Node>) -> u64 {
+fn global_triangle_count<Node: Idx>(graph: &UndirectedCsrGraph<Node>) -> u64 {
     let start = Instant::now();
 
     let next_chunk = Node::zero().atomic();
@@ -153,16 +153,16 @@ mod cli {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CSROption;
+    use crate::CsrLayout;
     use crate::GraphBuilder;
-    use crate::UndirectedCSRGraph;
+    use crate::UndirectedCsrGraph;
 
     #[test]
     fn test_tc_two_components() {
         let edges = vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)];
 
-        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
-            .csr_option(CSROption::Deduplicated)
+        let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
             .edges(edges)
             .build();
 
@@ -173,8 +173,8 @@ mod tests {
     fn test_tc_connected_triangles() {
         let edges = vec![(0, 1), (0, 2), (1, 2), (0, 4), (0, 5), (4, 5)];
 
-        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
-            .csr_option(CSROption::Deduplicated)
+        let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
             .edges(edges)
             .build();
 
@@ -185,8 +185,8 @@ mod tests {
     fn test_tc_diamond() {
         let edges = vec![(0, 1), (0, 2), (1, 2), (1, 4), (2, 4)];
 
-        let g: UndirectedCSRGraph<usize> = GraphBuilder::new()
-            .csr_option(CSROption::Deduplicated)
+        let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
             .edges(edges)
             .build();
 
