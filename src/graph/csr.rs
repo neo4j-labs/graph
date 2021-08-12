@@ -1,5 +1,7 @@
+use byte_slice_cast::{AsByteSlice, AsMutByteSlice, ToByteSlice, ToMutByteSlice};
 use log::info;
 use std::{
+    io::{Read, Write},
     mem::{transmute, MaybeUninit},
     sync::atomic::Ordering::Acquire,
     time::Instant,
@@ -8,9 +10,10 @@ use std::{
 use rayon::prelude::*;
 
 use crate::{
+    graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
     input::{Direction, EdgeList},
-    DirectedGraph, Graph, SharedMut, UndirectedGraph,
+    DirectedGraph, Error, Graph, SharedMut, UndirectedGraph,
 };
 
 /// Defines how the neighbor list of individual nodes are organized within the
@@ -167,6 +170,39 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
     }
 }
 
+impl<Node: Idx + ToByteSlice> Csr<Node> {
+    fn serialize<W: Write>(&self, output: &mut W) -> Result<(), Error> {
+        let node_count = self.node_count();
+        let edge_count = self.edge_count();
+
+        let meta = [node_count, edge_count];
+        output.write_all(meta.as_byte_slice())?;
+        output.write_all(self.offsets.as_byte_slice())?;
+        output.write_all(self.targets.as_byte_slice())?;
+
+        Ok(())
+    }
+}
+
+impl<Node: Idx + ToMutByteSlice> Csr<Node> {
+    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node>, Error> {
+        let mut meta = [Node::zero(); 2];
+        read.read_exact(meta.as_mut_byte_slice())?;
+
+        let [node_count, edge_count] = meta;
+
+        let offsets = Box::<[Node]>::new_uninit_slice(node_count.index() + 1);
+        let mut offsets = unsafe { offsets.assume_init() };
+        read.read_exact(offsets.as_mut_byte_slice())?;
+
+        let targets = Box::<[Node]>::new_uninit_slice(edge_count.index());
+        let mut targets = unsafe { targets.assume_init() };
+        read.read_exact(targets.as_mut_byte_slice())?;
+
+        Ok(Csr::new(offsets, targets))
+    }
+}
+
 pub struct DirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
@@ -235,6 +271,30 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for DirectedCsrGraph<Node> {
         info!("Created incoming csr in {:?}.", start.elapsed());
 
         DirectedCsrGraph::new(out_edges, in_edges)
+    }
+}
+
+impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for DirectedCsrGraph<Node> {
+    fn serialize(&self, mut output: W) -> Result<(), Error> {
+        let DirectedCsrGraph {
+            node_count: _,
+            edge_count: _,
+            out_edges,
+            in_edges,
+        } = self;
+
+        out_edges.serialize(&mut output)?;
+        in_edges.serialize(&mut output)?;
+
+        Ok(())
+    }
+}
+
+impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for DirectedCsrGraph<Node> {
+    fn deserialize(mut read: R) -> Result<Self, Error> {
+        let out_edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        let in_edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        Ok(DirectedCsrGraph::new(out_edges, in_edges))
     }
 }
 

@@ -3,6 +3,7 @@
 #![feature(maybe_uninit_write_slice)]
 #![feature(maybe_uninit_slice)]
 #![feature(step_trait)]
+#![feature(new_uninit)]
 #![allow(dead_code)]
 
 //! A library that can be used as a building block for high-performant graph
