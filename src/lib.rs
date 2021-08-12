@@ -138,25 +138,51 @@ pub enum Error {
     InvalidNodeValues,
 }
 
+/// A graph is a tuple `(N, E)`, where `N` is a set of nodes and `E` a set of
+/// edges. Each edge connects exactly two nodes.
+///
+/// `Graph` is parameterized over the node index type `Node` which is used to
+/// uniquely identify a node. An edge is a tuple of node identifiers.
 pub trait Graph<Node: Idx> {
+    /// Returns the number of nodes in the graph.
     fn node_count(&self) -> Node;
 
+    /// Returns the number of edges in the graph.
     fn edge_count(&self) -> Node;
 }
 
+/// A graph where the order within an edge tuple is unimportant.
+///
+/// The edge `(42, 1337)` is equivalent to the edge `(1337, 42)`.
 pub trait UndirectedGraph<Node: Idx>: Graph<Node> {
+    /// Returns the number of edges connected to the given node.
     fn degree(&self, node: Node) -> Node;
 
+    /// Returns a slice of all nodes connected to the given node.
     fn neighbors(&self, node: Node) -> &[Node];
 }
 
+/// A graph where the order within an edge tuple is important.
+///
+/// An edge tuple `e = (u, v)` has a source node `u` and a target node `v`. From
+/// the perspective of `u`, the edge `e` is an **outgoing** edge. From the
+/// perspective of node `v`, the edge `e` is an **incoming** edge. The edges
+/// `(u, v)` and `(v, u)` are not considered equivalent.
 pub trait DirectedGraph<Node: Idx>: Graph<Node> {
+    /// Returns the number of edges where the given node is a source node.
     fn out_degree(&self, node: Node) -> Node;
 
+    /// Returns a slice of all nodes which are connected in outgoing direction
+    /// to the given node, i.e., the given node is the source node of the
+    /// connecting edge.
     fn out_neighbors(&self, node: Node) -> &[Node];
 
+    /// Returns the number of edges where the given node is a target node.
     fn in_degree(&self, node: Node) -> Node;
 
+    /// Returns a slice of all nodes which are connected in incoming direction
+    /// to the given node, i.e., the given node is the target node of the
+    /// connecting edge.
     fn in_neighbors(&self, node: Node) -> &[Node];
 }
 
