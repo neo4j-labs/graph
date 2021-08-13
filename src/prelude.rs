@@ -5,10 +5,12 @@ pub use crate::graph::csr::DirectedCsrGraph;
 pub use crate::graph::csr::UndirectedCsrGraph;
 
 pub use crate::graph_ops::DegreePartitionOp;
+pub use crate::graph_ops::DeserializeGraphOp;
 pub use crate::graph_ops::ForEachNodeOp;
 pub use crate::graph_ops::InDegreePartitionOp;
 pub use crate::graph_ops::OutDegreePartitionOp;
 pub use crate::graph_ops::RelabelByDegreeOp;
+pub use crate::graph_ops::SerializeGraphOp;
 
 pub use crate::index::Idx;
 
