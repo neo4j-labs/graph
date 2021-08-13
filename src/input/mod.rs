@@ -1,12 +1,7 @@
-use crate::{
-    graph::csr::DirectedCsrGraph,
-    index::{AtomicIdx, Idx},
-    Error,
-};
+use crate::index::{AtomicIdx, Idx};
 
 use rayon::prelude::*;
 use std::{
-    io::Write,
     ops::{Deref, DerefMut},
     sync::atomic::Ordering::AcqRel,
 };

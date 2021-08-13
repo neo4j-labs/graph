@@ -191,13 +191,20 @@ impl<Node: Idx + ToMutByteSlice> Csr<Node> {
 
         let [node_count, edge_count] = meta;
 
-        let offsets = Box::<[Node]>::new_uninit_slice(node_count.index() + 1);
-        let mut offsets = unsafe { offsets.assume_init() };
-        read.read_exact(offsets.as_mut_byte_slice())?;
+        let mut offsets = Box::<[Node]>::new_uninit_slice(node_count.index() + 1);
+        let offsets_ptr = offsets.as_mut_ptr() as *mut Node;
+        let offsets_ptr =
+            unsafe { std::slice::from_raw_parts_mut(offsets_ptr, node_count.index() + 1) };
+        read.read_exact(offsets_ptr.as_mut_byte_slice())?;
 
-        let targets = Box::<[Node]>::new_uninit_slice(edge_count.index());
-        let mut targets = unsafe { targets.assume_init() };
-        read.read_exact(targets.as_mut_byte_slice())?;
+        let mut targets = Box::<[Node]>::new_uninit_slice(edge_count.index());
+        let targets_ptr = targets.as_mut_ptr() as *mut Node;
+        let targets_ptr =
+            unsafe { std::slice::from_raw_parts_mut(targets_ptr, edge_count.index()) };
+        read.read_exact(targets_ptr.as_mut_byte_slice())?;
+
+        let offsets = unsafe { offsets.assume_init() };
+        let targets = unsafe { targets.assume_init() };
 
         Ok(Csr::new(offsets, targets))
     }
@@ -366,6 +373,27 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for UndirectedCsrGraph<Node> {
     }
 }
 
+impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for UndirectedCsrGraph<Node> {
+    fn serialize(&self, mut output: W) -> Result<(), Error> {
+        let UndirectedCsrGraph {
+            node_count: _,
+            edge_count: _,
+            edges,
+        } = self;
+
+        edges.serialize(&mut output)?;
+
+        Ok(())
+    }
+}
+
+impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<Node> {
+    fn deserialize(mut read: R) -> Result<Self, Error> {
+        let edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        Ok(UndirectedCsrGraph::new(edges))
+    }
+}
+
 fn prefix_sum_atomic<Node: AtomicIdx>(degrees: Vec<Node>) -> Vec<Node> {
     let mut last = degrees.last().unwrap().load(Acquire);
     let mut sums = degrees
@@ -474,7 +502,12 @@ fn to_mut_slices<'targets, Node: Idx, T>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+    use std::{
+        io::{Seek, SeekFrom},
+        sync::atomic::{AtomicUsize, Ordering::SeqCst},
+    };
+
+    use crate::builder::GraphBuilder;
 
     use super::*;
 
@@ -532,5 +565,105 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(prefix_sum, vec![0, 42, 42, 1379, 1383, 1385, 1385]);
+    }
+
+    #[test]
+    fn serialize_directed_usize_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+        let g1 = DirectedCsrGraph::<usize>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.out_neighbors(0), g1.out_neighbors(0));
+        assert_eq!(g0.out_neighbors(1), g1.out_neighbors(1));
+        assert_eq!(g0.out_neighbors(2), g1.out_neighbors(2));
+        assert_eq!(g0.out_neighbors(3), g1.out_neighbors(3));
+
+        assert_eq!(g0.in_neighbors(0), g1.in_neighbors(0));
+        assert_eq!(g0.in_neighbors(1), g1.in_neighbors(1));
+        assert_eq!(g0.in_neighbors(2), g1.in_neighbors(2));
+        assert_eq!(g0.in_neighbors(3), g1.in_neighbors(3));
+    }
+
+    #[test]
+    fn serialize_undirected_usize_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: UndirectedCsrGraph<usize> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        let g1 = UndirectedCsrGraph::<usize>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.neighbors(0), g1.neighbors(0));
+        assert_eq!(g0.neighbors(1), g1.neighbors(1));
+        assert_eq!(g0.neighbors(2), g1.neighbors(2));
+        assert_eq!(g0.neighbors(3), g1.neighbors(3));
+    }
+
+    #[test]
+    fn serialize_directed_u32_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: DirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+        let g1 = DirectedCsrGraph::<u32>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.out_neighbors(0), g1.out_neighbors(0));
+        assert_eq!(g0.out_neighbors(1), g1.out_neighbors(1));
+        assert_eq!(g0.out_neighbors(2), g1.out_neighbors(2));
+        assert_eq!(g0.out_neighbors(3), g1.out_neighbors(3));
+
+        assert_eq!(g0.in_neighbors(0), g1.in_neighbors(0));
+        assert_eq!(g0.in_neighbors(1), g1.in_neighbors(1));
+        assert_eq!(g0.in_neighbors(2), g1.in_neighbors(2));
+        assert_eq!(g0.in_neighbors(3), g1.in_neighbors(3));
+    }
+
+    #[test]
+    fn serialize_undirected_u32_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: UndirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        let g1 = UndirectedCsrGraph::<u32>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.neighbors(0), g1.neighbors(0));
+        assert_eq!(g0.neighbors(1), g1.neighbors(1));
+        assert_eq!(g0.neighbors(2), g1.neighbors(2));
+        assert_eq!(g0.neighbors(3), g1.neighbors(3));
     }
 }
