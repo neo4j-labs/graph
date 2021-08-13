@@ -122,6 +122,8 @@ pub mod index;
 pub mod input;
 pub mod prelude;
 
+use std::convert::Infallible;
+
 use crate::index::Idx;
 
 use thiserror::Error;
@@ -129,7 +131,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("error while loading graph")]
-    LoadGraph {
+    IoError {
         #[from]
         source: std::io::Error,
     },
@@ -137,6 +139,12 @@ pub enum Error {
     InvalidPartitioning,
     #[error("number of node values must be the same as node count")]
     InvalidNodeValues,
+}
+
+impl From<Infallible> for Error {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
 }
 
 /// A graph is a tuple `(N, E)`, where `N` is a set of nodes and `E` a set of
@@ -214,7 +222,7 @@ mod tests {
     use crate::{
         builder::GraphBuilder,
         graph::csr::{CsrLayout, DirectedCsrGraph, UndirectedCsrGraph},
-        input::edgelist::EdgeListInput,
+        input::{binary::BinaryInput, edgelist::EdgeListInput},
     };
 
     use super::*;
@@ -234,6 +242,11 @@ mod tests {
 
             let _g: UndirectedCsrGraph<usize> = GraphBuilder::new()
                 .file_format(EdgeListInput::default())
+                .path("graph")
+                .build()?;
+
+            let _g: DirectedCsrGraph<usize> = GraphBuilder::new()
+                .file_format(BinaryInput::<usize>::default())
                 .path("graph")
                 .build()?;
 

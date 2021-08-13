@@ -1,8 +1,11 @@
 use byte_slice_cast::{AsByteSlice, AsMutByteSlice, ToByteSlice, ToMutByteSlice};
 use log::info;
 use std::{
+    convert::TryFrom,
+    fs::File,
     io::{Read, Write},
     mem::{transmute, MaybeUninit},
+    path::PathBuf,
     sync::atomic::Ordering::Acquire,
     time::Instant,
 };
@@ -305,6 +308,17 @@ impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for Direct
     }
 }
 
+impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGraph<Node> {
+    type Error = Error;
+
+    fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
+        let f = File::open(&path)?;
+        let graph = DirectedCsrGraph::deserialize(&f)?;
+
+        Ok(graph)
+    }
+}
+
 pub struct UndirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
@@ -391,6 +405,14 @@ impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for Undire
     fn deserialize(mut read: R) -> Result<Self, Error> {
         let edges: Csr<Node> = Csr::deserialize(&mut read)?;
         Ok(UndirectedCsrGraph::new(edges))
+    }
+}
+
+impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for UndirectedCsrGraph<Node> {
+    type Error = Error;
+
+    fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
+        UndirectedCsrGraph::deserialize(&File::open(&path)?)
     }
 }
 

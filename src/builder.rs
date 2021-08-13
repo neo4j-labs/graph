@@ -4,6 +4,7 @@ use crate::{
     graph::csr::CsrLayout,
     index::Idx,
     input::{EdgeList, InputCapabilities, InputPath},
+    Error,
 };
 use std::path::Path as StdPath;
 
@@ -147,16 +148,16 @@ where
     Node: Idx,
     Format: InputCapabilities<Node>,
     Format::GraphInput: TryFrom<InputPath<Path>>,
+    crate::Error: From<<Format::GraphInput as TryFrom<InputPath<Path>>>::Error>,
 {
-    pub fn build<Graph>(
-        self,
-    ) -> Result<Graph, <Format::GraphInput as TryFrom<InputPath<Path>>>::Error>
+    pub fn build<Graph>(self) -> Result<Graph, Error>
     where
-        Graph: From<(Format::GraphInput, CsrLayout)>,
+        Graph: TryFrom<(Format::GraphInput, CsrLayout)>,
+        crate::Error: From<Graph::Error>,
     {
-        Ok(Graph::from((
-            Format::GraphInput::try_from(InputPath(self.state.path))?,
-            self.state.csr_layout,
-        )))
+        let input = Format::GraphInput::try_from(InputPath(self.state.path))?;
+        let graph = Graph::try_from((input, self.state.csr_layout))?;
+
+        Ok(graph)
     }
 }

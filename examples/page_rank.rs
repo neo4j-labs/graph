@@ -90,7 +90,7 @@ fn page_rank<Node: Idx>(
     loop {
         let start = Instant::now();
         let error = page_rank_iteration(
-            &graph,
+            graph,
             base_score,
             damping_factor,
             &out_scores_ptr,
