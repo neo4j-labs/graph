@@ -10,6 +10,8 @@ use crate::{index::Idx, Error};
 
 use super::{InputCapabilities, InputPath};
 
+/// Reads a graph that has been written via
+/// [`crate::graph_ops::SerializeGraphOp`].
 pub struct BinaryInput<Node: Idx + ToByteSlice> {
     _idx: PhantomData<Node>,
 }
