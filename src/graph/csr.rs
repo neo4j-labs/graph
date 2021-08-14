@@ -1,6 +1,11 @@
+use byte_slice_cast::{AsByteSlice, AsMutByteSlice, ToByteSlice, ToMutByteSlice};
 use log::info;
 use std::{
+    convert::TryFrom,
+    fs::File,
+    io::{Read, Write},
     mem::{transmute, MaybeUninit},
+    path::PathBuf,
     sync::atomic::Ordering::Acquire,
     time::Instant,
 };
@@ -8,9 +13,10 @@ use std::{
 use rayon::prelude::*;
 
 use crate::{
+    graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
     input::{Direction, EdgeList},
-    DirectedGraph, Graph, SharedMut, UndirectedGraph,
+    DirectedGraph, Error, Graph, SharedMut, UndirectedGraph,
 };
 
 /// Defines how the neighbor list of individual nodes are organized within the
@@ -43,6 +49,7 @@ impl Default for CsrLayout {
 /// list of `u` in `targets`. The degree of `u`, i.e., the length of the
 /// neighbor list is defined by `offsets[u + 1] - offsets[u]`. The neighbor list
 /// of `u` is defined by the slice `&targets[offsets[u]..offsets[u + 1]]`.
+#[derive(Debug)]
 pub struct Csr<Node: Idx> {
     offsets: Box<[Node]>,
     targets: Box<[Node]>,
@@ -167,6 +174,67 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
     }
 }
 
+impl<Node: Idx + ToByteSlice> Csr<Node> {
+    fn serialize<W: Write>(&self, output: &mut W) -> Result<(), Error> {
+        let type_name = std::any::type_name::<Node>().as_bytes();
+        output.write_all(&[type_name.len()].as_byte_slice())?;
+        output.write_all(type_name)?;
+
+        let node_count = self.node_count();
+        let edge_count = self.edge_count();
+        let meta = [node_count, edge_count];
+        output.write_all(meta.as_byte_slice())?;
+
+        output.write_all(self.offsets.as_byte_slice())?;
+        output.write_all(self.targets.as_byte_slice())?;
+
+        Ok(())
+    }
+}
+
+impl<Node: Idx + ToMutByteSlice> Csr<Node> {
+    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node>, Error> {
+        let mut type_name_len = [0_usize; 1];
+        read.read_exact(type_name_len.as_mut_byte_slice())?;
+        let [type_name_len] = type_name_len;
+
+        let mut type_name = vec![0_u8; type_name_len];
+        read.read_exact(type_name.as_mut_byte_slice())?;
+        let type_name = String::from_utf8(type_name).expect("could not read type name");
+
+        let expected_type_name = std::any::type_name::<Node>().to_string();
+
+        if type_name != expected_type_name {
+            return Err(Error::InvalidIdType {
+                expected: expected_type_name,
+                actual: type_name,
+            });
+        }
+
+        let mut meta = [Node::zero(); 2];
+        read.read_exact(meta.as_mut_byte_slice())?;
+
+        let [node_count, edge_count] = meta;
+
+        let mut offsets = Box::<[Node]>::new_uninit_slice(node_count.index() + 1);
+        let offsets_ptr = offsets.as_mut_ptr() as *mut Node;
+        let offsets_ptr =
+            unsafe { std::slice::from_raw_parts_mut(offsets_ptr, node_count.index() + 1) };
+        read.read_exact(offsets_ptr.as_mut_byte_slice())?;
+
+        let mut targets = Box::<[Node]>::new_uninit_slice(edge_count.index());
+        let targets_ptr = targets.as_mut_ptr() as *mut Node;
+        let targets_ptr =
+            unsafe { std::slice::from_raw_parts_mut(targets_ptr, edge_count.index()) };
+        read.read_exact(targets_ptr.as_mut_byte_slice())?;
+
+        let offsets = unsafe { offsets.assume_init() };
+        let targets = unsafe { targets.assume_init() };
+
+        Ok(Csr::new(offsets, targets))
+    }
+}
+
 pub struct DirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
@@ -238,6 +306,42 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for DirectedCsrGraph<Node> {
     }
 }
 
+impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for DirectedCsrGraph<Node> {
+    fn serialize(&self, mut output: W) -> Result<(), Error> {
+        let DirectedCsrGraph {
+            node_count: _,
+            edge_count: _,
+            out_edges,
+            in_edges,
+        } = self;
+
+        out_edges.serialize(&mut output)?;
+        in_edges.serialize(&mut output)?;
+
+        Ok(())
+    }
+}
+
+impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for DirectedCsrGraph<Node> {
+    fn deserialize(mut read: R) -> Result<Self, Error> {
+        let out_edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        let in_edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        Ok(DirectedCsrGraph::new(out_edges, in_edges))
+    }
+}
+
+impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGraph<Node> {
+    type Error = Error;
+
+    fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
+        let f = File::open(&path)?;
+        let graph = DirectedCsrGraph::deserialize(&f)?;
+
+        Ok(graph)
+    }
+}
+
+#[derive(Debug)]
 pub struct UndirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
@@ -303,6 +407,35 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for UndirectedCsrGraph<Node> {
         info!("Created csr in {:?}.", start.elapsed());
 
         UndirectedCsrGraph::new(edges)
+    }
+}
+
+impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for UndirectedCsrGraph<Node> {
+    fn serialize(&self, mut output: W) -> Result<(), Error> {
+        let UndirectedCsrGraph {
+            node_count: _,
+            edge_count: _,
+            edges,
+        } = self;
+
+        edges.serialize(&mut output)?;
+
+        Ok(())
+    }
+}
+
+impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<Node> {
+    fn deserialize(mut read: R) -> Result<Self, Error> {
+        let edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        Ok(UndirectedCsrGraph::new(edges))
+    }
+}
+
+impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for UndirectedCsrGraph<Node> {
+    type Error = Error;
+
+    fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
+        UndirectedCsrGraph::deserialize(&File::open(&path)?)
     }
 }
 
@@ -414,7 +547,12 @@ fn to_mut_slices<'targets, Node: Idx, T>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+    use std::{
+        io::{Seek, SeekFrom},
+        sync::atomic::{AtomicUsize, Ordering::SeqCst},
+    };
+
+    use crate::builder::GraphBuilder;
 
     use super::*;
 
@@ -472,5 +610,130 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(prefix_sum, vec![0, 42, 42, 1379, 1383, 1385, 1385]);
+    }
+
+    #[test]
+    fn serialize_directed_usize_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+        let g1 = DirectedCsrGraph::<usize>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.out_neighbors(0), g1.out_neighbors(0));
+        assert_eq!(g0.out_neighbors(1), g1.out_neighbors(1));
+        assert_eq!(g0.out_neighbors(2), g1.out_neighbors(2));
+        assert_eq!(g0.out_neighbors(3), g1.out_neighbors(3));
+
+        assert_eq!(g0.in_neighbors(0), g1.in_neighbors(0));
+        assert_eq!(g0.in_neighbors(1), g1.in_neighbors(1));
+        assert_eq!(g0.in_neighbors(2), g1.in_neighbors(2));
+        assert_eq!(g0.in_neighbors(3), g1.in_neighbors(3));
+    }
+
+    #[test]
+    fn serialize_undirected_usize_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: UndirectedCsrGraph<usize> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        let g1 = UndirectedCsrGraph::<usize>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.neighbors(0), g1.neighbors(0));
+        assert_eq!(g0.neighbors(1), g1.neighbors(1));
+        assert_eq!(g0.neighbors(2), g1.neighbors(2));
+        assert_eq!(g0.neighbors(3), g1.neighbors(3));
+    }
+
+    #[test]
+    fn serialize_directed_u32_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: DirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+        let g1 = DirectedCsrGraph::<u32>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.out_neighbors(0), g1.out_neighbors(0));
+        assert_eq!(g0.out_neighbors(1), g1.out_neighbors(1));
+        assert_eq!(g0.out_neighbors(2), g1.out_neighbors(2));
+        assert_eq!(g0.out_neighbors(3), g1.out_neighbors(3));
+
+        assert_eq!(g0.in_neighbors(0), g1.in_neighbors(0));
+        assert_eq!(g0.in_neighbors(1), g1.in_neighbors(1));
+        assert_eq!(g0.in_neighbors(2), g1.in_neighbors(2));
+        assert_eq!(g0.in_neighbors(3), g1.in_neighbors(3));
+    }
+
+    #[test]
+    fn serialize_undirected_u32_graph_test() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: UndirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        let g1 = UndirectedCsrGraph::<u32>::deserialize(file).unwrap();
+
+        assert_eq!(g0.node_count(), g1.node_count());
+        assert_eq!(g0.edge_count(), g1.edge_count());
+
+        assert_eq!(g0.neighbors(0), g1.neighbors(0));
+        assert_eq!(g0.neighbors(1), g1.neighbors(1));
+        assert_eq!(g0.neighbors(2), g1.neighbors(2));
+        assert_eq!(g0.neighbors(3), g1.neighbors(3));
+    }
+
+    #[test]
+    fn serialize_invalid_id_size() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: UndirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        let res: Result<UndirectedCsrGraph<usize>, Error> =
+            UndirectedCsrGraph::<usize>::deserialize(file);
+
+        assert!(res.is_err());
+
+        let _expected = Error::InvalidIdType {
+            expected: String::from("usize"),
+            actual: String::from("u32"),
+        };
+
+        assert!(matches!(res, _expected));
     }
 }

@@ -11,6 +11,23 @@ use crate::{index::Idx, Error};
 
 use super::{EdgeList, InputCapabilities, InputPath};
 
+/// Reads a graph from a file that contains an edge per line.
+///
+/// An edge is represented by a source node id and a target node id. The two
+/// node ids must be separated by a 1-byte character (e.g. whitespace or tab).
+///
+/// The node count of the resulting graph is the highest node id within the file
+/// plus one. The edge count will be twice the number of lines in the file.
+///
+/// # Example
+///
+/// ```ignore
+/// > cat my_graph.edgelist
+/// 0 1
+/// 0 2
+/// 1 3
+/// 2 0
+/// ```
 pub struct EdgeListInput<Node: Idx> {
     _idx: PhantomData<Node>,
 }

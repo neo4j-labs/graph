@@ -6,6 +6,7 @@ use std::{
     sync::atomic::Ordering::AcqRel,
 };
 
+pub mod binary;
 #[cfg(feature = "dotgraph")]
 pub mod dotgraph;
 pub mod edgelist;

@@ -71,6 +71,14 @@ pub trait RelabelByDegreeOp<Node: Idx> {
     fn to_degree_ordered(&self) -> Self;
 }
 
+pub trait SerializeGraphOp<W> {
+    fn serialize(&self, write: W) -> Result<(), Error>;
+}
+
+pub trait DeserializeGraphOp<R, G> {
+    fn deserialize(read: R) -> Result<G, Error>;
+}
+
 impl<Node, G> RelabelByDegreeOp<Node> for G
 where
     Node: Idx,

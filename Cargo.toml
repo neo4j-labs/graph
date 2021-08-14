@@ -13,6 +13,7 @@ license = "MIT"
 
 [dependencies]
 atoi = "0.4.0"
+byte-slice-cast = "1.0.0"
 delegate = "0.6.1"
 linereader = "0.4.0"
 log = "0.4.14"
@@ -29,6 +30,7 @@ atomic_float = "0.1.0"
 env_logger = "0.9.0"
 num-format = "0.4.0"
 pico-args = "0.4.0"
+tempfile = "3"
 
 [features]
 dotgraph_input = []
