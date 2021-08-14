@@ -139,6 +139,8 @@ pub enum Error {
     InvalidPartitioning,
     #[error("number of node values must be the same as node count")]
     InvalidNodeValues,
+    #[error("invalid id size, expected {expected:?} bytes, got {actual:?} bytes")]
+    InvalidIdType { expected: String, actual: String },
 }
 
 impl From<Infallible> for Error {

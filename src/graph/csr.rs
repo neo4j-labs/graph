@@ -49,6 +49,7 @@ impl Default for CsrLayout {
 /// list of `u` in `targets`. The degree of `u`, i.e., the length of the
 /// neighbor list is defined by `offsets[u + 1] - offsets[u]`. The neighbor list
 /// of `u` is defined by the slice `&targets[offsets[u]..offsets[u + 1]]`.
+#[derive(Debug)]
 pub struct Csr<Node: Idx> {
     offsets: Box<[Node]>,
     targets: Box<[Node]>,
@@ -175,11 +176,15 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
 
 impl<Node: Idx + ToByteSlice> Csr<Node> {
     fn serialize<W: Write>(&self, output: &mut W) -> Result<(), Error> {
+        let type_name = std::any::type_name::<Node>().as_bytes();
+        output.write_all(&[type_name.len()].as_byte_slice())?;
+        output.write_all(type_name)?;
+
         let node_count = self.node_count();
         let edge_count = self.edge_count();
-
         let meta = [node_count, edge_count];
         output.write_all(meta.as_byte_slice())?;
+
         output.write_all(self.offsets.as_byte_slice())?;
         output.write_all(self.targets.as_byte_slice())?;
 
@@ -189,6 +194,23 @@ impl<Node: Idx + ToByteSlice> Csr<Node> {
 
 impl<Node: Idx + ToMutByteSlice> Csr<Node> {
     fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node>, Error> {
+        let mut type_name_len = [0_usize; 1];
+        read.read_exact(type_name_len.as_mut_byte_slice())?;
+        let [type_name_len] = type_name_len;
+
+        let mut type_name = vec![0_u8; type_name_len];
+        read.read_exact(type_name.as_mut_byte_slice())?;
+        let type_name = String::from_utf8(type_name).expect("could not read type name");
+
+        let expected_type_name = std::any::type_name::<Node>().to_string();
+
+        if type_name != expected_type_name {
+            return Err(Error::InvalidIdType {
+                expected: expected_type_name,
+                actual: type_name,
+            });
+        }
+
         let mut meta = [Node::zero(); 2];
         read.read_exact(meta.as_mut_byte_slice())?;
 
@@ -319,6 +341,7 @@ impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGr
     }
 }
 
+#[derive(Debug)]
 pub struct UndirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
@@ -687,5 +710,30 @@ mod tests {
         assert_eq!(g0.neighbors(1), g1.neighbors(1));
         assert_eq!(g0.neighbors(2), g1.neighbors(2));
         assert_eq!(g0.neighbors(3), g1.neighbors(3));
+    }
+
+    #[test]
+    fn serialize_invalid_id_size() {
+        let mut file = tempfile::tempfile().unwrap();
+
+        let g0: UndirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert!(g0.serialize(&file).is_ok());
+
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        let res: Result<UndirectedCsrGraph<usize>, Error> =
+            UndirectedCsrGraph::<usize>::deserialize(file);
+
+        assert!(res.is_err());
+
+        let _expected = Error::InvalidIdType {
+            expected: String::from("usize"),
+            actual: String::from("u32"),
+        };
+
+        assert!(matches!(res, _expected));
     }
 }
