@@ -24,7 +24,7 @@ pub trait InDegreePartitionOp<Node: Idx> {
 pub trait ForEachNodeOp<Node: Idx> {
     fn for_each_node<T, F>(
         &self,
-        partition: &[Range<Node>],
+        maybe_partition: Option<&[Range<Node>]>,
         node_values: &mut [T],
         node_fn: F,
     ) -> Result<(), Error>
@@ -96,7 +96,7 @@ where
 {
     fn for_each_node<T, F>(
         &self,
-        partition: &[Range<Node>],
+        maybe_partition: Option<&[Range<Node>]>,
         node_values: &mut [T],
         node_fn: F,
     ) -> Result<(), Error>
@@ -104,26 +104,38 @@ where
         T: Send,
         F: Fn(&Self, Node, &mut T) + Send + Sync,
     {
-        if partition.iter().map(|r| r.end - r.start).sum::<Node>() != self.node_count() {
-            return Err(Error::InvalidPartitioning);
-        }
-
         if node_values.len() != self.node_count().index() {
             return Err(Error::InvalidNodeValues);
         }
 
-        let node_value_splits = split_by_partition(partition, node_values);
-
         let node_fn = Arc::new(node_fn);
 
-        node_value_splits
-            .into_par_iter()
-            .zip(partition.into_par_iter())
-            .for_each_with(node_fn, |node_fn, (mutable_chunk, range)| {
-                for (node_state, node) in mutable_chunk.iter_mut().zip(range.start..range.end) {
-                    node_fn(self, node, node_state);
+        match maybe_partition {
+            Some(partition) => {
+                if partition.iter().map(|r| r.end - r.start).sum::<Node>() != self.node_count() {
+                    return Err(Error::InvalidPartitioning);
                 }
-            });
+
+                let node_value_splits = split_by_partition(partition, node_values);
+
+                node_value_splits
+                    .into_par_iter()
+                    .zip(partition.into_par_iter())
+                    .for_each_with(node_fn, |node_fn, (mutable_chunk, range)| {
+                        for (node_state, node) in
+                            mutable_chunk.iter_mut().zip(range.start..range.end)
+                        {
+                            node_fn(self, node, node_state);
+                        }
+                    });
+            }
+            None => {
+                node_values
+                    .into_par_iter()
+                    .enumerate()
+                    .for_each(|(i, node_state)| node_fn(self, Node::new(i), node_state));
+            }
+        }
 
         Ok(())
     }
