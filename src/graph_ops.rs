@@ -163,33 +163,36 @@ where
 
 impl<Node: Idx, U: UndirectedGraph<Node>> DegreePartitionOp<Node> for U {
     fn degree_partition(&self, concurrency: usize) -> Vec<Range<Node>> {
-        let batch_size = (self.edge_count().index() * 2) / concurrency;
-        node_map_partition(
+        let batch_size = ((self.edge_count().index() * 2) as f64 / concurrency as f64).ceil();
+        greedy_node_map_partition(
             |node| self.degree(node).index(),
             self.node_count(),
-            batch_size,
+            batch_size as usize,
+            concurrency,
         )
     }
 }
 
 impl<Node: Idx, D: DirectedGraph<Node>> OutDegreePartitionOp<Node> for D {
     fn out_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>> {
-        let batch_size = self.edge_count().index() / concurrency;
-        node_map_partition(
+        let batch_size = (self.edge_count().index() as f64 / concurrency as f64).ceil();
+        greedy_node_map_partition(
             |node| self.out_degree(node).index(),
             self.node_count(),
-            batch_size,
+            batch_size as usize,
+            concurrency,
         )
     }
 }
 
 impl<Node: Idx, D: DirectedGraph<Node>> InDegreePartitionOp<Node> for D {
     fn in_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>> {
-        let batch_size = self.edge_count().index() / concurrency;
-        node_map_partition(
+        let batch_size = (self.edge_count().index() as f64 / concurrency as f64).ceil();
+        greedy_node_map_partition(
             |node| self.in_degree(node).index(),
             self.node_count(),
-            batch_size,
+            batch_size as usize,
+            concurrency,
         )
     }
 }
@@ -224,12 +227,17 @@ fn split_by_partition<'a, Node: Idx, T>(
     splits
 }
 
-fn node_map_partition<Node, F>(node_map: F, node_count: Node, batch_size: usize) -> Vec<Range<Node>>
+fn greedy_node_map_partition<Node, F>(
+    node_map: F,
+    node_count: Node,
+    batch_size: usize,
+    max_batches: usize,
+) -> Vec<Range<Node>>
 where
     F: Fn(Node) -> usize,
     Node: Idx,
 {
-    let mut partitions = Vec::new();
+    let mut partitions = Vec::with_capacity(max_batches);
 
     let mut partition_size = 0;
     let mut partition_start = Node::zero();
@@ -238,7 +246,9 @@ where
     for node in Node::zero()..node_count {
         partition_size += node_map(node);
 
-        if partition_size >= batch_size || node == upper_bound {
+        if (partitions.len() < max_batches - 1 && partition_size >= batch_size)
+            || node == upper_bound
+        {
             let partition_end = node + Node::new(1);
             partitions.push(partition_start..partition_end);
             partition_size = 0;
@@ -411,23 +421,23 @@ mod tests {
     }
 
     #[test]
-    fn node_map_partition_1_part() {
-        let partitions = node_map_partition::<usize, _>(|_| 1_usize, 10, 10);
+    fn greedy_node_map_partition_1_part() {
+        let partitions = greedy_node_map_partition::<usize, _>(|_| 1_usize, 10, 10, 99999);
         assert_eq!(partitions.len(), 1);
         assert_eq!(partitions[0], 0..10);
     }
 
     #[test]
-    fn node_map_partition_2_parts() {
-        let partitions = node_map_partition::<usize, _>(|x| x % 2_usize, 10, 4);
+    fn greedy_node_map_partition_2_parts() {
+        let partitions = greedy_node_map_partition::<usize, _>(|x| x % 2_usize, 10, 4, 99999);
         assert_eq!(partitions.len(), 2);
         assert_eq!(partitions[0], 0..8);
         assert_eq!(partitions[1], 8..10);
     }
 
     #[test]
-    fn node_map_partition_6_parts() {
-        let partitions = node_map_partition::<usize, _>(|x| x as usize, 10, 6);
+    fn greedy_node_map_partition_6_parts() {
+        let partitions = greedy_node_map_partition::<usize, _>(|x| x as usize, 10, 6, 99999);
         assert_eq!(partitions.len(), 6);
         assert_eq!(partitions[0], 0..4);
         assert_eq!(partitions[1], 4..6);
@@ -435,6 +445,15 @@ mod tests {
         assert_eq!(partitions[3], 7..8);
         assert_eq!(partitions[4], 8..9);
         assert_eq!(partitions[5], 9..10);
+    }
+
+    #[test]
+    fn greedy_node_map_partition_max_batches() {
+        let partitions = greedy_node_map_partition::<usize, _>(|x| x as usize, 10, 6, 3);
+        assert_eq!(partitions.len(), 3);
+        assert_eq!(partitions[0], 0..4);
+        assert_eq!(partitions[1], 4..6);
+        assert_eq!(partitions[2], 6..10);
     }
 
     #[test]
