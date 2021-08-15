@@ -9,15 +9,39 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::time::Instant;
 
+/// Partition the node set based on the degrees of the nodes.
 pub trait DegreePartitionOp<Node: Idx> {
+    /// Creates a range-based degree partition of the nodes.
+    ///
+    /// Divide the nodes into `concurrency` number of ranges such that these
+    /// ranges have roughly equal total degree. That is, the sum of the degrees
+    /// of the nodes of each range should be roughly equal to the extent that
+    /// that's actually possible.
+    /// The length of the returned vector will never exceed `concurrency`.
     fn degree_partition(&self, concurrency: usize) -> Vec<Range<Node>>;
 }
 
+/// Partition the node set based on the out degrees of the nodes.
 pub trait OutDegreePartitionOp<Node: Idx> {
+    /// Creates a range-based out degree partition of the nodes.
+    ///
+    /// Divide the nodes into `concurrency` number of ranges such that these
+    /// ranges have roughly equal total out degree. That is, the sum of the out
+    /// degrees of the nodes of each range should be roughly equal to the extent
+    /// that that's actually possible.
+    /// The length of the returned vector will never exceed `concurrency`.
     fn out_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>>;
 }
 
+/// Partition the node set based on the in degrees of the nodes.
 pub trait InDegreePartitionOp<Node: Idx> {
+    /// Creates a range-based in degree partition of the nodes.
+    ///
+    /// Divide the nodes into `concurrency` number of ranges such that these
+    /// ranges have roughly equal total in degree. That is, the sum of the in
+    /// degrees of the nodes of each range should be roughly equal to the extent
+    /// that that's actually possible.
+    /// The length of the returned vector will never exceed `concurrency`.
     fn in_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>>;
 }
 
@@ -162,6 +186,27 @@ where
 }
 
 impl<Node: Idx, U: UndirectedGraph<Node>> DegreePartitionOp<Node> for U {
+    /// Creates a greedy range-based degree partition of the nodes.
+    ///
+    /// It is greedy in the sense that it goes through the node set only once
+    /// and simply adds a new range to the result whenever the current range's
+    /// nodes' degrees sum up to at least the average node degree.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use graph::prelude::*;
+    /// # use std::ops::Range;
+    /// let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(0, 1), (0, 2), (0, 3), (0, 3)])
+    ///     .build();
+    ///
+    /// let partition: Vec<Range<u32>> = graph.degree_partition(2);
+    ///
+    /// assert_eq!(partition.len(), 2);
+    /// assert_eq!(partition[0], 0..1);
+    /// assert_eq!(partition[1], 1..4);
+    /// ```
     fn degree_partition(&self, concurrency: usize) -> Vec<Range<Node>> {
         let batch_size = ((self.edge_count().index() * 2) as f64 / concurrency as f64).ceil();
         greedy_node_map_partition(
@@ -174,6 +219,27 @@ impl<Node: Idx, U: UndirectedGraph<Node>> DegreePartitionOp<Node> for U {
 }
 
 impl<Node: Idx, D: DirectedGraph<Node>> OutDegreePartitionOp<Node> for D {
+    /// Creates a greedy range-based out degree partition of the nodes.
+    ///
+    /// It is greedy in the sense that it goes through the node set only once
+    /// and simply adds a new range to the result whenever the current range's
+    /// nodes' out degrees sum up to at least the average node out degree.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use graph::prelude::*;
+    /// # use std::ops::Range;
+    /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(0, 1), (0, 2), (2, 1), (2, 3)])
+    ///     .build();
+    ///
+    /// let partition: Vec<Range<u32>> = graph.out_degree_partition(2);
+    ///
+    /// assert_eq!(partition.len(), 2);
+    /// assert_eq!(partition[0], 0..1);
+    /// assert_eq!(partition[1], 1..4);
+    /// ```
     fn out_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>> {
         let batch_size = (self.edge_count().index() as f64 / concurrency as f64).ceil();
         greedy_node_map_partition(
@@ -186,6 +252,27 @@ impl<Node: Idx, D: DirectedGraph<Node>> OutDegreePartitionOp<Node> for D {
 }
 
 impl<Node: Idx, D: DirectedGraph<Node>> InDegreePartitionOp<Node> for D {
+    /// Creates a greedy range-based in degree partition of the nodes.
+    ///
+    /// It is greedy in the sense that it goes through the node set only once
+    /// and simply adds a new range to the result whenever the current range's
+    /// nodes' in degrees sum up to at least the average node in degree.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use graph::prelude::*;
+    /// # use std::ops::Range;
+    /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(1, 0), (1, 2), (2, 0), (3, 2)])
+    ///     .build();
+    ///
+    /// let partition: Vec<Range<u32>> = graph.in_degree_partition(2);
+    ///
+    /// assert_eq!(partition.len(), 2);
+    /// assert_eq!(partition[0], 0..1);
+    /// assert_eq!(partition[1], 1..4);
+    /// ```
     fn in_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>> {
         let batch_size = (self.edge_count().index() as f64 / concurrency as f64).ceil();
         greedy_node_map_partition(
@@ -227,6 +314,10 @@ fn split_by_partition<'a, Node: Idx, T>(
     splits
 }
 
+// Splits nodes 0..node_count().index() into at most max_batches ranges such
+// that the sums of node_map(node) for each range are roughly equal. It does so
+// greedily and therefore does not guarantee an optimally balanced range-based
+// partition.
 fn greedy_node_map_partition<Node, F>(
     node_map: F,
     node_count: Node,
