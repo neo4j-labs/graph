@@ -208,12 +208,13 @@ mod tests {
 
     #[test]
     fn test_pr_two_components() {
-        let edges = vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)];
+        let gdl = "(a)-->()-->()<--(a),(b)-->()-->()<--(b)";
 
         let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
             .csr_layout(CsrLayout::Sorted)
-            .edges(edges)
-            .build();
+            .gdl_str::<usize, _>(gdl)
+            .build()
+            .unwrap();
 
         let actual = page_rank(&graph, 20, 1E-4)
             .0

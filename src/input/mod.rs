@@ -76,3 +76,20 @@ impl<Node: Idx> EdgeList<Node> {
         degrees
     }
 }
+
+impl<Node: Idx> From<&gdl::Graph> for EdgeList<Node> {
+    fn from(gdl_graph: &gdl::Graph) -> Self {
+        let edges = gdl_graph
+            .relationships()
+            .into_iter()
+            .map(|r| {
+                let source = gdl_graph.get_node(r.source()).unwrap().id();
+                let target = gdl_graph.get_node(r.target()).unwrap().id();
+
+                (Node::new(source), Node::new(target))
+            })
+            .collect::<Vec<_>>();
+
+        EdgeList::new(edges)
+    }
+}

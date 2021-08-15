@@ -22,6 +22,24 @@ where
     _node: PhantomData<Node>,
 }
 
+pub struct FromGdlString<Node>
+where
+    Node: Idx,
+{
+    csr_layout: CsrLayout,
+    gdl: String,
+    _node: PhantomData<Node>,
+}
+
+pub struct FromGdlGraph<'a, Node>
+where
+    Node: Idx,
+{
+    csr_layout: CsrLayout,
+    gdl_graph: &'a gdl::Graph,
+    _node: PhantomData<Node>,
+}
+
 pub struct FromInput<Node, P, Format>
 where
     P: AsRef<StdPath>,
@@ -86,6 +104,81 @@ impl GraphBuilder<Uninitialized> {
         }
     }
 
+    /// Creates a graph using Graph Definition Language (GDL).
+    ///
+    /// Creating graphs from GDL is recommended for small graphs only, e.g.,
+    /// during testing. The graph construction is **not** parallelized.
+    ///
+    /// See [GDL on crates.io](https://crates.io/crates/gdl) for more
+    /// information on how to define graphs using GDL.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
+    ///     .gdl_str::<usize, _>("(a)-->(),(a)-->()")
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(g.node_count(), 3);
+    /// assert_eq!(g.edge_count(), 2);
+    /// ```
+    pub fn gdl_str<Node, S>(self, gdl: S) -> GraphBuilder<FromGdlString<Node>>
+    where
+        Node: Idx,
+        S: Into<String>,
+    {
+        GraphBuilder {
+            state: FromGdlString {
+                csr_layout: self.state.csr_layout,
+                gdl: gdl.into(),
+                _node: PhantomData,
+            },
+        }
+    }
+
+    /// Creates a graph from an already constructed GDL graph.
+    ///
+    /// Creating graphs from GDL is recommended for small graphs only, e.g.,
+    /// during testing. The graph construction is **not** parallelized.
+    ///
+    /// See [GDL on crates.io](https://crates.io/crates/gdl) for more
+    /// information on how to define graphs using GDL.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let gdl_graph = "(a)-->(),(a)-->()".parse::<gdl::Graph>().unwrap();
+    ///
+    /// let g: DirectedCsrGraph<usize> = GraphBuilder::new()
+    ///     .gdl_graph::<usize>(&gdl_graph)
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(g.node_count(), 3);
+    /// assert_eq!(g.edge_count(), 2);
+    ///
+    /// let id_a = gdl_graph.get_node("a").unwrap().id();
+    ///
+    /// assert_eq!(g.out_neighbors(id_a).len(), 2);
+    /// ```
+    pub fn gdl_graph<'a, Node>(self, gdl_graph: &'a gdl::Graph) -> GraphBuilder<FromGdlGraph<Node>>
+    where
+        Node: Idx,
+    {
+        GraphBuilder {
+            state: FromGdlGraph {
+                csr_layout: self.state.csr_layout,
+                gdl_graph,
+                _node: PhantomData,
+            },
+        }
+    }
+
     pub fn file_format<Format, Path, Node>(
         self,
         format: Format,
@@ -120,6 +213,32 @@ where
             EdgeList::new(self.state.edges.into_iter().collect()),
             self.state.csr_layout,
         ))
+    }
+}
+
+impl<Node> GraphBuilder<FromGdlString<Node>>
+where
+    Node: Idx,
+{
+    pub fn build<Graph>(self) -> Result<Graph, Error>
+    where
+        Graph: From<(gdl::Graph, CsrLayout)>,
+    {
+        let gdl_graph = self.state.gdl.parse::<gdl::Graph>()?;
+        let graph = Graph::from((gdl_graph, self.state.csr_layout));
+        Ok(graph)
+    }
+}
+
+impl<'a, Node> GraphBuilder<FromGdlGraph<'a, Node>>
+where
+    Node: Idx,
+{
+    pub fn build<Graph>(self) -> Result<Graph, Error>
+    where
+        Graph: From<(&'a gdl::Graph, CsrLayout)>,
+    {
+        Ok(Graph::from((self.state.gdl_graph, self.state.csr_layout)))
     }
 }
 

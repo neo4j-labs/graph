@@ -159,38 +159,41 @@ mod tests {
 
     #[test]
     fn test_tc_two_components() {
-        let edges = vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)];
+        let gdl = "(a)-->()-->()<--(a),(b)-->()-->()<--(b)";
 
-        let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
+        let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
-            .edges(edges)
-            .build();
+            .gdl_str::<usize, _>(gdl)
+            .build()
+            .unwrap();
 
-        assert_eq!(global_triangle_count(&g), 2);
+        assert_eq!(global_triangle_count(&graph), 2);
     }
 
     #[test]
     fn test_tc_connected_triangles() {
-        let edges = vec![(0, 1), (0, 2), (1, 2), (0, 4), (0, 5), (4, 5)];
+        let gdl = "(a)-->()-->()<--(a),(a)-->()-->()<--(a)";
 
-        let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
+        let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
-            .edges(edges)
-            .build();
+            .gdl_str::<usize, _>(gdl)
+            .build()
+            .unwrap();
 
-        assert_eq!(global_triangle_count(&g), 2);
+        assert_eq!(global_triangle_count(&graph), 2);
     }
 
     #[test]
     fn test_tc_diamond() {
-        let edges = vec![(0, 1), (0, 2), (1, 2), (1, 4), (2, 4)];
+        let gdl = "(a)-->(b)-->(c)<--(a),(b)-->(d)<--(c)";
 
-        let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
+        let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
-            .edges(edges)
-            .build();
+            .gdl_str::<usize, _>(gdl)
+            .build()
+            .unwrap();
 
-        assert_eq!(global_triangle_count(&g), 2);
+        assert_eq!(global_triangle_count(&graph), 2);
     }
 }
 
