@@ -22,7 +22,14 @@ pub trait InDegreePartitionOp<Node: Idx> {
 }
 
 pub trait ForEachNodeOp<Node: Idx> {
-    fn for_each_node<T, F>(
+    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+    where
+        T: Send,
+        F: Fn(&Self, Node, &mut T) + Send + Sync;
+}
+
+pub trait ForEachNodeByPartitionOp<Node: Idx> {
+    fn for_each_node_by_partition<T, F>(
         &self,
         partition: &[Range<Node>],
         node_values: &mut [T],
@@ -94,7 +101,32 @@ where
     Node: Idx,
     G: Graph<Node> + Sync,
 {
-    fn for_each_node<T, F>(
+    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+    where
+        T: Send,
+        F: Fn(&Self, Node, &mut T) + Send + Sync,
+    {
+        if node_values.len() != self.node_count().index() {
+            return Err(Error::InvalidNodeValues);
+        }
+
+        let node_fn = Arc::new(node_fn);
+
+        node_values
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(i, node_state)| node_fn(self, Node::new(i), node_state));
+
+        Ok(())
+    }
+}
+
+impl<Node, G> ForEachNodeByPartitionOp<Node> for G
+where
+    Node: Idx,
+    G: Graph<Node> + Sync,
+{
+    fn for_each_node_by_partition<T, F>(
         &self,
         partition: &[Range<Node>],
         node_values: &mut [T],
@@ -104,17 +136,17 @@ where
         T: Send,
         F: Fn(&Self, Node, &mut T) + Send + Sync,
     {
-        if partition.iter().map(|r| r.end - r.start).sum::<Node>() != self.node_count() {
-            return Err(Error::InvalidPartitioning);
-        }
-
         if node_values.len() != self.node_count().index() {
             return Err(Error::InvalidNodeValues);
         }
 
-        let node_value_splits = split_by_partition(partition, node_values);
+        if partition.iter().map(|r| r.end - r.start).sum::<Node>() != self.node_count() {
+            return Err(Error::InvalidPartitioning);
+        }
 
         let node_fn = Arc::new(node_fn);
+
+        let node_value_splits = split_by_partition(partition, node_values);
 
         node_value_splits
             .into_par_iter()
