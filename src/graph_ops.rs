@@ -22,9 +22,16 @@ pub trait InDegreePartitionOp<Node: Idx> {
 }
 
 pub trait ForEachNodeOp<Node: Idx> {
-    fn for_each_node<T, F>(
+    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+    where
+        T: Send,
+        F: Fn(&Self, Node, &mut T) + Send + Sync;
+}
+
+pub trait ForEachNodeByPartitionOp<Node: Idx> {
+    fn for_each_node_by_partition<T, F>(
         &self,
-        maybe_partition: Option<&[Range<Node>]>,
+        partition: &[Range<Node>],
         node_values: &mut [T],
         node_fn: F,
     ) -> Result<(), Error>
@@ -94,9 +101,34 @@ where
     Node: Idx,
     G: Graph<Node> + Sync,
 {
-    fn for_each_node<T, F>(
+    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+    where
+        T: Send,
+        F: Fn(&Self, Node, &mut T) + Send + Sync,
+    {
+        if node_values.len() != self.node_count().index() {
+            return Err(Error::InvalidNodeValues);
+        }
+
+        let node_fn = Arc::new(node_fn);
+
+        node_values
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(i, node_state)| node_fn(self, Node::new(i), node_state));
+
+        Ok(())
+    }
+}
+
+impl<Node, G> ForEachNodeByPartitionOp<Node> for G
+where
+    Node: Idx,
+    G: Graph<Node> + Sync,
+{
+    fn for_each_node_by_partition<T, F>(
         &self,
-        maybe_partition: Option<&[Range<Node>]>,
+        partition: &[Range<Node>],
         node_values: &mut [T],
         node_fn: F,
     ) -> Result<(), Error>
@@ -108,34 +140,22 @@ where
             return Err(Error::InvalidNodeValues);
         }
 
+        if partition.iter().map(|r| r.end - r.start).sum::<Node>() != self.node_count() {
+            return Err(Error::InvalidPartitioning);
+        }
+
         let node_fn = Arc::new(node_fn);
 
-        match maybe_partition {
-            Some(partition) => {
-                if partition.iter().map(|r| r.end - r.start).sum::<Node>() != self.node_count() {
-                    return Err(Error::InvalidPartitioning);
+        let node_value_splits = split_by_partition(partition, node_values);
+
+        node_value_splits
+            .into_par_iter()
+            .zip(partition.into_par_iter())
+            .for_each_with(node_fn, |node_fn, (mutable_chunk, range)| {
+                for (node_state, node) in mutable_chunk.iter_mut().zip(range.start..range.end) {
+                    node_fn(self, node, node_state);
                 }
-
-                let node_value_splits = split_by_partition(partition, node_values);
-
-                node_value_splits
-                    .into_par_iter()
-                    .zip(partition.into_par_iter())
-                    .for_each_with(node_fn, |node_fn, (mutable_chunk, range)| {
-                        for (node_state, node) in
-                            mutable_chunk.iter_mut().zip(range.start..range.end)
-                        {
-                            node_fn(self, node, node_state);
-                        }
-                    });
-            }
-            None => {
-                node_values
-                    .into_par_iter()
-                    .enumerate()
-                    .for_each(|(i, node_state)| node_fn(self, Node::new(i), node_state));
-            }
-        }
+            });
 
         Ok(())
     }

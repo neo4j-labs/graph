@@ -5,6 +5,7 @@ pub use crate::graph::csr::DirectedCsrGraph;
 pub use crate::graph::csr::UndirectedCsrGraph;
 
 pub use crate::graph_ops::DegreePartitionOp;
+pub use crate::graph_ops::ForEachNodeByPartitionOp;
 pub use crate::graph_ops::ForEachNodeOp;
 pub use crate::graph_ops::InDegreePartitionOp;
 pub use crate::graph_ops::OutDegreePartitionOp;
