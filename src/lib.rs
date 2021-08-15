@@ -135,6 +135,11 @@ pub enum Error {
         #[from]
         source: std::io::Error,
     },
+    #[error("error while parsing GDL input")]
+    GdlError {
+        #[from]
+        source: gdl::graph::GraphHandlerError,
+    },
     #[error("invalid partitioning")]
     InvalidPartitioning,
     #[error("number of node values must be the same as node count")]
