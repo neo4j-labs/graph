@@ -31,12 +31,12 @@ where
     _node: PhantomData<Node>,
 }
 
-pub struct FromGdlGraph<Node>
+pub struct FromGdlGraph<'a, Node>
 where
     Node: Idx,
 {
     csr_layout: CsrLayout,
-    gdl_graph: gdl::Graph,
+    gdl_graph: &'a gdl::Graph,
     _node: PhantomData<Node>,
 }
 
@@ -153,19 +153,20 @@ impl GraphBuilder<Uninitialized> {
     /// use graph::prelude::*;
     ///
     /// let gdl_graph = "(a)-->(),(a)-->()".parse::<gdl::Graph>().unwrap();
-    /// let id_a = gdl_graph.get_node("a").unwrap().id();
     ///
     /// let g: DirectedCsrGraph<usize> = GraphBuilder::new()
-    ///     .gdl_graph::<usize>(gdl_graph)
+    ///     .gdl_graph::<usize>(&gdl_graph)
     ///     .build()
     ///     .unwrap();
     ///
     /// assert_eq!(g.node_count(), 3);
     /// assert_eq!(g.edge_count(), 2);
     ///
+    /// let id_a = gdl_graph.get_node("a").unwrap().id();
+    ///
     /// assert_eq!(g.out_neighbors(id_a).len(), 2);
     /// ```
-    pub fn gdl_graph<'a, Node>(self, gdl_graph: gdl::Graph) -> GraphBuilder<FromGdlGraph<Node>>
+    pub fn gdl_graph<'a, Node>(self, gdl_graph: &'a gdl::Graph) -> GraphBuilder<FromGdlGraph<Node>>
     where
         Node: Idx,
     {
@@ -223,18 +224,19 @@ where
     where
         Graph: From<(gdl::Graph, CsrLayout)>,
     {
-        let gdl_graph = self.state.gdl.parse()?;
-        Ok(Graph::from((gdl_graph, self.state.csr_layout)))
+        let gdl_graph = self.state.gdl.parse::<gdl::Graph>()?;
+        let graph = Graph::from((gdl_graph, self.state.csr_layout));
+        Ok(graph)
     }
 }
 
-impl<Node> GraphBuilder<FromGdlGraph<Node>>
+impl<'a, Node> GraphBuilder<FromGdlGraph<'a, Node>>
 where
     Node: Idx,
 {
     pub fn build<Graph>(self) -> Result<Graph, Error>
     where
-        Graph: From<(gdl::Graph, CsrLayout)>,
+        Graph: From<(&'a gdl::Graph, CsrLayout)>,
     {
         Ok(Graph::from((self.state.gdl_graph, self.state.csr_layout)))
     }

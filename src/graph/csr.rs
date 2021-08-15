@@ -306,9 +306,15 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for DirectedCsrGraph<Node> {
     }
 }
 
+impl<Node: Idx> From<(&gdl::Graph, CsrLayout)> for DirectedCsrGraph<Node> {
+    fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
+        DirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
+    }
+}
+
 impl<Node: Idx> From<(gdl::Graph, CsrLayout)> for DirectedCsrGraph<Node> {
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
+        DirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
     }
 }
 
@@ -416,9 +422,15 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for UndirectedCsrGraph<Node> {
     }
 }
 
+impl<Node: Idx> From<(&gdl::Graph, CsrLayout)> for UndirectedCsrGraph<Node> {
+    fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
+        UndirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
+    }
+}
+
 impl<Node: Idx> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<Node> {
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
-        UndirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
+        UndirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
     }
 }
 

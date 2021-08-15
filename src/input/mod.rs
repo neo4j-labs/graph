@@ -77,8 +77,8 @@ impl<Node: Idx> EdgeList<Node> {
     }
 }
 
-impl<Node: Idx> From<gdl::Graph> for EdgeList<Node> {
-    fn from(gdl_graph: gdl::Graph) -> Self {
+impl<Node: Idx> From<&gdl::Graph> for EdgeList<Node> {
+    fn from(gdl_graph: &gdl::Graph) -> Self {
         let edges = gdl_graph
             .relationships()
             .into_iter()
