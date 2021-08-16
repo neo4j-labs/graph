@@ -45,10 +45,10 @@ pub trait InDegreePartitionOp<Node: Idx> {
     fn in_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>>;
 }
 
-/// Call a particular function for each node with its corresponding state.
-pub trait ForEachNodeOp<Node: Idx> {
-    /// For each node calls `node_fn` with the node and its corresponding
-    /// mutable state.
+/// Call a particular function for each node with its corresponding state in parallel.
+pub trait ForEachNodeParallelOp<Node: Idx> {
+    /// For each node calls `node_fn` with the node and its corresponding mutable
+    /// state in parallel.
     ///
     /// For every node `n` in the graph `node_fn(&self, n, node_values[n.index()])`
     /// will be called.
@@ -67,7 +67,7 @@ pub trait ForEachNodeOp<Node: Idx> {
     /// let mut node_values = vec![0; 3];
     ///
     /// graph.
-    ///     for_each_node(&mut node_values, |g, node, node_state| {
+    ///     for_each_node_par(&mut node_values, |g, node, node_state| {
     ///         *node_state = g.out_degree(node);
     ///     });
     ///
@@ -75,16 +75,17 @@ pub trait ForEachNodeOp<Node: Idx> {
     /// assert_eq!(node_values[1], 1);
     /// assert_eq!(node_values[2], 0);
     /// ```
-    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+    fn for_each_node_par<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
     where
         T: Send,
         F: Fn(&Self, Node, &mut T) + Send + Sync;
 }
 
-/// Call a particular function for each node with its corresponding state with partition hint.
-pub trait ForEachNodeByPartitionOp<Node: Idx> {
+/// Call a particular function for each node with its corresponding state in parallel based on a
+/// partition.
+pub trait ForEachNodeParallelByPartitionOp<Node: Idx> {
     /// For each node calls `node_fn` with the node and its corresponding
-    /// mutable state, using `partition` as a parallelization hint.
+    /// mutable state in parallel, using `partition` as a parallelization hint.
     ///
     /// For every node `n` in the graph `node_fn(&self, n, node_values[n.index()])`
     /// will be called.
@@ -92,8 +93,9 @@ pub trait ForEachNodeByPartitionOp<Node: Idx> {
     /// `node_values` must have length exactly equal to the number of nodes in
     /// the graph.
     ///
-    /// A multithreaded implementation will base its parallelization scheme on
-    /// the provided `partition`.
+    /// The parallelization will be implemented such that the work for a set of
+    /// nodes represented by each range in `partition` will correspond to a task
+    /// that will run in a single thread.
     ///
     /// # Example
     ///
@@ -107,7 +109,7 @@ pub trait ForEachNodeByPartitionOp<Node: Idx> {
     /// let partition: Vec<Range<u32>> = graph.out_degree_partition(num_cpus::get());
     ///
     /// graph.
-    ///     for_each_node_by_partition(&partition, &mut node_values, |g, node, node_state| {
+    ///     for_each_node_par_by_partition(&partition, &mut node_values, |g, node, node_state| {
     ///         *node_state = g.out_degree(node);
     ///     });
     ///
@@ -115,7 +117,7 @@ pub trait ForEachNodeByPartitionOp<Node: Idx> {
     /// assert_eq!(node_values[1], 1);
     /// assert_eq!(node_values[2], 0);
     /// ```
-    fn for_each_node_by_partition<T, F>(
+    fn for_each_node_par_by_partition<T, F>(
         &self,
         partition: &[Range<Node>],
         node_values: &mut [T],
@@ -182,7 +184,7 @@ where
     }
 }
 
-impl<Node, G> ForEachNodeOp<Node> for G
+impl<Node, G> ForEachNodeParallelOp<Node> for G
 where
     Node: Idx,
     G: Graph<Node> + Sync,
@@ -192,7 +194,7 @@ where
     ///
     /// The parallelization is done by means of a [rayon](https://docs.rs/rayon/)
     /// based fork join with a task for each node.
-    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+    fn for_each_node_par<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
     where
         T: Send,
         F: Fn(&Self, Node, &mut T) + Send + Sync,
@@ -212,7 +214,7 @@ where
     }
 }
 
-impl<Node, G> ForEachNodeByPartitionOp<Node> for G
+impl<Node, G> ForEachNodeParallelByPartitionOp<Node> for G
 where
     Node: Idx,
     G: Graph<Node> + Sync,
@@ -222,7 +224,7 @@ where
     ///
     /// The parallelization is done by means of a [rayon](https://docs.rs/rayon/)
     /// based fork join with a task for each range in the provided node partition.
-    fn for_each_node_by_partition<T, F>(
+    fn for_each_node_par_by_partition<T, F>(
         &self,
         partition: &[Range<Node>],
         node_values: &mut [T],
