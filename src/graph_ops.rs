@@ -45,15 +45,79 @@ pub trait InDegreePartitionOp<Node: Idx> {
     fn in_degree_partition(&self, concurrency: usize) -> Vec<Range<Node>>;
 }
 
-pub trait ForEachNodeOp<Node: Idx> {
-    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+/// Call a particular function for each node with its corresponding state in parallel.
+pub trait ForEachNodeParallelOp<Node: Idx> {
+    /// For each node calls `node_fn` with the node and its corresponding mutable
+    /// state in parallel.
+    ///
+    /// For every node `n` in the graph `node_fn(&self, n, node_values[n.index()])`
+    /// will be called.
+    ///
+    /// `node_values` must have length exactly equal to the number of nodes in
+    /// the graph.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use graph::prelude::*;
+    /// # use std::ops::Range;
+    /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(0, 1), (0, 2), (1, 2)])
+    ///     .build();
+    /// let mut node_values = vec![0; 3];
+    ///
+    /// graph.
+    ///     for_each_node_par(&mut node_values, |g, node, node_state| {
+    ///         *node_state = g.out_degree(node);
+    ///     });
+    ///
+    /// assert_eq!(node_values[0], 2);
+    /// assert_eq!(node_values[1], 1);
+    /// assert_eq!(node_values[2], 0);
+    /// ```
+    fn for_each_node_par<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
     where
         T: Send,
         F: Fn(&Self, Node, &mut T) + Send + Sync;
 }
 
-pub trait ForEachNodeByPartitionOp<Node: Idx> {
-    fn for_each_node_by_partition<T, F>(
+/// Call a particular function for each node with its corresponding state in parallel based on a
+/// partition.
+pub trait ForEachNodeParallelByPartitionOp<Node: Idx> {
+    /// For each node calls `node_fn` with the node and its corresponding
+    /// mutable state in parallel, using `partition` as a parallelization hint.
+    ///
+    /// For every node `n` in the graph `node_fn(&self, n, node_values[n.index()])`
+    /// will be called.
+    ///
+    /// `node_values` must have length exactly equal to the number of nodes in
+    /// the graph.
+    ///
+    /// The parallelization will be implemented such that the work for a set of
+    /// nodes represented by each range in `partition` will correspond to a task
+    /// that will run in a single thread.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use graph::prelude::*;
+    /// # use std::ops::Range;
+    /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(0, 1), (0, 2), (1, 2)])
+    ///     .build();
+    /// let mut node_values = vec![0; 3];
+    /// let partition: Vec<Range<u32>> = graph.out_degree_partition(num_cpus::get());
+    ///
+    /// graph.
+    ///     for_each_node_par_by_partition(&partition, &mut node_values, |g, node, node_state| {
+    ///         *node_state = g.out_degree(node);
+    ///     });
+    ///
+    /// assert_eq!(node_values[0], 2);
+    /// assert_eq!(node_values[1], 1);
+    /// assert_eq!(node_values[2], 0);
+    /// ```
+    fn for_each_node_par_by_partition<T, F>(
         &self,
         partition: &[Range<Node>],
         node_values: &mut [T],
@@ -120,12 +184,17 @@ where
     }
 }
 
-impl<Node, G> ForEachNodeOp<Node> for G
+impl<Node, G> ForEachNodeParallelOp<Node> for G
 where
     Node: Idx,
     G: Graph<Node> + Sync,
 {
-    fn for_each_node<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
+    /// For each node calls a given function with the node and its corresponding
+    /// mutable state in parallel.
+    ///
+    /// The parallelization is done by means of a [rayon](https://docs.rs/rayon/)
+    /// based fork join with a task for each node.
+    fn for_each_node_par<T, F>(&self, node_values: &mut [T], node_fn: F) -> Result<(), Error>
     where
         T: Send,
         F: Fn(&Self, Node, &mut T) + Send + Sync,
@@ -145,12 +214,17 @@ where
     }
 }
 
-impl<Node, G> ForEachNodeByPartitionOp<Node> for G
+impl<Node, G> ForEachNodeParallelByPartitionOp<Node> for G
 where
     Node: Idx,
     G: Graph<Node> + Sync,
 {
-    fn for_each_node_by_partition<T, F>(
+    /// For each node calls a given function with the node and its corresponding
+    /// mutable state in parallel based on the provided node partition.
+    ///
+    /// The parallelization is done by means of a [rayon](https://docs.rs/rayon/)
+    /// based fork join with a task for each range in the provided node partition.
+    fn for_each_node_par_by_partition<T, F>(
         &self,
         partition: &[Range<Node>],
         node_values: &mut [T],
@@ -284,6 +358,9 @@ impl<Node: Idx, D: DirectedGraph<Node>> InDegreePartitionOp<Node> for D {
     }
 }
 
+// Split input slice into a vector of partition.len() disjoint slices such that
+// the slice at index i in the output vector has the same length as the range at
+// index i in the input partition.
 fn split_by_partition<'a, Node: Idx, T>(
     partition: &[Range<Node>],
     slice: &'a mut [T],
@@ -314,7 +391,7 @@ fn split_by_partition<'a, Node: Idx, T>(
     splits
 }
 
-// Splits nodes 0..node_count().index() into at most max_batches ranges such
+// Partition nodes 0..node_count().index() into at most max_batches ranges such
 // that the sums of node_map(node) for each range are roughly equal. It does so
 // greedily and therefore does not guarantee an optimally balanced range-based
 // partition.
