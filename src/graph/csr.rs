@@ -177,7 +177,7 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
 impl<Node: Idx + ToByteSlice> Csr<Node> {
     fn serialize<W: Write>(&self, output: &mut W) -> Result<(), Error> {
         let type_name = std::any::type_name::<Node>().as_bytes();
-        output.write_all(&[type_name.len()].as_byte_slice())?;
+        output.write_all([type_name.len()].as_byte_slice())?;
         output.write_all(type_name)?;
 
         let node_count = self.node_count();

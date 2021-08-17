@@ -166,7 +166,7 @@ impl GraphBuilder<Uninitialized> {
     ///
     /// assert_eq!(g.out_neighbors(id_a).len(), 2);
     /// ```
-    pub fn gdl_graph<'a, Node>(self, gdl_graph: &'a gdl::Graph) -> GraphBuilder<FromGdlGraph<Node>>
+    pub fn gdl_graph<Node>(self, gdl_graph: &gdl::Graph) -> GraphBuilder<FromGdlGraph<Node>>
     where
         Node: Idx,
     {
