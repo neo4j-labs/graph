@@ -1,35 +1,46 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "dotgraph")]
 use crate::input::dotgraph::DotGraph;
+use crate::input::EdgeList;
 use crate::{index::Idx, DirectedGraph, Graph, UndirectedGraph};
 
-pub trait NodeLabeledGraph<Node: Idx>: Graph<Node> {
-    fn label(&self, node: Node) -> Node;
+use super::csr::{Csr, CsrLayout, DirectedCsrGraph, UndirectedCsrGraph};
 
-    fn nodes_by_label(&self, label: Node) -> &[Node];
+pub type DirectedNodeLabeledCsrGraph<Node, Label> =
+    NodeLabeledCsrGraph<DirectedCsrGraph<Node>, Label>;
+pub type UndirectedNodeLabeledCsrGraph<Node, Label> =
+    NodeLabeledCsrGraph<UndirectedCsrGraph<Node>, Label>;
 
-    fn label_count(&self) -> Node;
+pub trait NodeLabeledGraph<Node: Idx, Label: Idx>: Graph<Node> {
+    fn label(&self, node: Node) -> Label;
 
-    fn max_label(&self) -> Node;
+    fn nodes_by_label(&self, label: Label) -> &[Node];
 
-    fn max_label_frequency(&self) -> Node;
+    fn label_count(&self) -> usize;
 
-    fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Node, Node>;
+    fn max_label(&self) -> Label;
+
+    fn max_label_frequency(&self) -> usize;
+
+    fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Label, usize>;
 }
 
-pub struct NodeLabeledCsrGraph<G> {
+pub struct NodeLabeledCsrGraph<G, Label: Idx> {
     graph: G,
-    label_index: Box<[usize]>,
-    label_index_offsets: Box<[usize]>,
+    labels: Csr<Label>,
     max_degree: usize,
-    max_label: usize,
+    max_label: Label,
     max_label_frequency: usize,
-    label_frequency: HashMap<usize, usize>,
-    neighbor_label_frequencies: Option<Box<[HashMap<usize, usize>]>>,
+    label_frequency: HashMap<Label, usize>,
+    neighbor_label_frequencies: Option<Box<[HashMap<Label, usize>]>>,
 }
 
-impl<Node: Idx, G: Graph<Node>> Graph<Node> for NodeLabeledCsrGraph<G> {
+impl<Node, Label, G> Graph<Node> for NodeLabeledCsrGraph<G, Label>
+where
+    Node: Idx,
+    Label: Idx,
+    G: Graph<Node>,
+{
     #[inline]
     fn node_count(&self) -> Node {
         self.graph.node_count()
@@ -41,9 +52,10 @@ impl<Node: Idx, G: Graph<Node>> Graph<Node> for NodeLabeledCsrGraph<G> {
     }
 }
 
-impl<Node, G> DirectedGraph<Node> for NodeLabeledCsrGraph<G>
+impl<Node, Label, G> DirectedGraph<Node> for NodeLabeledCsrGraph<G, Label>
 where
     Node: Idx,
+    Label: Idx,
     G: DirectedGraph<Node>,
 {
     fn out_degree(&self, node: Node) -> Node {
@@ -63,9 +75,10 @@ where
     }
 }
 
-impl<Node, G> UndirectedGraph<Node> for NodeLabeledCsrGraph<G>
+impl<Node, Label, G> UndirectedGraph<Node> for NodeLabeledCsrGraph<G, Label>
 where
     Node: Idx,
+    Label: Idx,
     G: UndirectedGraph<Node>,
 {
     fn degree(&self, node: Node) -> Node {
@@ -77,27 +90,32 @@ where
     }
 }
 
-#[cfg(feature = "dotgraph")]
-impl<Node: Idx, G: From<(EdgeList<Node>, CsrLayout)>> From<(DotGraph<Node>, CsrLayout)>
-    for NodeLabeledCsrGraph<G>
+impl<Node, Label, G> From<(DotGraph<Node, Label>, CsrLayout)> for NodeLabeledCsrGraph<G, Label>
+where
+    Node: Idx,
+    Label: Idx,
+    G: From<(EdgeList<Node>, CsrLayout)>,
 {
-    fn from(_: (DotGraph<Node>, CsrLayout)) -> Self {
+    fn from(_: (DotGraph<Node, Label>, CsrLayout)) -> Self {
         todo!()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "dotgraph")]
+    use crate::{builder::GraphBuilder, input::dotgraph::DotGraphInput, Error};
+
+    use super::*;
+
     #[test]
     fn should_compile_test() {
         fn inner_test() -> Result<(), Error> {
-            let _g: NodeLabeledCsrGraph<DirectedCSRGraph<usize>> = GraphBuilder::new()
+            let _g: DirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
                 .file_format(DotGraphInput::default())
                 .path("graph")
                 .build()?;
 
-            let _g: NodeLabeledCsrGraph<UndirectedCSRGraph<usize>> = GraphBuilder::new()
+            let _g: UndirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
                 .file_format(DotGraphInput::default())
                 .path("graph")
                 .build()?;

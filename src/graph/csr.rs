@@ -61,17 +61,17 @@ impl<Node: Idx> Csr<Node> {
     }
 
     #[inline]
-    fn node_count(&self) -> Node {
+    pub(crate) fn node_count(&self) -> Node {
         Node::new(self.offsets.len() - 1)
     }
 
     #[inline]
-    fn edge_count(&self) -> Node {
+    pub(crate) fn edge_count(&self) -> Node {
         Node::new(self.targets.len())
     }
 
     #[inline]
-    fn degree(&self, node: Node) -> Node {
+    pub(crate) fn degree(&self, node: Node) -> Node {
         let from = self.offsets[node.index()];
         let to = self.offsets[(node + Node::new(1)).index()];
 
@@ -79,7 +79,7 @@ impl<Node: Idx> Csr<Node> {
     }
 
     #[inline]
-    fn neighbors(&self, node: Node) -> &[Node] {
+    pub(crate) fn neighbors(&self, node: Node) -> &[Node] {
         let from = self.offsets[node.index()];
         let to = self.offsets[(node + Node::new(1)).index()];
 
