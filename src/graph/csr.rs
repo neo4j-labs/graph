@@ -50,38 +50,38 @@ impl Default for CsrLayout {
 /// neighbor list is defined by `offsets[u + 1] - offsets[u]`. The neighbor list
 /// of `u` is defined by the slice `&targets[offsets[u]..offsets[u + 1]]`.
 #[derive(Debug)]
-pub struct Csr<Node: Idx> {
-    offsets: Box<[Node]>,
-    targets: Box<[Node]>,
+pub struct Csr<Index: Idx, T> {
+    offsets: Box<[Index]>,
+    targets: Box<[T]>,
 }
 
-impl<Node: Idx> Csr<Node> {
-    pub(crate) fn new(offsets: Box<[Node]>, targets: Box<[Node]>) -> Self {
+impl<Index: Idx, T> Csr<Index, T> {
+    pub(crate) fn new(offsets: Box<[Index]>, targets: Box<[T]>) -> Self {
         Self { offsets, targets }
     }
 
     #[inline]
-    pub(crate) fn node_count(&self) -> Node {
-        Node::new(self.offsets.len() - 1)
+    pub(crate) fn node_count(&self) -> Index {
+        Index::new(self.offsets.len() - 1)
     }
 
     #[inline]
-    pub(crate) fn edge_count(&self) -> Node {
-        Node::new(self.targets.len())
+    pub(crate) fn edge_count(&self) -> Index {
+        Index::new(self.targets.len())
     }
 
     #[inline]
-    pub(crate) fn degree(&self, node: Node) -> Node {
-        let from = self.offsets[node.index()];
-        let to = self.offsets[(node + Node::new(1)).index()];
+    pub(crate) fn degree(&self, i: Index) -> Index {
+        let from = self.offsets[i.index()];
+        let to = self.offsets[(i + Index::new(1)).index()];
 
         to - from
     }
 
     #[inline]
-    pub(crate) fn neighbors(&self, node: Node) -> &[Node] {
-        let from = self.offsets[node.index()];
-        let to = self.offsets[(node + Node::new(1)).index()];
+    pub(crate) fn targets(&self, i: Index) -> &[T] {
+        let from = self.offsets[i.index()];
+        let to = self.offsets[(i + Index::new(1)).index()];
 
         &self.targets[from.index()..to.index()]
     }
@@ -89,7 +89,7 @@ impl<Node: Idx> Csr<Node> {
 
 type CsrInput<'a, Node> = (&'a mut EdgeList<Node>, Node, Direction, CsrLayout);
 
-impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
+impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node, Node> {
     fn from((edge_list, node_count, direction, csr_layout): CsrInput<'_, Node>) -> Self {
         let start = Instant::now();
         let degrees = edge_list.degrees(node_count, direction);
@@ -174,7 +174,7 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
     }
 }
 
-impl<Node: Idx + ToByteSlice> Csr<Node> {
+impl<Node: Idx + ToByteSlice> Csr<Node, Node> {
     fn serialize<W: Write>(&self, output: &mut W) -> Result<(), Error> {
         let type_name = std::any::type_name::<Node>().as_bytes();
         output.write_all([type_name.len()].as_byte_slice())?;
@@ -192,8 +192,8 @@ impl<Node: Idx + ToByteSlice> Csr<Node> {
     }
 }
 
-impl<Node: Idx + ToMutByteSlice> Csr<Node> {
-    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node>, Error> {
+impl<Node: Idx + ToMutByteSlice> Csr<Node, Node> {
+    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node, Node>, Error> {
         let mut type_name_len = [0_usize; 1];
         read.read_exact(type_name_len.as_mut_byte_slice())?;
         let [type_name_len] = type_name_len;
@@ -238,12 +238,12 @@ impl<Node: Idx + ToMutByteSlice> Csr<Node> {
 pub struct DirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
-    out_edges: Csr<Node>,
-    in_edges: Csr<Node>,
+    out_edges: Csr<Node, Node>,
+    in_edges: Csr<Node, Node>,
 }
 
 impl<Node: Idx> DirectedCsrGraph<Node> {
-    pub fn new(out_edges: Csr<Node>, in_edges: Csr<Node>) -> Self {
+    pub fn new(out_edges: Csr<Node, Node>, in_edges: Csr<Node, Node>) -> Self {
         let node_count = out_edges.node_count();
         let edge_count = out_edges.edge_count();
 
@@ -277,7 +277,7 @@ impl<Node: Idx> DirectedGraph<Node> for DirectedCsrGraph<Node> {
     }
 
     fn out_neighbors(&self, node: Node) -> &[Node] {
-        self.out_edges.neighbors(node)
+        self.out_edges.targets(node)
     }
 
     fn in_degree(&self, node: Node) -> Node {
@@ -285,7 +285,7 @@ impl<Node: Idx> DirectedGraph<Node> for DirectedCsrGraph<Node> {
     }
 
     fn in_neighbors(&self, node: Node) -> &[Node] {
-        self.in_edges.neighbors(node)
+        self.in_edges.targets(node)
     }
 }
 
@@ -336,8 +336,8 @@ impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for DirectedCsrGraph
 
 impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for DirectedCsrGraph<Node> {
     fn deserialize(mut read: R) -> Result<Self, Error> {
-        let out_edges: Csr<Node> = Csr::deserialize(&mut read)?;
-        let in_edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        let out_edges: Csr<Node, Node> = Csr::deserialize(&mut read)?;
+        let in_edges: Csr<Node, Node> = Csr::deserialize(&mut read)?;
         Ok(DirectedCsrGraph::new(out_edges, in_edges))
     }
 }
@@ -357,17 +357,17 @@ impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGr
 pub struct UndirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
-    edges: Csr<Node>,
+    edges: Csr<Node, Node>,
 }
 
-impl<Node: Idx> From<Csr<Node>> for UndirectedCsrGraph<Node> {
-    fn from(csr: Csr<Node>) -> Self {
+impl<Node: Idx> From<Csr<Node, Node>> for UndirectedCsrGraph<Node> {
+    fn from(csr: Csr<Node, Node>) -> Self {
         UndirectedCsrGraph::new(csr)
     }
 }
 
 impl<Node: Idx> UndirectedCsrGraph<Node> {
-    pub fn new(edges: Csr<Node>) -> Self {
+    pub fn new(edges: Csr<Node, Node>) -> Self {
         let node_count = edges.node_count();
         let edge_count = edges.edge_count() / Node::new(2);
 
@@ -400,7 +400,7 @@ impl<Node: Idx> UndirectedGraph<Node> for UndirectedCsrGraph<Node> {
     }
 
     fn neighbors(&self, node: Node) -> &[Node] {
-        self.edges.neighbors(node)
+        self.edges.targets(node)
     }
 }
 
@@ -450,7 +450,7 @@ impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for UndirectedCsrGra
 
 impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<Node> {
     fn deserialize(mut read: R) -> Result<Self, Error> {
-        let edges: Csr<Node> = Csr::deserialize(&mut read)?;
+        let edges: Csr<Node, Node> = Csr::deserialize(&mut read)?;
         Ok(UndirectedCsrGraph::new(edges))
     }
 }

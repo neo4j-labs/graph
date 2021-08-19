@@ -8,9 +8,9 @@ use crate::{index::Idx, DirectedGraph, Graph, UndirectedGraph};
 use super::csr::{Csr, CsrLayout, DirectedCsrGraph, UndirectedCsrGraph};
 
 pub type DirectedNodeLabeledCsrGraph<Node, Label> =
-    NodeLabeledCsrGraph<DirectedCsrGraph<Node>, Label>;
+    NodeLabeledCsrGraph<DirectedCsrGraph<Node>, Node, Label>;
 pub type UndirectedNodeLabeledCsrGraph<Node, Label> =
-    NodeLabeledCsrGraph<UndirectedCsrGraph<Node>, Label>;
+    NodeLabeledCsrGraph<UndirectedCsrGraph<Node>, Node, Label>;
 
 pub trait NodeLabeledGraph<Node, Label>: Graph<Node>
 where
@@ -30,11 +30,11 @@ where
     fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Label, usize>;
 }
 
-pub struct NodeLabeledCsrGraph<G, Label: Idx> {
+pub struct NodeLabeledCsrGraph<G, Node: Idx, Label: Idx> {
     graph: G,
     label_count: usize,
     labels: Box<[Label]>,
-    label_index: Csr<Label>,
+    label_index: Csr<Label, Node>,
     max_degree: usize,
     max_label: Label,
     max_label_frequency: usize,
@@ -42,7 +42,7 @@ pub struct NodeLabeledCsrGraph<G, Label: Idx> {
     neighbor_label_frequencies: Option<Box<[HashMap<Label, usize>]>>,
 }
 
-impl<G, Node, Label> Graph<Node> for NodeLabeledCsrGraph<G, Label>
+impl<G, Node, Label> Graph<Node> for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
     Label: Idx,
@@ -59,7 +59,7 @@ where
     }
 }
 
-impl<G, Node, Label> DirectedGraph<Node> for NodeLabeledCsrGraph<G, Label>
+impl<G, Node, Label> DirectedGraph<Node> for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
     Label: Idx,
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl<G, Node, Label> UndirectedGraph<Node> for NodeLabeledCsrGraph<G, Label>
+impl<G, Node, Label> UndirectedGraph<Node> for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
     Label: Idx,
@@ -97,10 +97,10 @@ where
     }
 }
 
-impl<G, Node, Label> NodeLabeledGraph<Node, Label> for NodeLabeledCsrGraph<G, Label>
+impl<G, Node, Label> NodeLabeledGraph<Node, Label> for NodeLabeledCsrGraph<G, Node, Label>
 where
-    Node: Idx + Hash,
-    Label: Idx + Hash,
+    Node: Idx,
+    Label: Idx,
     G: Graph<Node>,
 {
     fn label(&self, node: Node) -> Label {
@@ -108,7 +108,7 @@ where
     }
 
     fn nodes_by_label(&self, label: Label) -> &[Node] {
-        todo!()
+        self.label_index.targets(label)
     }
 
     fn label_count(&self) -> usize {
@@ -124,14 +124,16 @@ where
     }
 
     fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Label, usize> {
-        match &self.neighbor_label_frequencies {
-            Some(nlfs) => &nlfs[node.index()],
-            None => panic!("Neighbor label frequencies have not been loaded."),
+        if let Some(nlfs) = &self.neighbor_label_frequencies {
+            &nlfs[node.index()]
+        } else {
+            panic!("Neighbor label frequencies have not been loaded.")
         }
     }
 }
 
-impl<G, Node, Label> From<(DotGraph<Node, Label>, CsrLayout)> for NodeLabeledCsrGraph<G, Label>
+impl<G, Node, Label> From<(DotGraph<Node, Label>, CsrLayout)>
+    for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
     Label: Idx,
