@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use crate::input::dotgraph::DotGraph;
 use crate::input::EdgeList;
@@ -48,14 +47,12 @@ where
     Label: Idx,
     G: Graph<Node>,
 {
-    #[inline]
-    fn node_count(&self) -> Node {
-        self.graph.node_count()
-    }
+    delegate::delegate! {
+        to self.graph {
+            fn node_count(&self) -> Node;
 
-    #[inline]
-    fn edge_count(&self) -> Node {
-        self.graph.edge_count()
+            fn edge_count(&self) -> Node;
+        }
     }
 }
 
@@ -65,20 +62,16 @@ where
     Label: Idx,
     G: DirectedGraph<Node>,
 {
-    fn out_degree(&self, node: Node) -> Node {
-        self.graph.out_degree(node)
-    }
+    delegate::delegate! {
+        to self.graph {
+            fn out_degree(&self, node: Node) -> Node;
 
-    fn out_neighbors(&self, node: Node) -> &[Node] {
-        self.graph.out_neighbors(node)
-    }
+            fn out_neighbors(&self, node: Node) -> &[Node];
 
-    fn in_degree(&self, node: Node) -> Node {
-        self.graph.in_degree(node)
-    }
+            fn in_degree(&self, node: Node) -> Node;
 
-    fn in_neighbors(&self, node: Node) -> &[Node] {
-        self.graph.in_neighbors(node)
+            fn in_neighbors(&self, node: Node) -> &[Node] ;
+        }
     }
 }
 
@@ -88,12 +81,12 @@ where
     Label: Idx,
     G: UndirectedGraph<Node>,
 {
-    fn degree(&self, node: Node) -> Node {
-        self.graph.degree(node)
-    }
+    delegate::delegate! {
+        to self.graph {
+            fn degree(&self, node: Node) -> Node;
 
-    fn neighbors(&self, node: Node) -> &[Node] {
-        self.graph.neighbors(node)
+            fn neighbors(&self, node: Node) -> &[Node];
+        }
     }
 }
 
