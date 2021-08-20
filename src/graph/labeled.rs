@@ -22,11 +22,11 @@ where
 
     fn label_count(&self) -> usize;
 
+    fn label_frequency(&self, label: Label) -> usize;
+
     fn max_label(&self) -> Label;
 
     fn max_label_frequency(&self) -> usize;
-
-    fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Label, usize>;
 }
 
 pub struct NodeLabeledCsrGraph<G, Node: Idx, Label: Idx> {
@@ -34,11 +34,10 @@ pub struct NodeLabeledCsrGraph<G, Node: Idx, Label: Idx> {
     label_count: usize,
     labels: Box<[Label]>,
     label_index: Csr<Label, Node>,
-    max_degree: usize,
+    max_degree: Node,
     max_label: Label,
     max_label_frequency: usize,
     label_frequency: HashMap<Label, usize>,
-    neighbor_label_frequencies: Option<Box<[HashMap<Label, usize>]>>,
 }
 
 impl<G, Node, Label> Graph<Node> for NodeLabeledCsrGraph<G, Node, Label>
@@ -93,7 +92,7 @@ where
 impl<G, Node, Label> NodeLabeledGraph<Node, Label> for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
-    Label: Idx,
+    Label: Idx + std::hash::Hash,
     G: Graph<Node>,
 {
     fn label(&self, node: Node) -> Label {
@@ -108,6 +107,13 @@ where
         self.label_count
     }
 
+    fn label_frequency(&self, label: Label) -> usize {
+        self.label_frequency
+            .get(&label)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     fn max_label(&self) -> Label {
         self.max_label
     }
@@ -115,25 +121,39 @@ where
     fn max_label_frequency(&self) -> usize {
         self.max_label_frequency
     }
-
-    fn neighbor_label_frequency(&self, node: Node) -> &HashMap<Label, usize> {
-        if let Some(nlfs) = &self.neighbor_label_frequencies {
-            &nlfs[node.index()]
-        } else {
-            panic!("Neighbor label frequencies have not been loaded.")
-        }
-    }
 }
 
 impl<G, Node, Label> From<(DotGraph<Node, Label>, CsrLayout)>
     for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
-    Label: Idx,
+    Label: Idx + std::hash::Hash,
     G: From<(EdgeList<Node>, CsrLayout)>,
 {
-    fn from(_: (DotGraph<Node, Label>, CsrLayout)) -> Self {
-        todo!()
+    fn from((dot_graph, csr_layout): (DotGraph<Node, Label>, CsrLayout)) -> Self {
+        let label_index = dot_graph.label_index();
+        let max_label_frequency = dot_graph.max_label_frequency();
+
+        let DotGraph {
+            label_frequency,
+            edge_list,
+            labels,
+            max_degree,
+            max_label,
+        } = dot_graph;
+
+        let graph = G::from((edge_list, csr_layout));
+
+        NodeLabeledCsrGraph {
+            graph,
+            label_count: label_frequency.len(),
+            labels: labels.into_boxed_slice(),
+            label_index,
+            max_degree,
+            max_label,
+            max_label_frequency,
+            label_frequency,
+        }
     }
 }
 
@@ -165,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn from_file_test() {
+    fn directed_from_file_test() {
         let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.graph"]
             .iter()
             .collect::<PathBuf>();
@@ -178,8 +198,75 @@ mod tests {
 
         assert_eq!(g.node_count(), 5);
         assert_eq!(g.edge_count(), 6);
-        assert_eq!(g.label_count(), 5);
+        assert_eq!(g.label_count(), 3);
         assert_eq!(g.max_label(), 2);
+        assert_eq!(g.max_label_frequency(), 2);
         assert_eq!(g.max_degree, 3);
+
+        assert_eq!(g.label(0), 0);
+        assert_eq!(g.label(1), 1);
+        assert_eq!(g.label(2), 2);
+        assert_eq!(g.label(3), 1);
+        assert_eq!(g.label(4), 2);
+
+        assert_eq!(g.nodes_by_label(0), &[0]);
+        assert_eq!(g.nodes_by_label(1), &[1, 3]);
+        assert_eq!(g.nodes_by_label(2), &[2, 4]);
+
+        assert_eq!(g.label_frequency(0), 1);
+        assert_eq!(g.label_frequency(1), 2);
+        assert_eq!(g.label_frequency(2), 2);
+
+        assert_eq!(g.out_neighbors(0), &[1, 2]);
+        assert_eq!(g.out_neighbors(1), &[2, 3]);
+        assert_eq!(g.out_neighbors(2), &[4]);
+        assert_eq!(g.out_neighbors(3), &[4]);
+        assert_eq!(g.out_neighbors(4), &[]);
+
+        assert_eq!(g.in_neighbors(0), &[]);
+        assert_eq!(g.in_neighbors(1), &[0]);
+        assert_eq!(g.in_neighbors(2), &[0, 1]);
+        assert_eq!(g.in_neighbors(3), &[1]);
+        assert_eq!(g.in_neighbors(4), &[2, 3]);
+    }
+
+    #[test]
+    fn undirected_from_file_test() {
+        let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.graph"]
+            .iter()
+            .collect::<PathBuf>();
+
+        let g: UndirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
+            .file_format(DotGraphInput::default())
+            .path(path)
+            .build()
+            .unwrap();
+
+        assert_eq!(g.node_count(), 5);
+        assert_eq!(g.edge_count(), 6);
+        assert_eq!(g.label_count(), 3);
+        assert_eq!(g.max_label(), 2);
+        assert_eq!(g.max_label_frequency(), 2);
+        assert_eq!(g.max_degree, 3);
+
+        assert_eq!(g.label(0), 0);
+        assert_eq!(g.label(1), 1);
+        assert_eq!(g.label(2), 2);
+        assert_eq!(g.label(3), 1);
+        assert_eq!(g.label(4), 2);
+
+        assert_eq!(g.nodes_by_label(0), &[0]);
+        assert_eq!(g.nodes_by_label(1), &[1, 3]);
+        assert_eq!(g.nodes_by_label(2), &[2, 4]);
+
+        assert_eq!(g.label_frequency(0), 1);
+        assert_eq!(g.label_frequency(1), 2);
+        assert_eq!(g.label_frequency(2), 2);
+
+        assert_eq!(g.neighbors(0), &[1, 2]);
+        assert_eq!(g.neighbors(1), &[0, 2, 3]);
+        assert_eq!(g.neighbors(2), &[0, 1, 4]);
+        assert_eq!(g.neighbors(3), &[1, 4]);
+        assert_eq!(g.neighbors(4), &[2, 3]);
     }
 }

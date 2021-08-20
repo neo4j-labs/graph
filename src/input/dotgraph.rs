@@ -5,7 +5,7 @@ use std::{
 
 use linereader::LineReader;
 
-use crate::{index::Idx, Error};
+use crate::{graph::csr::Csr, index::Idx, Error};
 
 use super::{EdgeList, InputCapabilities, InputPath};
 
@@ -33,14 +33,70 @@ impl<Node: Idx, Label: Idx> InputCapabilities<Node> for DotGraphInput<Node, Labe
     type GraphInput = DotGraph<Node, Label>;
 }
 
-pub struct DotGraph<Node: Idx, Label: Idx> {
-    node_count: Node,
-    edge_count: Node,
-    labels: Vec<Label>,
-    edges: EdgeList<Node>,
-    max_degree: Node,
-    max_label: Label,
-    label_frequency: HashMap<Label, usize>,
+pub struct DotGraph<Node, Label>
+where
+    Node: Idx,
+    Label: Idx,
+{
+    pub(crate) labels: Vec<Label>,
+    pub(crate) edge_list: EdgeList<Node>,
+    pub(crate) max_degree: Node,
+    pub(crate) max_label: Label,
+    pub(crate) label_frequency: HashMap<Label, usize>,
+}
+
+impl<Node, Label> DotGraph<Node, Label>
+where
+    Node: Idx,
+    Label: Idx + Hash,
+{
+    fn node_count(&self) -> Node {
+        Node::new(self.labels.len())
+    }
+
+    pub(crate) fn label_count(&self) -> usize {
+        if self.label_frequency.len() > self.max_label.index() + 1 {
+            self.label_frequency.len()
+        } else {
+            self.max_label.index() + 1
+        }
+    }
+
+    pub(crate) fn max_label_frequency(&self) -> usize {
+        self.label_frequency
+            .values()
+            .max()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn label_index(&self) -> Csr<Label, Node> {
+        let node_count = self.node_count();
+        let label_count = self.label_count();
+
+        let mut nodes = vec![Node::zero(); node_count.index()];
+        let mut offsets = Vec::with_capacity(label_count.index() + 1);
+        offsets.push(Label::zero());
+
+        let mut total = Label::zero();
+
+        for label in Label::zero()..Label::new(label_count) {
+            offsets.push(total);
+            let freq = self.label_frequency.get(&label).unwrap_or(&0);
+            total += Label::new(*freq);
+        }
+
+        for (node, &label) in self.labels.iter().enumerate().take(node_count.index()) {
+            let offset = offsets[(label + Label::new(1)).index()];
+            nodes[offset.index()] = Node::new(node);
+            offsets[(label + Label::new(1)).index()] += Label::new(1);
+        }
+
+        let offsets = offsets.into_boxed_slice();
+        let nodes = nodes.into_boxed_slice();
+
+        Csr::new(offsets, nodes)
+    }
 }
 
 impl<Node, Label, P> TryFrom<InputPath<P>> for DotGraph<Node, Label>
@@ -132,10 +188,8 @@ where
         let edges = EdgeList::new(edges);
 
         Ok(Self {
-            node_count,
-            edge_count,
             labels,
-            edges,
+            edge_list: edges,
             max_degree,
             max_label,
             label_frequency,
@@ -151,27 +205,25 @@ mod tests {
 
     use super::*;
 
+    const TEST_GRAPH: [&str; 3] = [env!("CARGO_MANIFEST_DIR"), "resources", "test.graph"];
+
     #[test]
     fn dotgraph_from_file() {
-        let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.graph"]
-            .iter()
-            .collect::<PathBuf>();
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
 
-        let DotGraph {
-            node_count,
-            edge_count,
-            labels,
-            edges,
-            max_degree,
-            max_label,
-            label_frequency: _,
-        } = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+        assert_eq!(graph.labels.len(), 5);
+        assert_eq!(graph.edge_list.len(), 6);
+        assert_eq!(graph.max_label, 2);
+        assert_eq!(graph.max_degree, 3);
+    }
 
-        assert_eq!(node_count, 5);
-        assert_eq!(edge_count, 6);
-        assert_eq!(labels.len(), 5);
-        assert_eq!(edges.len(), 6);
-        assert_eq!(max_label, 2);
-        assert_eq!(max_degree, 3);
+    #[test]
+    fn label_test() {
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+
+        assert_eq!(graph.label_count(), 3);
+        assert_eq!(graph.max_label_frequency(), 2);
     }
 }
