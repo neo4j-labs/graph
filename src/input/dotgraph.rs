@@ -14,6 +14,41 @@ use crate::{
 
 use super::{EdgeList, InputCapabilities, InputPath};
 
+/// DotGraph (the name is based on the file ending `.graph`) is a textual
+/// description of a node labeled graph primarily used as input for subgraph
+/// isomorphism libraries. It has been introduced
+/// [here](https://github.com/RapidsAtHKUST/SubgraphMatching#input) and is also
+/// supported by the
+/// [subgraph-matching](https://crates.io/crates/subgraph-matching) crate.
+///
+/// A graph starts with 't N M' where N is the number of nodes and M is the
+/// number of edges. A node and an edge are formatted as 'v nodeId labelId
+/// degree' and 'e nodeId nodeId' respectively. Note that the format requires
+/// that the node id starts at 0 and the range is `0..N`.
+///
+/// # Example
+///
+/// The following graph contains 5 nodes and 6 relationships. The first line
+/// contains that meta information. The following 5 lines contain one node
+/// description per line, e.g., `v 0 0 2` translates to node `0` with label `0`
+/// and a degree of `2`. Following the nodes, the remaining lines describe
+/// edges, e.g., `e 0 1` represents an edge connecting nodes `0` and `1`.
+///
+/// ```ignore
+/// > cat my_graph.graph
+/// t 5 6
+/// v 0 0 2
+/// v 1 1 3
+/// v 2 2 3
+/// v 3 1 2
+/// v 4 2 2
+/// e 0 1
+/// e 0 2
+/// e 1 2
+/// e 1 3
+/// e 2 4
+/// e 3 4
+/// ```
 pub struct DotGraphInput<Node, Label>
 where
     Node: Idx,
