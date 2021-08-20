@@ -495,7 +495,7 @@ pub(crate) fn prefix_sum<Node: Idx>(degrees: Vec<Node>) -> Vec<Node> {
     sums
 }
 
-fn sort_targets<Node: Idx>(offsets: &[Node], targets: &mut [Node]) {
+pub(crate) fn sort_targets<Node: Idx, T: Send + Ord>(offsets: &[Node], targets: &mut [T]) {
     to_mut_slices(offsets, targets)
         .par_iter_mut()
         .for_each(|list| list.sort_unstable());
@@ -596,7 +596,7 @@ mod tests {
     fn sort_targets_test() {
         let offsets = &[0, 2, 5, 5, 8];
         let mut targets = vec![1, 0, 4, 2, 3, 5, 6, 7];
-        sort_targets::<usize>(offsets, &mut targets);
+        sort_targets::<usize, _>(offsets, &mut targets);
 
         assert_eq!(targets, vec![0, 1, 2, 3, 4, 5, 6, 7]);
     }

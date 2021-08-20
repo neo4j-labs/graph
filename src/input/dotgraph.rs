@@ -1,11 +1,16 @@
 use std::{
-    collections::HashMap, convert::TryFrom, fs::File, hash::Hash, io::Read, marker::PhantomData,
-    path::Path,
+    collections::HashMap, convert::TryFrom, fs::File, hash::Hash, intrinsics::transmute, io::Read,
+    marker::PhantomData, path::Path, sync::atomic::Ordering::Acquire,
 };
 
 use linereader::LineReader;
+use rayon::prelude::*;
 
-use crate::{graph::csr::Csr, index::Idx, Error};
+use crate::{
+    graph::csr::{sort_targets, Csr},
+    index::{AtomicIdx, Idx},
+    Error, SharedMut,
+};
 
 use super::{EdgeList, InputCapabilities, InputPath};
 
@@ -54,12 +59,13 @@ where
         Node::new(self.labels.len())
     }
 
-    pub(crate) fn label_count(&self) -> usize {
-        if self.label_frequency.len() > self.max_label.index() + 1 {
+    pub(crate) fn label_count(&self) -> Label {
+        let count = if self.label_frequency.len() > self.max_label.index() + 1 {
             self.label_frequency.len()
         } else {
             self.max_label.index() + 1
-        }
+        };
+        Label::new(count)
     }
 
     pub(crate) fn max_label_frequency(&self) -> usize {
@@ -74,23 +80,48 @@ where
         let node_count = self.node_count();
         let label_count = self.label_count();
 
-        let mut nodes = vec![Node::zero(); node_count.index()];
+        // Prefix sum: We insert the offset entries one index to the right and
+        // increment the offset of the next label during insert. That way we'll
+        // end up with the correct offsets after inserting into `nodes` in the
+        // next loop.
         let mut offsets = Vec::with_capacity(label_count.index() + 1);
         offsets.push(Label::zero());
 
         let mut total = Label::zero();
-
-        for label in Label::zero()..Label::new(label_count) {
+        for label in Label::zero()..label_count {
             offsets.push(total);
-            let freq = self.label_frequency.get(&label).unwrap_or(&0);
-            total += Label::new(*freq);
+            total += Label::new(*self.label_frequency.get(&label).unwrap_or(&0));
         }
 
-        for (node, &label) in self.labels.iter().enumerate().take(node_count.index()) {
-            let offset = offsets[(label + Label::new(1)).index()];
-            nodes[offset.index()] = Node::new(node);
-            offsets[(label + Label::new(1)).index()] += Label::new(1);
+        // SAFETY: Label and Label::Atomic have the same memory layout
+        let offsets = unsafe { transmute::<_, Vec<Label::Atomic>>(offsets) };
+
+        let mut nodes = Vec::<Node>::with_capacity(node_count.index());
+        let nodes_ptr = SharedMut::new(nodes.as_mut_ptr());
+
+        self.labels
+            .par_iter()
+            .enumerate()
+            .for_each(|(node, &label)| {
+                let next_label = label + Label::new(1);
+                let offset = offsets[next_label.index()].fetch_add(Label::new(1), Acquire);
+                // SAFETY: There is exactly one thread that writes at `offset.index()`.
+                unsafe {
+                    nodes_ptr.add(offset.index()).write(Node::new(node));
+                }
+            });
+
+        // SAFETY: The `labels` vec has `node_count` length and we performed an
+        // insert operation for each index (node). Each inserts happens at a
+        // unique index which is computed from the `offset` array.
+        unsafe {
+            nodes.set_len(node_count.index());
         }
+
+        // SAFETY: Label and Label::Atomic have the same memory layout
+        let offsets = unsafe { transmute::<_, Vec<Label>>(offsets) };
+
+        sort_targets(&offsets, &mut nodes);
 
         let offsets = offsets.into_boxed_slice();
         let nodes = nodes.into_boxed_slice();
