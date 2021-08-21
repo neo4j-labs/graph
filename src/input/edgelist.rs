@@ -150,7 +150,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn edge_list_from_file() {
+    fn edge_list_from_linux_file() {
         let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.el"]
             .iter()
             .collect::<PathBuf>();
@@ -158,5 +158,16 @@ mod tests {
         let edge_list = EdgeList::<usize>::try_from(InputPath(path.as_path())).unwrap();
 
         assert_eq!(2, edge_list.max_node_id());
+    }
+
+    #[test]
+    fn edge_list_from_windows_file() {
+        let path = [env!("CARGO_MANIFEST_DIR"), "resources", "windows.el"]
+            .iter()
+            .collect::<PathBuf>();
+
+        let edge_list = EdgeList::<usize>::try_from(InputPath(path.as_path())).unwrap();
+
+        assert_eq!(3, edge_list.max_node_id());
     }
 }
