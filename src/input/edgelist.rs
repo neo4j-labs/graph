@@ -67,11 +67,17 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
             (usize::max(1, bytes.len() / cpu_count) + (page_size - 1)) & !(page_size - 1);
 
         info!(
-            "page_size = {}, cpu_count = {}, chunk_size = {}",
-            page_size, cpu_count, chunk_size
+            "page_size = {}, cpu_count = {}, chunk_size = {}, bytes = {}",
+            page_size,
+            cpu_count,
+            chunk_size,
+            bytes.len()
         );
 
         let all_edges = Arc::new(Mutex::new(Vec::new()));
+
+        // Assume all line breaks are the same size.
+        let line_skip = line_skip(bytes);
 
         rayon::scope(|s| {
             for start in (0..bytes.len()).step_by(chunk_size) {
@@ -95,7 +101,7 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
                         let (source, source_bytes) = Node::parse(chunk);
                         let (target, target_bytes) = Node::parse(&chunk[source_bytes + 1..]);
                         edges.push((source, target));
-                        chunk = &chunk[source_bytes + target_bytes + 2..];
+                        chunk = &chunk[source_bytes + target_bytes + line_skip + 1..];
                     }
 
                     let mut all_edges = all_edges.lock().unwrap();
@@ -117,6 +123,22 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
 
         Ok(EdgeList::new(edges))
     }
+}
+
+// Returns 1 if the first line break of input buffer is Linux/macOS style (b'\n'),
+// and 2 if it's Windows style (b'\r\n').
+fn line_skip(bytes: &[u8]) -> usize {
+    let mut cursor = 0;
+
+    while cursor < bytes.len() && bytes[cursor] != b'\n' {
+        cursor += 1;
+    }
+
+    if cursor > 0 && bytes[cursor - 1] == b'\r' {
+        return 2;
+    }
+
+    1
 }
 
 #[cfg(test)]
