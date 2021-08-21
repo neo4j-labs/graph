@@ -199,6 +199,9 @@ where
 
         let all_edges = Arc::new(Mutex::new(Vec::new()));
 
+        // Assume all line breaks are the same size.
+        let line_skip = line_skip(bytes);
+
         rayon::scope(|s| {
             for start in (0..bytes.len()).step_by(chunk_size) {
                 let all_edges = Arc::clone(&all_edges);
@@ -261,6 +264,22 @@ where
     }
 }
 
+// Returns 1 if the first line break of input buffer is Linux/macOS style (b'\n'),
+// and 2 if it's Windows style (b'\r\n').
+fn line_skip(bytes: &[u8]) -> usize {
+    let mut cursor = 0;
+
+    while cursor < bytes.len() && bytes[cursor] != b'\n' {
+        cursor += 1;
+    }
+
+    if cursor > 0 && bytes[cursor - 1] == b'\r' {
+        return 2;
+    }
+
+    1
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -270,7 +289,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn edge_list_from_file() {
+    fn edge_list_from_linux_file() {
         let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.el"]
             .iter()
             .collect::<PathBuf>();
@@ -315,5 +334,16 @@ mod tests {
         let edge_list = edge_list.list.into_vec();
 
         assert_eq!(expected, edge_list)
+    }
+
+    #[test]
+    fn edge_list_from_windows_file() {
+        let path = [env!("CARGO_MANIFEST_DIR"), "resources", "windows.el"]
+            .iter()
+            .collect::<PathBuf>();
+
+        let edge_list = EdgeList::<usize, ()>::try_from(InputPath(path.as_path())).unwrap();
+
+        assert_eq!(3, edge_list.max_node_id());
     }
 }
