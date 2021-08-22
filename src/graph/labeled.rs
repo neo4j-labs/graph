@@ -135,7 +135,7 @@ where
         let max_label_frequency = dot_graph.max_label_frequency();
 
         let DotGraph {
-            label_frequency,
+            label_frequencies: label_frequency,
             edge_list,
             labels,
             max_degree,

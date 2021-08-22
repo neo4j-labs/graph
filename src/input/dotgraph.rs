@@ -82,7 +82,7 @@ where
     pub(crate) edge_list: EdgeList<Node>,
     pub(crate) max_degree: Node,
     pub(crate) max_label: Label,
-    pub(crate) label_frequency: HashMap<Label, usize>,
+    pub(crate) label_frequencies: HashMap<Label, usize>,
 }
 
 impl<Node, Label> DotGraph<Node, Label>
@@ -95,16 +95,11 @@ where
     }
 
     pub(crate) fn label_count(&self) -> Label {
-        let count = if self.label_frequency.len() > self.max_label.index() + 1 {
-            self.label_frequency.len()
-        } else {
-            self.max_label.index() + 1
-        };
-        Label::new(count)
+        Label::new(self.max_label.index() + 1)
     }
 
     pub(crate) fn max_label_frequency(&self) -> usize {
-        self.label_frequency
+        self.label_frequencies
             .values()
             .max()
             .cloned()
@@ -123,9 +118,9 @@ where
         offsets.push(Label::zero());
 
         let mut total = Label::zero();
-        for label in Label::zero()..label_count {
+        for label in Label::zero()..=self.max_label {
             offsets.push(total);
-            total += Label::new(*self.label_frequency.get(&label).unwrap_or(&0));
+            total += Label::new(*self.label_frequencies.get(&label).unwrap_or(&0));
         }
 
         // SAFETY: Label and Label::Atomic have the same memory layout
@@ -258,7 +253,7 @@ where
             edge_list: edges,
             max_degree,
             max_label,
-            label_frequency,
+            label_frequencies: label_frequency,
         })
     }
 }
@@ -289,7 +284,6 @@ mod tests {
         let path = TEST_GRAPH.iter().collect::<PathBuf>();
         let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
 
-        assert_eq!(graph.label_count(), 3);
         assert_eq!(graph.max_label_frequency(), 2);
     }
 }
