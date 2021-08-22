@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use fxhash::FxHashMap;
 
 use crate::input::dotgraph::DotGraph;
 use crate::input::EdgeList;
@@ -37,7 +37,7 @@ pub struct NodeLabeledCsrGraph<G, Node: Idx, Label: Idx> {
     max_degree: Node,
     max_label: Label,
     max_label_frequency: usize,
-    label_frequency: HashMap<Label, usize>,
+    label_frequency: FxHashMap<Label, usize>,
 }
 
 impl<G, Node, Label> Graph<Node> for NodeLabeledCsrGraph<G, Node, Label>

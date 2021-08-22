@@ -1,8 +1,9 @@
 use std::{
-    collections::HashMap, convert::TryFrom, fs::File, hash::Hash, intrinsics::transmute, io::Read,
-    marker::PhantomData, path::Path, sync::atomic::Ordering::Acquire,
+    convert::TryFrom, fs::File, hash::Hash, intrinsics::transmute, io::Read, marker::PhantomData,
+    path::Path, sync::atomic::Ordering::Acquire,
 };
 
+use fxhash::FxHashMap;
 use linereader::LineReader;
 use rayon::prelude::*;
 
@@ -82,7 +83,7 @@ where
     pub(crate) edge_list: EdgeList<Node>,
     pub(crate) max_degree: Node,
     pub(crate) max_label: Label,
-    pub(crate) label_frequencies: HashMap<Label, usize>,
+    pub(crate) label_frequencies: FxHashMap<Label, usize>,
 }
 
 impl<Node, Label> DotGraph<Node, Label>
@@ -198,7 +199,7 @@ where
 
         let mut max_degree = Node::zero();
         let mut max_label = Label::zero();
-        let mut label_frequency = HashMap::<Label, usize>::new();
+        let mut label_frequency = FxHashMap::<Label, usize>::default();
 
         let mut batch = lines.next_batch().expect("missing data")?;
 
