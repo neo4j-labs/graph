@@ -177,7 +177,7 @@ pub trait DeserializeGraphOp<R, G> {
 impl<Node, G> RelabelByDegreeOp<Node> for G
 where
     Node: Idx,
-    G: From<Csr<Node, Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     fn to_degree_ordered(&self) -> Self {
         relabel_by_degree(self)
@@ -430,7 +430,7 @@ where
 fn relabel_by_degree<Node, G>(graph: &G) -> G
 where
     Node: Idx,
-    G: From<Csr<Node, Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     let start = Instant::now();
     let degree_node_pairs = sort_by_degree_desc(graph);
@@ -456,7 +456,7 @@ where
 fn sort_by_degree_desc<Node, G>(graph: &G) -> Vec<(Node, Node)>
 where
     Node: Idx,
-    G: From<Csr<Node, Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     let node_count = graph.node_count().index();
     let mut degree_node_pairs = Vec::with_capacity(node_count);
@@ -511,7 +511,7 @@ fn unzip_degrees_and_nodes<Node: Idx>(
 fn relabel_targets<Node, G>(graph: &G, nodes: Vec<Node>, offsets: &[Node]) -> Vec<Node>
 where
     Node: Idx,
-    G: From<Csr<Node, Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
 {
     let node_count = graph.node_count().index();
     let edge_count = offsets[node_count].index();

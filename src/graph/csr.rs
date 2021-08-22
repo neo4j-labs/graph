@@ -50,7 +50,7 @@ impl Default for CsrLayout {
 /// neighbor list is defined by `offsets[u + 1] - offsets[u]`. The neighbor list
 /// of `u` is defined by the slice `&targets[offsets[u]..offsets[u + 1]]`.
 #[derive(Debug)]
-pub struct Csr<Index: Idx, T> {
+pub struct Csr<Index: Idx, T = Index> {
     offsets: Box<[Index]>,
     targets: Box<[T]>,
 }
@@ -89,7 +89,7 @@ impl<Index: Idx, T> Csr<Index, T> {
 
 type CsrInput<'a, Node> = (&'a mut EdgeList<Node>, Node, Direction, CsrLayout);
 
-impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node, Node> {
+impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
     fn from((edge_list, node_count, direction, csr_layout): CsrInput<'_, Node>) -> Self {
         let start = Instant::now();
         let degrees = edge_list.degrees(node_count, direction);
@@ -174,7 +174,7 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node, Node> {
     }
 }
 
-impl<Node: Idx + ToByteSlice> Csr<Node, Node> {
+impl<Node: Idx + ToByteSlice> Csr<Node> {
     fn serialize<W: Write>(&self, output: &mut W) -> Result<(), Error> {
         let type_name = std::any::type_name::<Node>().as_bytes();
         output.write_all([type_name.len()].as_byte_slice())?;
@@ -192,8 +192,8 @@ impl<Node: Idx + ToByteSlice> Csr<Node, Node> {
     }
 }
 
-impl<Node: Idx + ToMutByteSlice> Csr<Node, Node> {
-    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node, Node>, Error> {
+impl<Node: Idx + ToMutByteSlice> Csr<Node> {
+    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node>, Error> {
         let mut type_name_len = [0_usize; 1];
         read.read_exact(type_name_len.as_mut_byte_slice())?;
         let [type_name_len] = type_name_len;
@@ -238,12 +238,12 @@ impl<Node: Idx + ToMutByteSlice> Csr<Node, Node> {
 pub struct DirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
-    csr_out: Csr<Node, Node>,
-    csr_inc: Csr<Node, Node>,
+    csr_out: Csr<Node>,
+    csr_inc: Csr<Node>,
 }
 
 impl<Node: Idx> DirectedCsrGraph<Node> {
-    pub fn new(csr_out: Csr<Node, Node>, csr_inc: Csr<Node, Node>) -> Self {
+    pub fn new(csr_out: Csr<Node>, csr_inc: Csr<Node>) -> Self {
         let node_count = csr_out.node_count();
         let edge_count = csr_out.edge_count();
 
@@ -336,8 +336,8 @@ impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for DirectedCsrGraph
 
 impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for DirectedCsrGraph<Node> {
     fn deserialize(mut read: R) -> Result<Self, Error> {
-        let csr_out: Csr<Node, Node> = Csr::deserialize(&mut read)?;
-        let csr_inc: Csr<Node, Node> = Csr::deserialize(&mut read)?;
+        let csr_out: Csr<Node> = Csr::deserialize(&mut read)?;
+        let csr_inc: Csr<Node> = Csr::deserialize(&mut read)?;
         Ok(DirectedCsrGraph::new(csr_out, csr_inc))
     }
 }
@@ -357,17 +357,17 @@ impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGr
 pub struct UndirectedCsrGraph<Node: Idx> {
     node_count: Node,
     edge_count: Node,
-    csr: Csr<Node, Node>,
+    csr: Csr<Node>,
 }
 
-impl<Node: Idx> From<Csr<Node, Node>> for UndirectedCsrGraph<Node> {
-    fn from(csr: Csr<Node, Node>) -> Self {
+impl<Node: Idx> From<Csr<Node>> for UndirectedCsrGraph<Node> {
+    fn from(csr: Csr<Node>) -> Self {
         UndirectedCsrGraph::new(csr)
     }
 }
 
 impl<Node: Idx> UndirectedCsrGraph<Node> {
-    pub fn new(csr: Csr<Node, Node>) -> Self {
+    pub fn new(csr: Csr<Node>) -> Self {
         let node_count = csr.node_count();
         let edge_count = csr.edge_count() / Node::new(2);
 
@@ -450,7 +450,7 @@ impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for UndirectedCsrGra
 
 impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<Node> {
     fn deserialize(mut read: R) -> Result<Self, Error> {
-        let csr: Csr<Node, Node> = Csr::deserialize(&mut read)?;
+        let csr: Csr<Node> = Csr::deserialize(&mut read)?;
         Ok(UndirectedCsrGraph::new(csr))
     }
 }
