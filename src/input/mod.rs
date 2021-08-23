@@ -7,7 +7,6 @@ use std::{
 };
 
 pub mod binary;
-#[cfg(feature = "dotgraph")]
 pub mod dotgraph;
 pub mod edgelist;
 
