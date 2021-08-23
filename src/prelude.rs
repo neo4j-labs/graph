@@ -11,12 +11,14 @@ pub use crate::graph_ops::InDegreePartitionOp;
 pub use crate::graph_ops::OutDegreePartitionOp;
 pub use crate::graph_ops::RelabelByDegreeOp;
 
+pub use crate::index::AtomicIdx;
 pub use crate::index::Idx;
 
-pub use crate::input::dotgraph::DotGraphInput;
-pub use crate::input::edgelist::EdgeListInput;
+pub use crate::input::*;
 
 pub use crate::DirectedGraph;
 pub use crate::Graph;
 pub use crate::NodeLabeledGraph;
 pub use crate::UndirectedGraph;
+
+pub use crate::Error;

@@ -4,8 +4,6 @@ use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 
 use graph::prelude::*;
 
-use graph::index::AtomicIdx;
-
 const CHUNK_SIZE: usize = 64;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

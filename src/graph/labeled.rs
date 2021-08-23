@@ -3,7 +3,7 @@ use std::hash::Hash;
 use fxhash::FxHashMap;
 
 use crate::input::dotgraph::DotGraph;
-use crate::input::EdgeList;
+use crate::input::edgelist::EdgeList;
 use crate::NodeLabeledGraph;
 use crate::{index::Idx, DirectedGraph, Graph, UndirectedGraph};
 

@@ -13,7 +13,7 @@ use crate::{
     Error, SharedMut,
 };
 
-use super::{EdgeList, InputCapabilities, InputPath};
+use super::{edgelist::EdgeList, InputCapabilities, InputPath};
 
 /// DotGraph (the name is based on the file ending `.graph`) is a textual
 /// description of a node labeled graph primarily used as input for subgraph

@@ -122,12 +122,12 @@ pub mod index;
 pub mod input;
 pub mod prelude;
 
-pub use builder::GraphBuilder;
-pub use graph::csr::CsrLayout;
-pub use graph::csr::DirectedCsrGraph;
-pub use graph::csr::UndirectedCsrGraph;
-pub use graph::labeled::DirectedNodeLabeledCsrGraph;
-pub use graph::labeled::UndirectedNodeLabeledCsrGraph;
+pub use crate::builder::GraphBuilder;
+pub use crate::graph::csr::CsrLayout;
+pub use crate::graph::csr::DirectedCsrGraph;
+pub use crate::graph::csr::UndirectedCsrGraph;
+pub use crate::graph::labeled::DirectedNodeLabeledCsrGraph;
+pub use crate::graph::labeled::UndirectedNodeLabeledCsrGraph;
 
 use std::convert::Infallible;
 

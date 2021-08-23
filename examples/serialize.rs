@@ -1,15 +1,12 @@
 use byte_slice_cast::ToByteSlice;
 use graph::graph_ops::SerializeGraphOp;
-use graph::input::binary::BinaryInput;
-use graph::input::EdgeList;
+use graph::prelude::*;
 use log::info;
 
 use std::convert::TryFrom;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-
-use graph::{prelude::*, Error};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();

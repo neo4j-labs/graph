@@ -15,7 +15,7 @@ use rayon::prelude::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
-    input::{Direction, EdgeList},
+    input::{edgelist::EdgeList, Direction},
     DirectedGraph, Error, Graph, SharedMut, UndirectedGraph,
 };
 
