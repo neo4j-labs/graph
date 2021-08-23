@@ -2,6 +2,7 @@ use fxhash::FxHashMap;
 
 use crate::input::dotgraph::DotGraph;
 use crate::input::EdgeList;
+use crate::NodeLabeledGraph;
 use crate::{index::Idx, DirectedGraph, Graph, UndirectedGraph};
 
 use super::csr::{Csr, CsrLayout, DirectedCsrGraph, UndirectedCsrGraph};
@@ -11,27 +12,9 @@ pub type DirectedNodeLabeledCsrGraph<Node, Label> =
 pub type UndirectedNodeLabeledCsrGraph<Node, Label> =
     NodeLabeledCsrGraph<UndirectedCsrGraph<Node>, Node, Label>;
 
-pub trait NodeLabeledGraph<Node, Label>: Graph<Node>
-where
-    Node: Idx,
-    Label: Idx,
-{
-    fn label(&self, node: Node) -> Label;
-
-    fn nodes_by_label(&self, label: Label) -> &[Node];
-
-    fn label_count(&self) -> usize;
-
-    fn label_frequency(&self, label: Label) -> usize;
-
-    fn max_label(&self) -> Label;
-
-    fn max_label_frequency(&self) -> usize;
-}
-
 pub struct NodeLabeledCsrGraph<G, Node: Idx, Label: Idx> {
     graph: G,
-    label_count: usize,
+    label_count: Label,
     labels: Box<[Label]>,
     label_index: Csr<Label, Node>,
     max_degree: Node,
@@ -103,7 +86,7 @@ where
         self.label_index.targets(label)
     }
 
-    fn label_count(&self) -> usize {
+    fn label_count(&self) -> Label {
         self.label_count
     }
 
@@ -123,6 +106,16 @@ where
     }
 }
 
+impl<G, Node, Label> NodeLabeledCsrGraph<G, Node, Label>
+where
+    Node: Idx,
+    Label: Idx + std::hash::Hash,
+    G: Graph<Node>,
+{
+    pub fn max_degree(&self) -> Node {
+        self.max_degree
+    }
+}
 impl<G, Node, Label> From<(DotGraph<Node, Label>, CsrLayout)>
     for NodeLabeledCsrGraph<G, Node, Label>
 where
@@ -132,6 +125,7 @@ where
 {
     fn from((dot_graph, csr_layout): (DotGraph<Node, Label>, CsrLayout)) -> Self {
         let label_index = dot_graph.label_index();
+        let label_count = dot_graph.label_count();
         let max_label_frequency = dot_graph.max_label_frequency();
 
         let DotGraph {
@@ -146,7 +140,7 @@ where
 
         NodeLabeledCsrGraph {
             graph,
-            label_count: label_frequency.len(),
+            label_count,
             labels: labels.into_boxed_slice(),
             label_index,
             max_degree,
