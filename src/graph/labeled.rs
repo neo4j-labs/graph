@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use fxhash::FxHashMap;
 
 use crate::input::dotgraph::DotGraph;
@@ -75,7 +77,7 @@ where
 impl<G, Node, Label> NodeLabeledGraph<Node, Label> for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
-    Label: Idx + std::hash::Hash,
+    Label: Idx + Hash,
     G: Graph<Node>,
 {
     fn label(&self, node: Node) -> Label {
@@ -109,18 +111,19 @@ where
 impl<G, Node, Label> NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
-    Label: Idx + std::hash::Hash,
+    Label: Idx + Hash,
     G: Graph<Node>,
 {
     pub fn max_degree(&self) -> Node {
         self.max_degree
     }
 }
+
 impl<G, Node, Label> From<(DotGraph<Node, Label>, CsrLayout)>
     for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
-    Label: Idx + std::hash::Hash,
+    Label: Idx + Hash,
     G: From<(EdgeList<Node>, CsrLayout)>,
 {
     fn from((dot_graph, csr_layout): (DotGraph<Node, Label>, CsrLayout)) -> Self {
@@ -148,6 +151,38 @@ where
             max_label_frequency,
             label_frequency,
         }
+    }
+}
+
+impl<Node: Idx, Label: Idx + Hash> From<(&gdl::Graph, CsrLayout)>
+    for DirectedNodeLabeledCsrGraph<Node, Label>
+{
+    fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
+        DirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(gdl_graph), csr_layout))
+    }
+}
+
+impl<Node: Idx, Label: Idx + Hash> From<(gdl::Graph, CsrLayout)>
+    for DirectedNodeLabeledCsrGraph<Node, Label>
+{
+    fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
+        DirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(&gdl_graph), csr_layout))
+    }
+}
+
+impl<Node: Idx, Label: Idx + Hash> From<(&gdl::Graph, CsrLayout)>
+    for UndirectedNodeLabeledCsrGraph<Node, Label>
+{
+    fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
+        UndirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(gdl_graph), csr_layout))
+    }
+}
+
+impl<Node: Idx, Label: Idx + Hash> From<(gdl::Graph, CsrLayout)>
+    for UndirectedNodeLabeledCsrGraph<Node, Label>
+{
+    fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
+        UndirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(&gdl_graph), csr_layout))
     }
 }
 
@@ -262,5 +297,37 @@ mod tests {
         assert_eq!(g.neighbors(2), &[0, 1, 4]);
         assert_eq!(g.neighbors(3), &[1, 4]);
         assert_eq!(g.neighbors(4), &[2, 3]);
+    }
+
+    #[test]
+    fn directed_from_gdl_test() {
+        let graph: DirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
+            .gdl_str::<usize, _>("(:L0)-->(:L1)-->(:L2)-->(:L0)")
+            .build()
+            .unwrap();
+
+        assert_eq!(graph.node_count(), 4);
+        assert_eq!(graph.edge_count(), 3);
+
+        assert_eq!(graph.label(0), 0);
+        assert_eq!(graph.label(1), 1);
+        assert_eq!(graph.label(2), 2);
+        assert_eq!(graph.label(3), 0);
+    }
+
+    #[test]
+    fn undirected_from_gdl_test() {
+        let graph: UndirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
+            .gdl_str::<usize, _>("(:L0)-->(:L1)-->(:L2)-->(:L0)")
+            .build()
+            .unwrap();
+
+        assert_eq!(graph.node_count(), 4);
+        assert_eq!(graph.edge_count(), 3);
+
+        assert_eq!(graph.label(0), 0);
+        assert_eq!(graph.label(1), 1);
+        assert_eq!(graph.label(2), 2);
+        assert_eq!(graph.label(3), 0);
     }
 }

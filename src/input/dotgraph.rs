@@ -1,6 +1,6 @@
 use std::{
-    convert::TryFrom, fs::File, hash::Hash, intrinsics::transmute, io::Read, marker::PhantomData,
-    path::Path, sync::atomic::Ordering::Acquire,
+    convert::TryFrom, fmt::Write, fs::File, hash::Hash, intrinsics::transmute, io::Read,
+    marker::PhantomData, path::Path, sync::atomic::Ordering::Acquire,
 };
 
 use fxhash::FxHashMap;
@@ -185,6 +185,7 @@ where
 {
     type Error = Error;
 
+    /// Converts the given .graph input into a [`DotGraph`].
     fn try_from(mut lines: LineReader<R>) -> Result<Self, Self::Error> {
         let mut header = lines.next_line().expect("missing header line")?;
 
@@ -256,6 +257,73 @@ where
             max_label,
             label_frequencies: label_frequency,
         })
+    }
+}
+
+impl<Node, Label> From<&gdl::Graph> for DotGraph<Node, Label>
+where
+    Node: Idx,
+    Label: Idx + Hash,
+{
+    /// Converts the given GDL graph into a .graph input string.
+    ///
+    /// Node labels need to be numeric, however GDL does not support numeric
+    /// labels. In order to circumvent this, node labels need to be prefixed
+    /// with a single character, e.g. `(n:L0)` to declare label `0`.
+    fn from(gdl_graph: &gdl::Graph) -> Self {
+        fn degree(gdl_graph: &gdl::Graph, node: &gdl::graph::Node) -> usize {
+            let mut degree = 0;
+
+            for rel in gdl_graph.relationships() {
+                if rel.source() == node.variable() {
+                    degree += 1;
+                }
+                if rel.target() == node.variable() {
+                    degree += 1;
+                }
+            }
+            degree
+        }
+
+        let header = format!(
+            "t {} {}",
+            gdl_graph.node_count(),
+            gdl_graph.relationship_count()
+        );
+
+        let mut nodes_string = String::from("");
+
+        let mut sorted_nodes = gdl_graph.nodes().collect::<Vec<_>>();
+        sorted_nodes.sort_by_key(|node| node.id());
+
+        for node in sorted_nodes {
+            let id = node.id();
+            let label = node.labels().next().expect("Single label expected");
+            let degree = degree(gdl_graph, node);
+            let _ = writeln!(nodes_string, "v {} {} {}", id, &label[1..], degree);
+        }
+
+        let mut rels_string = String::from("");
+
+        let mut sorted_rels = gdl_graph.relationships().collect::<Vec<_>>();
+        sorted_rels.sort_by_key(|rel| (rel.source(), rel.target()));
+
+        for rel in sorted_rels {
+            let source_id = gdl_graph
+                .get_node(rel.source())
+                .expect("Source expected")
+                .id();
+            let target_id = gdl_graph
+                .get_node(rel.target())
+                .expect("Target expected")
+                .id();
+            let _ = writeln!(rels_string, "e {} {}", source_id, target_id);
+        }
+
+        let input = format!("{}\n{}{}", header, nodes_string, rels_string);
+        let reader = LineReader::new(input.as_bytes());
+
+        DotGraph::<Node, Label>::try_from(reader).expect("GDL to .graph conversion failed")
     }
 }
 
