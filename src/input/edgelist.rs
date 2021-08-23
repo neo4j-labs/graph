@@ -213,6 +213,6 @@ mod tests {
 
         let edge_list = EdgeList::<usize>::try_from(InputPath(path.as_path())).unwrap();
 
-        assert_eq!(2, edge_list.max_node_id());
+        assert_eq!(4, edge_list.max_node_id());
     }
 }

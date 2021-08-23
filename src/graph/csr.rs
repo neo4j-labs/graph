@@ -3,6 +3,7 @@ use log::info;
 use std::{
     convert::TryFrom,
     fs::File,
+    hash::Hash,
     io::{Read, Write},
     mem::{transmute, MaybeUninit},
     path::PathBuf,
@@ -15,7 +16,7 @@ use rayon::prelude::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
-    input::{edgelist::EdgeList, Direction},
+    input::{edgelist::EdgeList, Direction, DotGraph},
     DirectedGraph, Error, Graph, SharedMut, UndirectedGraph,
 };
 
@@ -306,6 +307,24 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for DirectedCsrGraph<Node> {
     }
 }
 
+impl<Node, Label> From<(DotGraph<Node, Label>, CsrLayout)> for DirectedCsrGraph<Node>
+where
+    Node: Idx,
+    Label: Idx + Hash,
+{
+    fn from((dot_graph, csr_layout): (DotGraph<Node, Label>, CsrLayout)) -> Self {
+        let DotGraph {
+            label_frequencies: _,
+            edge_list,
+            labels: _,
+            max_degree: _,
+            max_label: _,
+        } = dot_graph;
+
+        DirectedCsrGraph::from((edge_list, csr_layout))
+    }
+}
+
 impl<Node: Idx> From<(&gdl::Graph, CsrLayout)> for DirectedCsrGraph<Node> {
     fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
         DirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
@@ -419,6 +438,24 @@ impl<Node: Idx> From<(EdgeList<Node>, CsrLayout)> for UndirectedCsrGraph<Node> {
         info!("Created csr in {:?}.", start.elapsed());
 
         UndirectedCsrGraph::new(csr)
+    }
+}
+
+impl<Node, Label> From<(DotGraph<Node, Label>, CsrLayout)> for UndirectedCsrGraph<Node>
+where
+    Node: Idx,
+    Label: Idx + Hash,
+{
+    fn from((dot_graph, csr_layout): (DotGraph<Node, Label>, CsrLayout)) -> Self {
+        let DotGraph {
+            label_frequencies: _,
+            edge_list,
+            labels: _,
+            max_degree: _,
+            max_label: _,
+        } = dot_graph;
+
+        UndirectedCsrGraph::from((edge_list, csr_layout))
     }
 }
 
