@@ -70,6 +70,30 @@ fn directed_u32_graph_from_edge_list() {
 }
 
 #[test]
+fn directed_usize_graph_from_gdl() {
+    assert_directed_graph::<usize>(
+        GraphBuilder::new()
+            .gdl_str::<usize, _>(
+                "(n0)-->(n1),(n0)-->(n2),(n1)-->(n2),(n1)-->(n3),(n2)-->(n4),(n3)-->(n4)",
+            )
+            .build()
+            .unwrap(),
+    )
+}
+
+#[test]
+fn undirected_usize_graph_from_gdl() {
+    assert_undirected_graph::<usize>(
+        GraphBuilder::new()
+            .gdl_str::<usize, _>(
+                "(n0)-->(n1),(n0)-->(n2),(n1)-->(n2),(n1)-->(n3),(n2)-->(n4),(n3)-->(n4)",
+            )
+            .build()
+            .unwrap(),
+    )
+}
+
+#[test]
 fn undirected_usize_graph_from_edge_list() {
     assert_undirected_graph::<usize>(
         GraphBuilder::new()
