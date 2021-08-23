@@ -4,6 +4,9 @@ pub use crate::graph::csr::CsrLayout;
 pub use crate::graph::csr::DirectedCsrGraph;
 pub use crate::graph::csr::UndirectedCsrGraph;
 
+pub use crate::graph::labeled::DirectedNodeLabeledCsrGraph;
+pub use crate::graph::labeled::UndirectedNodeLabeledCsrGraph;
+
 pub use crate::graph_ops::DegreePartitionOp;
 pub use crate::graph_ops::ForEachNodeParallelByPartitionOp;
 pub use crate::graph_ops::ForEachNodeParallelOp;

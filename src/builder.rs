@@ -66,6 +66,36 @@ where
     _idx: PhantomData<Node>,
 }
 
+/// A builder to create graphs in a type-safe way.
+///
+/// The builder implementation uses different states to allow staged building of
+/// graphs. Each individual state enables stage-specific methods on the builder.
+///
+/// # Examples
+///
+/// Create a directed graph from a vec of edges:
+///
+/// ```
+/// use graph::prelude::*;
+///
+/// let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+///     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
+///     .build();
+///
+/// assert_eq!(graph.node_count(), 4);
+/// ```
+///
+/// Create an undirected graph from a vec of edges:
+///
+/// ```
+/// use graph::prelude::*;
+///
+/// let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
+///     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
+///     .build();
+///
+/// assert_eq!(graph.node_count(), 4);
+/// ```
 pub struct GraphBuilder<State> {
     state: State,
 }
@@ -77,6 +107,7 @@ impl Default for GraphBuilder<Uninitialized> {
 }
 
 impl GraphBuilder<Uninitialized> {
+    /// Creates a new builder
     pub fn new() -> Self {
         Self {
             state: Uninitialized {
@@ -85,11 +116,54 @@ impl GraphBuilder<Uninitialized> {
         }
     }
 
+    /// Sets the [`CsrLayout`] to use during CSR construction.
+    ///
+    /// # Examples
+    ///
+    /// Store the neighbors sorted:
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
+    ///     .csr_layout(CsrLayout::Sorted)
+    ///     .edges(vec![(0, 7), (0, 3), (0, 3), (0, 1)])
+    ///     .build();
+    ///
+    /// assert_eq!(graph.neighbors(0), &[1, 3, 3, 7]);
+    /// ```
+    ///
+    /// Store the neighbors sorted and deduplicated:
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
+    ///     .csr_layout(CsrLayout::Deduplicated)
+    ///     .edges(vec![(0, 7), (0, 3), (0, 3), (0, 1)])
+    ///     .build();
+    ///
+    /// assert_eq!(graph.neighbors(0), &[1, 3, 7]);
+    /// ```
     pub fn csr_layout(mut self, csr_layout: CsrLayout) -> Self {
         self.state.csr_layout = csr_layout;
         self
     }
 
+    /// Create a graph from the given edge tuples.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+    ///     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
+    ///     .build();
+    ///
+    /// assert_eq!(graph.node_count(), 4);
+    /// assert_eq!(graph.edge_count(), 5);
+    /// ```
     pub fn edges<Node, Edges>(self, edges: Edges) -> GraphBuilder<FromEdges<Node, Edges>>
     where
         Node: Idx,
@@ -179,6 +253,51 @@ impl GraphBuilder<Uninitialized> {
         }
     }
 
+    /// Creates a graph by reading it from the given file format.
+    ///
+    /// # Examples
+    ///
+    /// Read a directed graph from an edge list file:
+    ///
+    /// ```
+    /// use std::path::PathBuf;
+    ///
+    /// use graph::prelude::*;
+    ///
+    /// let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.el"]
+    ///     .iter()
+    ///     .collect::<PathBuf>();
+    ///
+    /// let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+    ///     .file_format(EdgeListInput::default())
+    ///     .path(path)
+    ///     .build()
+    ///     .expect("loading failed");
+    ///
+    /// assert_eq!(graph.node_count(), 4);
+    /// assert_eq!(graph.edge_count(), 5);
+    /// ```
+    ///
+    /// Read a node labeled graph from a "dot graph" file:
+    ///
+    /// ```
+    /// use std::path::PathBuf;
+    ///
+    /// use graph::prelude::*;
+    ///
+    /// let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.graph"]
+    ///     .iter()
+    ///     .collect::<PathBuf>();
+    ///
+    /// let graph: DirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
+    ///     .file_format(DotGraphInput::default())
+    ///     .path(path)
+    ///     .build()
+    ///     .expect("loading failed");
+    ///
+    /// assert_eq!(graph.node_count(), 4);
+    /// assert_eq!(graph.edge_count(), 5);
+    /// ```
     pub fn file_format<Format, Path, Node>(
         self,
         format: Format,
@@ -205,6 +324,7 @@ where
     Node: Idx,
     Edges: IntoIterator<Item = (Node, Node)>,
 {
+    /// Build the graph from the given vec of edges.
     pub fn build<Graph>(self) -> Graph
     where
         Graph: From<(EdgeList<Node>, CsrLayout)>,
@@ -220,6 +340,7 @@ impl<Node> GraphBuilder<FromGdlString<Node>>
 where
     Node: Idx,
 {
+    /// Builds the graph from the given GDL string.
     pub fn build<Graph>(self) -> Result<Graph, Error>
     where
         Graph: From<(gdl::Graph, CsrLayout)>,
@@ -234,6 +355,7 @@ impl<'a, Node> GraphBuilder<FromGdlGraph<'a, Node>>
 where
     Node: Idx,
 {
+    /// Build the graph from the given GDL graph.
     pub fn build<Graph>(self) -> Result<Graph, Error>
     where
         Graph: From<(&'a gdl::Graph, CsrLayout)>,
@@ -249,6 +371,7 @@ where
     Format: InputCapabilities<Node>,
     Format::GraphInput: TryFrom<InputPath<Path>>,
 {
+    /// Set the location where the graph is stored.
     pub fn path(self, path: Path) -> GraphBuilder<FromPath<Node, Path, Format>> {
         GraphBuilder {
             state: FromPath {
@@ -269,6 +392,7 @@ where
     Format::GraphInput: TryFrom<InputPath<Path>>,
     crate::Error: From<<Format::GraphInput as TryFrom<InputPath<Path>>>::Error>,
 {
+    /// Build the graph from the given input format and path.
     pub fn build<Graph>(self) -> Result<Graph, Error>
     where
         Graph: TryFrom<(Format::GraphInput, CsrLayout)>,
