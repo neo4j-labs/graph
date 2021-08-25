@@ -277,8 +277,6 @@ where
         let meta = [node_count, edge_count];
         output.write_all(meta.as_byte_slice())?;
 
-        // let (prefix, middle, suffix) = unsafe { self.targets.align_to_mut::<u8>() };
-
         output.write_all(self.offsets.as_byte_slice())?;
         output.write_all(self.targets.as_byte_slice())?;
 
