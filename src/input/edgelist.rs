@@ -50,36 +50,36 @@ impl<Node: Idx> InputCapabilities<Node> for EdgeListInput<Node> {
     type GraphInput = EdgeList<Node>;
 }
 
-pub struct EdgeList<Node: Idx>(Box<[(Node, Node)]>);
+pub struct EdgeList<Node: Idx, V = ()>(Box<[(Node, Node, V)]>);
 
-impl<Node: Idx> AsRef<[(Node, Node)]> for EdgeList<Node> {
-    fn as_ref(&self) -> &[(Node, Node)] {
+impl<Node: Idx, V> AsRef<[(Node, Node, V)]> for EdgeList<Node, V> {
+    fn as_ref(&self) -> &[(Node, Node, V)] {
         &self.0
     }
 }
 
-impl<Node: Idx> Deref for EdgeList<Node> {
-    type Target = [(Node, Node)];
+impl<Node: Idx, V> Deref for EdgeList<Node, V> {
+    type Target = [(Node, Node, V)];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<Node: Idx> DerefMut for EdgeList<Node> {
+impl<Node: Idx, V> DerefMut for EdgeList<Node, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<Node: Idx> EdgeList<Node> {
-    pub fn new(edges: Vec<(Node, Node)>) -> Self {
+impl<Node: Idx, V: Sync> EdgeList<Node, V> {
+    pub fn new(edges: Vec<(Node, Node, V)>) -> Self {
         Self(edges.into_boxed_slice())
     }
 
     pub(crate) fn max_node_id(&self) -> Node {
         self.par_iter()
-            .map(|(s, t)| Node::max(*s, *t))
+            .map(|(s, t, _)| Node::max(*s, *t))
             .reduce(Node::zero, Node::max)
     }
 
@@ -88,13 +88,13 @@ impl<Node: Idx> EdgeList<Node> {
         degrees.resize_with(node_count.index(), Node::Atomic::zero);
 
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
-            self.par_iter().for_each(|(s, _)| {
+            self.par_iter().for_each(|(s, _, _)| {
                 degrees[s.index()].get_and_increment(AcqRel);
             });
         }
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
-            self.par_iter().for_each(|(_, t)| {
+            self.par_iter().for_each(|(_, t, _)| {
                 degrees[t.index()].get_and_increment(AcqRel);
             });
         }
@@ -112,7 +112,7 @@ impl<Node: Idx> From<&gdl::Graph> for EdgeList<Node> {
                 let source = gdl_graph.get_node(r.source()).unwrap().id();
                 let target = gdl_graph.get_node(r.target()).unwrap().id();
 
-                (Node::new(source), Node::new(target))
+                (Node::new(source), Node::new(target), ())
             })
             .collect::<Vec<_>>();
 
@@ -172,7 +172,7 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
                     while !chunk.is_empty() {
                         let (source, source_bytes) = Node::parse(chunk);
                         let (target, target_bytes) = Node::parse(&chunk[source_bytes + 1..]);
-                        edges.push((source, target));
+                        edges.push((source, target, ()));
                         chunk = &chunk[source_bytes + target_bytes + 2..];
                     }
 

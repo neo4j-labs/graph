@@ -1,16 +1,19 @@
 use log::info;
 use rayon::prelude::*;
 
-use crate::graph::csr::{prefix_sum, Csr};
+use crate::graph::csr::{prefix_sum, Csr, Target};
 use crate::index::Idx;
-use crate::{DirectedGraph, Error, Graph, SharedMut, UndirectedGraph};
+use crate::{
+    DirectedDegrees, DirectedNeighborsWithValues, Error, Graph, SharedMut, UndirectedDegrees,
+    UndirectedNeighborsWithValues,
+};
 
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::Instant;
 
 /// Partition the node set based on the degrees of the nodes.
-pub trait DegreePartitionOp<Node: Idx> {
+pub trait DegreePartitionOp<Node: Idx, V> {
     /// Creates a range-based degree partition of the nodes.
     ///
     /// Divide the nodes into `concurrency` number of ranges such that these
@@ -22,7 +25,7 @@ pub trait DegreePartitionOp<Node: Idx> {
 }
 
 /// Partition the node set based on the out degrees of the nodes.
-pub trait OutDegreePartitionOp<Node: Idx> {
+pub trait OutDegreePartitionOp<Node: Idx, V> {
     /// Creates a range-based out degree partition of the nodes.
     ///
     /// Divide the nodes into `concurrency` number of ranges such that these
@@ -34,7 +37,7 @@ pub trait OutDegreePartitionOp<Node: Idx> {
 }
 
 /// Partition the node set based on the in degrees of the nodes.
-pub trait InDegreePartitionOp<Node: Idx> {
+pub trait InDegreePartitionOp<Node: Idx, V> {
     /// Creates a range-based in degree partition of the nodes.
     ///
     /// Divide the nodes into `concurrency` number of ranges such that these
@@ -128,7 +131,7 @@ pub trait ForEachNodeParallelByPartitionOp<Node: Idx> {
         F: Fn(&Self, Node, &mut T) + Send + Sync;
 }
 
-pub trait RelabelByDegreeOp<Node: Idx> {
+pub trait RelabelByDegreeOp<N, V> {
     /// Creates a new graph by relabeling the node ids of the given graph.
     ///
     /// Ids are relabaled using descending degree-order, i.e., given `n` nodes,
@@ -174,10 +177,15 @@ pub trait DeserializeGraphOp<R, G> {
     fn deserialize(read: R) -> Result<G, Error>;
 }
 
-impl<Node, G> RelabelByDegreeOp<Node> for G
+impl<G, Node, V> RelabelByDegreeOp<Node, V> for G
 where
     Node: Idx,
-    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
+    V: Copy + Ord + Sync,
+    G: Graph<Node>
+        + UndirectedDegrees<Node>
+        + UndirectedNeighborsWithValues<Node, V>
+        + From<Csr<Node, Node, V>>
+        + Sync,
 {
     fn to_degree_ordered(&self) -> Self {
         relabel_by_degree(self)
@@ -259,7 +267,11 @@ where
     }
 }
 
-impl<Node: Idx, U: UndirectedGraph<Node>> DegreePartitionOp<Node> for U {
+impl<Node, V, U> DegreePartitionOp<Node, V> for U
+where
+    Node: Idx,
+    U: Graph<Node> + UndirectedDegrees<Node> + UndirectedNeighborsWithValues<Node, V>,
+{
     /// Creates a greedy range-based degree partition of the nodes.
     ///
     /// It is greedy in the sense that it goes through the node set only once
@@ -292,7 +304,11 @@ impl<Node: Idx, U: UndirectedGraph<Node>> DegreePartitionOp<Node> for U {
     }
 }
 
-impl<Node: Idx, D: DirectedGraph<Node>> OutDegreePartitionOp<Node> for D {
+impl<Node, V, D> OutDegreePartitionOp<Node, V> for D
+where
+    Node: Idx,
+    D: Graph<Node> + DirectedDegrees<Node> + DirectedNeighborsWithValues<Node, V>,
+{
     /// Creates a greedy range-based out degree partition of the nodes.
     ///
     /// It is greedy in the sense that it goes through the node set only once
@@ -325,7 +341,11 @@ impl<Node: Idx, D: DirectedGraph<Node>> OutDegreePartitionOp<Node> for D {
     }
 }
 
-impl<Node: Idx, D: DirectedGraph<Node>> InDegreePartitionOp<Node> for D {
+impl<Node, V, D> InDegreePartitionOp<Node, V> for D
+where
+    Node: Idx,
+    D: Graph<Node> + DirectedDegrees<Node> + DirectedNeighborsWithValues<Node, V>,
+{
     /// Creates a greedy range-based in degree partition of the nodes.
     ///
     /// It is greedy in the sense that it goes through the node set only once
@@ -427,10 +447,15 @@ where
     partitions
 }
 
-fn relabel_by_degree<Node, G>(graph: &G) -> G
+fn relabel_by_degree<Node, G, V>(graph: &G) -> G
 where
     Node: Idx,
-    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
+    G: From<Csr<Node, Node, V>>
+        + Graph<Node>
+        + UndirectedDegrees<Node>
+        + UndirectedNeighborsWithValues<Node, V>
+        + Sync,
+    V: Copy + Ord + Sync,
 {
     let start = Instant::now();
     let degree_node_pairs = sort_by_degree_desc(graph);
@@ -453,10 +478,10 @@ where
 
 // Extracts (degree, node_id) pairs from the given graph and sorts them by
 // degree descending.
-fn sort_by_degree_desc<Node, G>(graph: &G) -> Vec<(Node, Node)>
+fn sort_by_degree_desc<Node, V, G>(graph: &G) -> Vec<(Node, Node)>
 where
     Node: Idx,
-    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
+    G: Graph<Node> + UndirectedDegrees<Node> + UndirectedNeighborsWithValues<Node, V> + Sync,
 {
     let node_count = graph.node_count().index();
     let mut degree_node_pairs = Vec::with_capacity(node_count);
@@ -508,14 +533,19 @@ fn unzip_degrees_and_nodes<Node: Idx>(
 }
 
 // Relabel target ids according to the given node mapping and offsets.
-fn relabel_targets<Node, G>(graph: &G, nodes: Vec<Node>, offsets: &[Node]) -> Vec<Node>
+fn relabel_targets<Node, V, G>(
+    graph: &G,
+    nodes: Vec<Node>,
+    offsets: &[Node],
+) -> Vec<Target<Node, V>>
 where
     Node: Idx,
-    G: From<Csr<Node>> + UndirectedGraph<Node> + Sync,
+    G: Graph<Node> + UndirectedNeighborsWithValues<Node, V> + Sync,
+    V: Copy + Ord + Sync,
 {
     let node_count = graph.node_count().index();
     let edge_count = offsets[node_count].index();
-    let mut targets = Vec::<Node>::with_capacity(edge_count);
+    let mut targets = Vec::<Target<Node, V>>::with_capacity(edge_count);
     let targets_ptr = SharedMut::new(targets.as_mut_ptr());
 
     (0..node_count)
@@ -526,13 +556,15 @@ where
             let start_offset = offsets[new_u.index()].index();
             let mut end_offset = start_offset;
 
-            for &v in graph.neighbors(u) {
-                let new_v = nodes[v.index()];
+            for &v in graph.neighbors_with_values(u) {
+                let new_v = nodes[v.target.index()];
                 // SAFETY: a node u is processed by at most one thread. We write
                 // into a non-overlapping range defined by the offsets for that
                 // node. No two threads will write into the same range.
                 unsafe {
-                    targets_ptr.add(end_offset).write(new_v);
+                    targets_ptr
+                        .add(end_offset)
+                        .write(Target::new(new_v, v.value));
                 }
                 end_offset += 1;
             }
@@ -560,9 +592,14 @@ where
 mod tests {
     use crate::{
         builder::GraphBuilder, graph::csr::UndirectedCsrGraph, graph_ops::unzip_degrees_and_nodes,
+        UndirectedNeighbors,
     };
 
     use super::*;
+
+    fn t<T>(t: T) -> Target<T, ()> {
+        Target::new(t, ())
+    }
 
     #[test]
     fn split_by_partition_3_parts() {

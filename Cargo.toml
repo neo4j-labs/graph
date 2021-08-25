@@ -33,3 +33,6 @@ env_logger = "0.9.0"
 num-format = "0.4.0"
 pico-args = "0.4.0"
 tempfile = "3"
+
+[patch.crates-io]
+byte-slice-cast = { git = "https://github.com/s1ck/byte-slice-cast", branch = "unit-support" }

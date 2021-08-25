@@ -19,9 +19,13 @@ pub use crate::index::Idx;
 
 pub use crate::input::*;
 
-pub use crate::DirectedGraph;
+pub use crate::DirectedDegrees;
+pub use crate::DirectedNeighbors;
+pub use crate::DirectedNeighborsWithValues;
 pub use crate::Graph;
 pub use crate::NodeLabeledGraph;
-pub use crate::UndirectedGraph;
+pub use crate::UndirectedDegrees;
+pub use crate::UndirectedNeighbors;
+pub use crate::UndirectedNeighborsWithValues;
 
 pub use crate::Error;

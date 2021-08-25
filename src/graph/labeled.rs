@@ -4,17 +4,24 @@ use fxhash::FxHashMap;
 
 use crate::input::dotgraph::DotGraph;
 use crate::input::edgelist::EdgeList;
-use crate::NodeLabeledGraph;
-use crate::{index::Idx, DirectedGraph, Graph, UndirectedGraph};
+use crate::{index::Idx, DirectedNeighbors, Graph, UndirectedNeighbors};
+use crate::{
+    DirectedDegrees, DirectedNeighborsWithValues, NodeLabeledGraph, UndirectedDegrees,
+    UndirectedNeighborsWithValues,
+};
 
-use super::csr::{Csr, CsrLayout, DirectedCsrGraph, UndirectedCsrGraph};
+use super::csr::{Csr, CsrLayout, DirectedCsrGraph, Target, UndirectedCsrGraph};
 
-pub type DirectedNodeLabeledCsrGraph<Node, Label> =
-    NodeLabeledCsrGraph<DirectedCsrGraph<Node>, Node, Label>;
-pub type UndirectedNodeLabeledCsrGraph<Node, Label> =
-    NodeLabeledCsrGraph<UndirectedCsrGraph<Node>, Node, Label>;
+pub type DirectedNodeLabeledCsrGraph<Node, Label, V = ()> =
+    NodeLabeledCsrGraph<DirectedCsrGraph<Node, V>, Node, Label>;
+pub type UndirectedNodeLabeledCsrGraph<Node, Label, V = ()> =
+    NodeLabeledCsrGraph<UndirectedCsrGraph<Node, V>, Node, Label>;
 
-pub struct NodeLabeledCsrGraph<G, Node: Idx, Label: Idx> {
+pub struct NodeLabeledCsrGraph<G, Node, Label>
+where
+    Node: Idx,
+    Label: Idx,
+{
     graph: G,
     label_count: Label,
     labels: Box<[Label]>,
@@ -40,36 +47,84 @@ where
     }
 }
 
-impl<G, Node, Label> DirectedGraph<Node> for NodeLabeledCsrGraph<G, Node, Label>
+impl<G, Node, Label> DirectedNeighbors<Node> for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
     Label: Idx,
-    G: DirectedGraph<Node>,
+    G: DirectedNeighbors<Node>,
 {
     delegate::delegate! {
         to self.graph {
-            fn out_degree(&self, node: Node) -> Node;
-
             fn out_neighbors(&self, node: Node) -> &[Node];
-
-            fn in_degree(&self, node: Node) -> Node;
-
             fn in_neighbors(&self, node: Node) -> &[Node] ;
         }
     }
 }
 
-impl<G, Node, Label> UndirectedGraph<Node> for NodeLabeledCsrGraph<G, Node, Label>
+impl<G, Node, Label, V> DirectedNeighborsWithValues<Node, V> for NodeLabeledCsrGraph<G, Node, Label>
 where
     Node: Idx,
     Label: Idx,
-    G: UndirectedGraph<Node>,
+    G: DirectedNeighborsWithValues<Node, V>,
+{
+    delegate::delegate! {
+        to self.graph {
+            fn out_neighbors_with_values(&self, node: Node) -> &[Target<Node, V>];
+            fn in_neighbors_with_values(&self, node: Node) -> &[Target<Node, V>] ;
+        }
+    }
+}
+
+impl<G, Node, Label> DirectedDegrees<Node> for NodeLabeledCsrGraph<G, Node, Label>
+where
+    Node: Idx,
+    Label: Idx,
+    G: DirectedDegrees<Node>,
+{
+    delegate::delegate! {
+        to self.graph {
+            fn out_degree(&self, node: Node) -> Node;
+            fn in_degree(&self, node: Node) -> Node;
+        }
+    }
+}
+
+impl<G, Node, Label> UndirectedNeighbors<Node> for NodeLabeledCsrGraph<G, Node, Label>
+where
+    Node: Idx,
+    Label: Idx,
+    G: UndirectedNeighbors<Node>,
+{
+    delegate::delegate! {
+        to self.graph {
+            fn neighbors(&self, node: Node) -> &[Node];
+        }
+    }
+}
+
+impl<G, Node, Label, V> UndirectedNeighborsWithValues<Node, V>
+    for NodeLabeledCsrGraph<G, Node, Label>
+where
+    Node: Idx,
+    Label: Idx,
+    G: UndirectedNeighborsWithValues<Node, V>,
+{
+    delegate::delegate! {
+        to self.graph {
+            fn neighbors_with_values(&self, node: Node) -> &[Target<Node, V>];
+        }
+    }
+}
+
+impl<G, Node, Label> UndirectedDegrees<Node> for NodeLabeledCsrGraph<G, Node, Label>
+where
+    Node: Idx,
+    Label: Idx,
+    G: UndirectedDegrees<Node>,
 {
     delegate::delegate! {
         to self.graph {
             fn degree(&self, node: Node) -> Node;
-
-            fn neighbors(&self, node: Node) -> &[Node];
         }
     }
 }
@@ -154,32 +209,40 @@ where
     }
 }
 
-impl<Node: Idx, Label: Idx + Hash> From<(&gdl::Graph, CsrLayout)>
-    for DirectedNodeLabeledCsrGraph<Node, Label>
+impl<Node, Label> From<(&gdl::Graph, CsrLayout)> for DirectedNodeLabeledCsrGraph<Node, Label, ()>
+where
+    Node: Idx,
+    Label: Idx + Hash,
 {
     fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
         DirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(gdl_graph), csr_layout))
     }
 }
 
-impl<Node: Idx, Label: Idx + Hash> From<(gdl::Graph, CsrLayout)>
-    for DirectedNodeLabeledCsrGraph<Node, Label>
+impl<Node, Label> From<(gdl::Graph, CsrLayout)> for DirectedNodeLabeledCsrGraph<Node, Label, ()>
+where
+    Node: Idx,
+    Label: Idx + Hash,
 {
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
         DirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(&gdl_graph), csr_layout))
     }
 }
 
-impl<Node: Idx, Label: Idx + Hash> From<(&gdl::Graph, CsrLayout)>
-    for UndirectedNodeLabeledCsrGraph<Node, Label>
+impl<Node, Label> From<(&gdl::Graph, CsrLayout)> for UndirectedNodeLabeledCsrGraph<Node, Label, ()>
+where
+    Node: Idx,
+    Label: Idx + Hash,
 {
     fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
         UndirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(gdl_graph), csr_layout))
     }
 }
 
-impl<Node: Idx, Label: Idx + Hash> From<(gdl::Graph, CsrLayout)>
-    for UndirectedNodeLabeledCsrGraph<Node, Label>
+impl<Node, Label> From<(gdl::Graph, CsrLayout)> for UndirectedNodeLabeledCsrGraph<Node, Label, ()>
+where
+    Node: Idx,
+    Label: Idx + Hash,
 {
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
         UndirectedNodeLabeledCsrGraph::from((DotGraph::<Node, Label>::from(&gdl_graph), csr_layout))

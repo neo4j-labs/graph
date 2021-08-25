@@ -7,7 +7,7 @@ use std::{
     io::{Read, Write},
     mem::{transmute, MaybeUninit},
     path::PathBuf,
-    sync::atomic::Ordering::Acquire,
+    sync::{atomic::Ordering::Acquire, Arc},
     time::Instant,
 };
 
@@ -17,7 +17,8 @@ use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
     input::{edgelist::EdgeList, Direction, DotGraph},
-    DirectedGraph, Error, Graph, SharedMut, UndirectedGraph,
+    DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph, SharedMut,
+    UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsWithValues,
 };
 
 /// Defines how the neighbor list of individual nodes are organized within the
@@ -51,13 +52,26 @@ impl Default for CsrLayout {
 /// neighbor list is defined by `offsets[u + 1] - offsets[u]`. The neighbor list
 /// of `u` is defined by the slice `&targets[offsets[u]..offsets[u + 1]]`.
 #[derive(Debug)]
-pub struct Csr<Index: Idx, T = Index> {
+pub struct Csr<Index: Idx, T = Index, V = ()> {
     offsets: Box<[Index]>,
-    targets: Box<[T]>,
+    targets: Box<[Target<T, V>]>,
 }
 
-impl<Index: Idx, T> Csr<Index, T> {
-    pub(crate) fn new(offsets: Box<[Index]>, targets: Box<[T]>) -> Self {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(C)]
+pub struct Target<T, V> {
+    pub target: T,
+    pub value: V,
+}
+
+impl<T, V> Target<T, V> {
+    pub fn new(target: T, value: V) -> Self {
+        Self { target, value }
+    }
+}
+
+impl<Index: Idx, T, V> Csr<Index, T, V> {
+    pub(crate) fn new(offsets: Box<[Index]>, targets: Box<[Target<T, V>]>) -> Self {
         Self { offsets, targets }
     }
 
@@ -80,7 +94,7 @@ impl<Index: Idx, T> Csr<Index, T> {
     }
 
     #[inline]
-    pub(crate) fn targets(&self, i: Index) -> &[T] {
+    pub(crate) fn targets_with_values(&self, i: Index) -> &[Target<T, V>] {
         let from = self.offsets[i.index()];
         let to = self.offsets[(i + Index::new(1)).index()];
 
@@ -88,10 +102,39 @@ impl<Index: Idx, T> Csr<Index, T> {
     }
 }
 
-type CsrInput<'a, Node> = (&'a mut EdgeList<Node>, Node, Direction, CsrLayout);
+impl<Index: Idx, T> Csr<Index, T, ()> {
+    #[inline]
+    pub(crate) fn targets(&self, i: Index) -> &[T] {
+        assert_eq!(
+            std::mem::size_of::<Target<T, ()>>(),
+            std::mem::size_of::<T>()
+        );
+        assert_eq!(
+            std::mem::align_of::<Target<T, ()>>(),
+            std::mem::align_of::<T>()
+        );
+        let from = self.offsets[i.index()];
+        let to = self.offsets[(i + Index::new(1)).index()];
 
-impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
-    fn from((edge_list, node_count, direction, csr_layout): CsrInput<'_, Node>) -> Self {
+        let len = (to - from).index();
+
+        let targets = &self.targets[from.index()..to.index()];
+
+        // SAFETY: len is within bounds as it is calculated above as `to - from`.
+        //         The types Target<T, ()> and T are verified to have the same
+        //         size and alignment.
+        unsafe { std::slice::from_raw_parts(targets.as_ptr() as *const _, len) }
+    }
+}
+
+type CsrInput<'a, Node, V> = (&'a mut EdgeList<Node, V>, Node, Direction, CsrLayout);
+
+impl<Node, V> From<CsrInput<'_, Node, V>> for Csr<Node, Node, V>
+where
+    Node: Idx,
+    V: Copy + Ord + Send + Sync,
+{
+    fn from((edge_list, node_count, direction, csr_layout): CsrInput<'_, Node, V>) -> Self {
         let start = Instant::now();
         let degrees = edge_list.degrees(node_count, direction);
         info!("Computed degrees in {:?}", start.elapsed());
@@ -102,7 +145,7 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
 
         let start = Instant::now();
         let edge_count = offsets[node_count.index()].load(Acquire).index();
-        let mut targets = Vec::<Node>::with_capacity(edge_count);
+        let mut targets = Vec::<Target<Node, V>>::with_capacity(edge_count);
         let targets_ptr = SharedMut::new(targets.as_mut_ptr());
 
         // The following loop writes all targets into their correct position.
@@ -114,20 +157,20 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
         // only write once into each position and every thread that might run
         // will write into different positions.
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
-            edge_list.par_iter().for_each(|(s, t)| {
+            edge_list.par_iter().for_each(|(s, t, v)| {
                 let offset = offsets[s.index()].get_and_increment(Acquire);
 
                 unsafe {
-                    targets_ptr.add(offset.index()).write(*t);
+                    targets_ptr.add(offset.index()).write(Target::new(*t, *v));
                 }
             })
         }
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
-            edge_list.par_iter().for_each(|(s, t)| {
+            edge_list.par_iter().for_each(|(s, t, v)| {
                 let offset = offsets[t.index()].get_and_increment(Acquire);
                 unsafe {
-                    targets_ptr.add(offset.index()).write(*s);
+                    targets_ptr.add(offset.index()).write(Target::new(*s, *v));
                 }
             })
         }
@@ -162,7 +205,8 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
             }
             CsrLayout::Deduplicated => {
                 let start = Instant::now();
-                let offsets_targets = sort_and_deduplicate_targets(&offsets, &mut targets);
+                let offsets_targets =
+                    sort_and_deduplicate_targets(&offsets, &mut targets[..], |t| t.target);
                 info!("Sorted and deduplicated targets in {:?}", start.elapsed());
                 offsets_targets
             }
@@ -175,7 +219,35 @@ impl<Node: Idx> From<CsrInput<'_, Node>> for Csr<Node> {
     }
 }
 
-impl<Node: Idx + ToByteSlice> Csr<Node> {
+unsafe impl<T, V> ToByteSlice for Target<T, V>
+where
+    T: ToByteSlice,
+    V: ToByteSlice,
+{
+    fn to_byte_slice<S: AsRef<[Self]> + ?Sized>(slice: &S) -> &[u8] {
+        let slice = slice.as_ref();
+        let len = slice.len() * std::mem::size_of::<Target<T, V>>();
+        unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const u8, len) }
+    }
+}
+
+unsafe impl<T, V> ToMutByteSlice for Target<T, V>
+where
+    T: ToMutByteSlice,
+    V: ToMutByteSlice,
+{
+    fn to_mut_byte_slice<S: AsMut<[Self]> + ?Sized>(slice: &mut S) -> &mut [u8] {
+        let slice = slice.as_mut();
+        let len = slice.len() * std::mem::size_of::<Target<T, V>>();
+        unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut u8, len) }
+    }
+}
+
+impl<Node, V> Csr<Node, Node, V>
+where
+    Node: Idx + ToByteSlice,
+    V: ToByteSlice,
+{
     fn serialize<W: Write>(&self, output: &mut W) -> Result<(), Error> {
         let type_name = std::any::type_name::<Node>().as_bytes();
         output.write_all([type_name.len()].as_byte_slice())?;
@@ -186,6 +258,8 @@ impl<Node: Idx + ToByteSlice> Csr<Node> {
         let meta = [node_count, edge_count];
         output.write_all(meta.as_byte_slice())?;
 
+        // let (prefix, middle, suffix) = unsafe { self.targets.align_to_mut::<u8>() };
+
         output.write_all(self.offsets.as_byte_slice())?;
         output.write_all(self.targets.as_byte_slice())?;
 
@@ -193,8 +267,12 @@ impl<Node: Idx + ToByteSlice> Csr<Node> {
     }
 }
 
-impl<Node: Idx + ToMutByteSlice> Csr<Node> {
-    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node>, Error> {
+impl<Node, V> Csr<Node, Node, V>
+where
+    Node: Idx + ToMutByteSlice,
+    V: ToMutByteSlice,
+{
+    fn deserialize<R: Read>(read: &mut R) -> Result<Csr<Node, Node, V>, Error> {
         let mut type_name_len = [0_usize; 1];
         read.read_exact(type_name_len.as_mut_byte_slice())?;
         let [type_name_len] = type_name_len;
@@ -223,8 +301,8 @@ impl<Node: Idx + ToMutByteSlice> Csr<Node> {
             unsafe { std::slice::from_raw_parts_mut(offsets_ptr, node_count.index() + 1) };
         read.read_exact(offsets_ptr.as_mut_byte_slice())?;
 
-        let mut targets = Box::<[Node]>::new_uninit_slice(edge_count.index());
-        let targets_ptr = targets.as_mut_ptr() as *mut Node;
+        let mut targets = Box::<[Target<Node, V>]>::new_uninit_slice(edge_count.index());
+        let targets_ptr = targets.as_mut_ptr() as *mut Target<Node, V>;
         let targets_ptr =
             unsafe { std::slice::from_raw_parts_mut(targets_ptr, edge_count.index()) };
         read.read_exact(targets_ptr.as_mut_byte_slice())?;
@@ -236,15 +314,15 @@ impl<Node: Idx + ToMutByteSlice> Csr<Node> {
     }
 }
 
-pub struct DirectedCsrGraph<Node: Idx> {
+pub struct DirectedCsrGraph<Node: Idx, V = ()> {
     node_count: Node,
     edge_count: Node,
-    csr_out: Csr<Node>,
-    csr_inc: Csr<Node>,
+    csr_out: Csr<Node, Node, V>,
+    csr_inc: Csr<Node, Node, V>,
 }
 
-impl<Node: Idx> DirectedCsrGraph<Node> {
-    pub fn new(csr_out: Csr<Node>, csr_inc: Csr<Node>) -> Self {
+impl<Node: Idx, V> DirectedCsrGraph<Node, V> {
+    pub fn new(csr_out: Csr<Node, Node, V>, csr_inc: Csr<Node, Node, V>) -> Self {
         let node_count = csr_out.node_count();
         let edge_count = csr_out.edge_count();
 
@@ -262,7 +340,7 @@ impl<Node: Idx> DirectedCsrGraph<Node> {
     }
 }
 
-impl<Node: Idx> Graph<Node> for DirectedCsrGraph<Node> {
+impl<Node: Idx, V> Graph<Node> for DirectedCsrGraph<Node, V> {
     fn node_count(&self) -> Node {
         self.node_count
     }
@@ -272,21 +350,33 @@ impl<Node: Idx> Graph<Node> for DirectedCsrGraph<Node> {
     }
 }
 
-impl<Node: Idx> DirectedGraph<Node> for DirectedCsrGraph<Node> {
+impl<Node: Idx, V> DirectedDegrees<Node> for DirectedCsrGraph<Node, V> {
     fn out_degree(&self, node: Node) -> Node {
         self.csr_out.degree(node)
-    }
-
-    fn out_neighbors(&self, node: Node) -> &[Node] {
-        self.csr_out.targets(node)
     }
 
     fn in_degree(&self, node: Node) -> Node {
         self.csr_inc.degree(node)
     }
+}
+
+impl<Node: Idx> DirectedNeighbors<Node> for DirectedCsrGraph<Node, ()> {
+    fn out_neighbors(&self, node: Node) -> &[Node] {
+        self.csr_out.targets(node)
+    }
 
     fn in_neighbors(&self, node: Node) -> &[Node] {
         self.csr_inc.targets(node)
+    }
+}
+
+impl<Node: Idx, V> DirectedNeighborsWithValues<Node, V> for DirectedCsrGraph<Node, V> {
+    fn out_neighbors_with_values(&self, node: Node) -> &[Target<Node, V>] {
+        self.csr_out.targets_with_values(node)
+    }
+
+    fn in_neighbors_with_values(&self, node: Node) -> &[Target<Node, V>] {
+        self.csr_inc.targets_with_values(node)
     }
 }
 
@@ -337,7 +427,12 @@ impl<Node: Idx> From<(gdl::Graph, CsrLayout)> for DirectedCsrGraph<Node> {
     }
 }
 
-impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for DirectedCsrGraph<Node> {
+impl<W, Node, V> SerializeGraphOp<W> for DirectedCsrGraph<Node, V>
+where
+    W: Write,
+    Node: Idx + ToByteSlice,
+    V: ToByteSlice,
+{
     fn serialize(&self, mut output: W) -> Result<(), Error> {
         let DirectedCsrGraph {
             node_count: _,
@@ -353,15 +448,24 @@ impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for DirectedCsrGraph
     }
 }
 
-impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for DirectedCsrGraph<Node> {
+impl<R, Node, V> DeserializeGraphOp<R, Self> for DirectedCsrGraph<Node, V>
+where
+    R: Read,
+    Node: Idx + ToMutByteSlice,
+    V: ToMutByteSlice,
+{
     fn deserialize(mut read: R) -> Result<Self, Error> {
-        let csr_out: Csr<Node> = Csr::deserialize(&mut read)?;
-        let csr_inc: Csr<Node> = Csr::deserialize(&mut read)?;
+        let csr_out: Csr<Node, Node, V> = Csr::deserialize(&mut read)?;
+        let csr_inc: Csr<Node, Node, V> = Csr::deserialize(&mut read)?;
         Ok(DirectedCsrGraph::new(csr_out, csr_inc))
     }
 }
 
-impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGraph<Node> {
+impl<Node, V> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGraph<Node, V>
+where
+    Node: Idx + ToMutByteSlice,
+    V: ToMutByteSlice,
+{
     type Error = Error;
 
     fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
@@ -373,20 +477,20 @@ impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for DirectedCsrGr
 }
 
 #[derive(Debug)]
-pub struct UndirectedCsrGraph<Node: Idx> {
+pub struct UndirectedCsrGraph<Node: Idx, V = ()> {
     node_count: Node,
     edge_count: Node,
-    csr: Csr<Node>,
+    csr: Csr<Node, Node, V>,
 }
 
-impl<Node: Idx> From<Csr<Node>> for UndirectedCsrGraph<Node> {
-    fn from(csr: Csr<Node>) -> Self {
+impl<Node: Idx, V> From<Csr<Node, Node, V>> for UndirectedCsrGraph<Node, V> {
+    fn from(csr: Csr<Node, Node, V>) -> Self {
         UndirectedCsrGraph::new(csr)
     }
 }
 
-impl<Node: Idx> UndirectedCsrGraph<Node> {
-    pub fn new(csr: Csr<Node>) -> Self {
+impl<Node: Idx, V> UndirectedCsrGraph<Node, V> {
+    pub fn new(csr: Csr<Node, Node, V>) -> Self {
         let node_count = csr.node_count();
         let edge_count = csr.edge_count() / Node::new(2);
 
@@ -403,7 +507,7 @@ impl<Node: Idx> UndirectedCsrGraph<Node> {
     }
 }
 
-impl<Node: Idx> Graph<Node> for UndirectedCsrGraph<Node> {
+impl<Node: Idx, V> Graph<Node> for UndirectedCsrGraph<Node, V> {
     fn node_count(&self) -> Node {
         self.node_count
     }
@@ -413,13 +517,21 @@ impl<Node: Idx> Graph<Node> for UndirectedCsrGraph<Node> {
     }
 }
 
-impl<Node: Idx> UndirectedGraph<Node> for UndirectedCsrGraph<Node> {
+impl<Node: Idx, V> UndirectedDegrees<Node> for UndirectedCsrGraph<Node, V> {
     fn degree(&self, node: Node) -> Node {
         self.csr.degree(node)
     }
+}
 
+impl<Node: Idx> UndirectedNeighbors<Node> for UndirectedCsrGraph<Node, ()> {
     fn neighbors(&self, node: Node) -> &[Node] {
         self.csr.targets(node)
+    }
+}
+
+impl<Node: Idx, V> UndirectedNeighborsWithValues<Node, V> for UndirectedCsrGraph<Node, V> {
+    fn neighbors_with_values(&self, node: Node) -> &[Target<Node, V>] {
+        self.csr.targets_with_values(node)
     }
 }
 
@@ -471,7 +583,12 @@ impl<Node: Idx> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<Node> {
     }
 }
 
-impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for UndirectedCsrGraph<Node> {
+impl<W, Node, V> SerializeGraphOp<W> for UndirectedCsrGraph<Node, V>
+where
+    W: Write,
+    Node: Idx + ToByteSlice,
+    V: ToByteSlice,
+{
     fn serialize(&self, mut output: W) -> Result<(), Error> {
         let UndirectedCsrGraph {
             node_count: _,
@@ -485,14 +602,23 @@ impl<W: Write, Node: Idx + ToByteSlice> SerializeGraphOp<W> for UndirectedCsrGra
     }
 }
 
-impl<R: Read, Node: Idx + ToMutByteSlice> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<Node> {
+impl<R, Node, V> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<Node, V>
+where
+    R: Read,
+    Node: Idx + ToMutByteSlice,
+    V: ToMutByteSlice,
+{
     fn deserialize(mut read: R) -> Result<Self, Error> {
-        let csr: Csr<Node> = Csr::deserialize(&mut read)?;
+        let csr: Csr<Node, Node, V> = Csr::deserialize(&mut read)?;
         Ok(UndirectedCsrGraph::new(csr))
     }
 }
 
-impl<Node: Idx + ToMutByteSlice> TryFrom<(PathBuf, CsrLayout)> for UndirectedCsrGraph<Node> {
+impl<Node, V> TryFrom<(PathBuf, CsrLayout)> for UndirectedCsrGraph<Node, V>
+where
+    Node: Idx + ToMutByteSlice,
+    V: ToMutByteSlice,
+{
     type Error = Error;
 
     fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
@@ -538,25 +664,33 @@ pub(crate) fn sort_targets<Node: Idx, T: Send + Ord>(offsets: &[Node], targets: 
         .for_each(|list| list.sort_unstable());
 }
 
-fn sort_and_deduplicate_targets<Node: Idx>(
+fn sort_and_deduplicate_targets<Node, T, F>(
     offsets: &[Node],
-    targets: &mut [Node],
-) -> (Vec<Node>, Vec<Node>) {
+    targets: &mut [T],
+    key_fn: F,
+) -> (Vec<Node>, Vec<T>)
+where
+    Node: Idx,
+    T: Copy + Ord + Send,
+    F: Fn(&T) -> Node + Send + Sync,
+{
     let node_count = offsets.len() - 1;
 
     let mut new_degrees = Vec::with_capacity(node_count);
     let mut target_slices = to_mut_slices(offsets, targets);
 
+    let key_fn = Arc::new(key_fn);
+
     target_slices
         .par_iter_mut()
         .enumerate()
-        .map(|(node, slice)| {
+        .map_with(key_fn, |key_fn, (node, slice)| {
             slice.sort_unstable();
             // deduplicate
             let (dedup, _) = slice.partition_dedup();
             let mut new_degree = dedup.len();
             // remove self loops .. there is at most once occurence of node inside dedup
-            if let Ok(idx) = dedup.binary_search(&Node::new(node)) {
+            if let Ok(idx) = dedup.binary_search_by_key(&Node::new(node), |key| key_fn(key)) {
                 dedup[idx..].rotate_left(1);
                 new_degree -= 1;
             }
@@ -568,7 +702,7 @@ fn sort_and_deduplicate_targets<Node: Idx>(
     debug_assert_eq!(new_offsets.len(), node_count + 1);
 
     let edge_count = new_offsets[node_count].index();
-    let mut new_targets: Vec<Node> = Vec::with_capacity(edge_count);
+    let mut new_targets: Vec<T> = Vec::with_capacity(edge_count);
     let new_target_slices = to_mut_slices(&new_offsets, new_targets.spare_capacity_mut());
 
     target_slices
@@ -644,7 +778,8 @@ mod tests {
         // 0: [1, 1, 0]    => [1] (removed duplicate and self loop)
         // 1: [4, 2, 3, 2] => [2, 3, 4] (removed duplicate)
         let mut targets = vec![1, 1, 0, 4, 2, 3, 2, 5, 6, 7];
-        let (offsets, targets) = sort_and_deduplicate_targets::<usize>(offsets, &mut targets);
+        let (offsets, targets) =
+            sort_and_deduplicate_targets::<usize, usize, _>(offsets, &mut targets, |t| *t);
 
         assert_eq!(offsets, vec![0, 1, 4, 4, 7]);
         assert_eq!(targets, vec![1, 2, 3, 4, 5, 6, 7]);

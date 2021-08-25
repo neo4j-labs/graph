@@ -330,7 +330,13 @@ where
         Graph: From<(EdgeList<Node>, CsrLayout)>,
     {
         Graph::from((
-            EdgeList::new(self.state.edges.into_iter().collect()),
+            EdgeList::new(
+                self.state
+                    .edges
+                    .into_iter()
+                    .map(|(s, t)| (s, t, ()))
+                    .collect(),
+            ),
             self.state.csr_layout,
         ))
     }

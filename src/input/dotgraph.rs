@@ -8,7 +8,7 @@ use linereader::LineReader;
 use rayon::prelude::*;
 
 use crate::{
-    graph::csr::{sort_targets, Csr},
+    graph::csr::{sort_targets, Csr, Target},
     index::{AtomicIdx, Idx},
     Error, SharedMut,
 };
@@ -127,7 +127,7 @@ where
         // SAFETY: Label and Label::Atomic have the same memory layout
         let offsets = unsafe { transmute::<_, Vec<Label::Atomic>>(offsets) };
 
-        let mut nodes = Vec::<Node>::with_capacity(node_count.index());
+        let mut nodes = Vec::<Target<Node, ()>>::with_capacity(node_count.index());
         let nodes_ptr = SharedMut::new(nodes.as_mut_ptr());
 
         self.labels
@@ -138,7 +138,9 @@ where
                 let offset = offsets[next_label.index()].fetch_add(Label::new(1), Acquire);
                 // SAFETY: There is exactly one thread that writes at `offset.index()`.
                 unsafe {
-                    nodes_ptr.add(offset.index()).write(Node::new(node));
+                    nodes_ptr
+                        .add(offset.index())
+                        .write(Target::new(Node::new(node), ()));
                 }
             });
 
@@ -245,7 +247,7 @@ where
             let (target, used) = Node::parse(batch);
             batch = &batch[used + 1..];
 
-            edges.push((source, target));
+            edges.push((source, target, ()));
         }
 
         let edges = EdgeList::new(edges);
