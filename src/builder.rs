@@ -22,6 +22,16 @@ where
     _node: PhantomData<NI>,
 }
 
+pub struct FromEdgesWithValues<NI, Edges, EV>
+where
+    NI: Idx,
+    Edges: IntoIterator<Item = (NI, NI, EV)>,
+{
+    csr_layout: CsrLayout,
+    edges: Edges,
+    _node: PhantomData<NI>,
+}
+
 pub struct FromGdlString<NI>
 where
     NI: Idx,
@@ -171,6 +181,37 @@ impl GraphBuilder<Uninitialized> {
     {
         GraphBuilder {
             state: FromEdges {
+                csr_layout: self.state.csr_layout,
+                edges,
+                _node: PhantomData,
+            },
+        }
+    }
+
+    /// Create a graph from the given edge triplets.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    ///     .edges_with_values(vec![(0, 1, 0.1), (0, 2, 0.2), (1, 2, 0.3), (1, 3, 0.4), (2, 3, 0.5)])
+    ///     .build();
+    ///
+    /// assert_eq!(graph.node_count(), 4);
+    /// assert_eq!(graph.edge_count(), 5);
+    /// ```
+    pub fn edges_with_values<NI, Edges, EV>(
+        self,
+        edges: Edges,
+    ) -> GraphBuilder<FromEdgesWithValues<NI, Edges, EV>>
+    where
+        NI: Idx,
+        Edges: IntoIterator<Item = (NI, NI, EV)>,
+    {
+        GraphBuilder {
+            state: FromEdgesWithValues {
                 csr_layout: self.state.csr_layout,
                 edges,
                 _node: PhantomData,
@@ -337,6 +378,24 @@ where
                     .map(|(s, t)| (s, t, ()))
                     .collect(),
             ),
+            self.state.csr_layout,
+        ))
+    }
+}
+
+impl<NI, Edges, EV> GraphBuilder<FromEdgesWithValues<NI, Edges, EV>>
+where
+    NI: Idx,
+    EV: Sync,
+    Edges: IntoIterator<Item = (NI, NI, EV)>,
+{
+    /// Build the graph from the given vec of edges.
+    pub fn build<Graph>(self) -> Graph
+    where
+        Graph: From<(EdgeList<NI, EV>, CsrLayout)>,
+    {
+        Graph::from((
+            EdgeList::new(self.state.edges.into_iter().collect()),
             self.state.csr_layout,
         ))
     }

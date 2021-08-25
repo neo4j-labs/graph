@@ -2,6 +2,7 @@ pub use crate::builder::GraphBuilder;
 
 pub use crate::graph::csr::CsrLayout;
 pub use crate::graph::csr::DirectedCsrGraph;
+pub use crate::graph::csr::Target;
 pub use crate::graph::csr::UndirectedCsrGraph;
 
 pub use crate::graph::labeled::DirectedNodeLabeledCsrGraph;

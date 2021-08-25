@@ -7,7 +7,7 @@ use std::{
     io::{Read, Write},
     mem::{transmute, MaybeUninit},
     path::PathBuf,
-    sync::{atomic::Ordering::Acquire, Arc},
+    sync::atomic::Ordering::Acquire,
     time::Instant,
 };
 
@@ -132,7 +132,7 @@ type CsrInput<'a, NI, EV> = (&'a mut EdgeList<NI, EV>, NI, Direction, CsrLayout)
 impl<NI, EV> From<CsrInput<'_, NI, EV>> for Csr<NI, NI, EV>
 where
     NI: Idx,
-    EV: Copy + Ord + Send + Sync,
+    EV: Copy + Send + Sync,
 {
     fn from((edge_list, node_count, direction, csr_layout): CsrInput<'_, NI, EV>) -> Self {
         let start = Instant::now();
@@ -205,8 +205,7 @@ where
             }
             CsrLayout::Deduplicated => {
                 let start = Instant::now();
-                let offsets_targets =
-                    sort_and_deduplicate_targets(&offsets, &mut targets[..], |t| t.target);
+                let offsets_targets = sort_and_deduplicate_targets(&offsets, &mut targets[..]);
                 info!("Sorted and deduplicated targets in {:?}", start.elapsed());
                 offsets_targets
             }
@@ -380,8 +379,12 @@ impl<NI: Idx, EV> DirectedNeighborsWithValues<NI, EV> for DirectedCsrGraph<NI, E
     }
 }
 
-impl<NI: Idx> From<(EdgeList<NI, ()>, CsrLayout)> for DirectedCsrGraph<NI, ()> {
-    fn from((mut edge_list, csr_option): (EdgeList<NI, ()>, CsrLayout)) -> Self {
+impl<NI, EV> From<(EdgeList<NI, EV>, CsrLayout)> for DirectedCsrGraph<NI, EV>
+where
+    NI: Idx,
+    EV: Copy + Send + Sync,
+{
+    fn from((mut edge_list, csr_option): (EdgeList<NI, EV>, CsrLayout)) -> Self {
         info!("Creating directed graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
@@ -535,8 +538,12 @@ impl<NI: Idx, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedCsrGraph<N
     }
 }
 
-impl<NI: Idx> From<(EdgeList<NI, ()>, CsrLayout)> for UndirectedCsrGraph<NI, ()> {
-    fn from((mut edge_list, csr_option): (EdgeList<NI, ()>, CsrLayout)) -> Self {
+impl<NI, EV> From<(EdgeList<NI, EV>, CsrLayout)> for UndirectedCsrGraph<NI, EV>
+where
+    NI: Idx,
+    EV: Copy + Send + Sync,
+{
+    fn from((mut edge_list, csr_option): (EdgeList<NI, EV>, CsrLayout)) -> Self {
         info!("Creating undirected graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
@@ -658,39 +665,40 @@ pub(crate) fn prefix_sum<NI: Idx>(degrees: Vec<NI>) -> Vec<NI> {
     sums
 }
 
-pub(crate) fn sort_targets<NI: Idx, T: Send + Ord>(offsets: &[NI], targets: &mut [T]) {
-    to_mut_slices(offsets, targets)
-        .par_iter_mut()
-        .for_each(|list| list.sort_unstable());
-}
-
-fn sort_and_deduplicate_targets<NI, T, F>(
-    offsets: &[NI],
-    targets: &mut [T],
-    key_fn: F,
-) -> (Vec<NI>, Vec<T>)
+pub(crate) fn sort_targets<NI, T, EV>(offsets: &[NI], targets: &mut [Target<T, EV>])
 where
     NI: Idx,
-    T: Copy + Ord + Send,
-    F: Fn(&T) -> NI + Send + Sync,
+    T: Copy + Send + Ord,
+    EV: Send,
+{
+    to_mut_slices(offsets, targets)
+        .par_iter_mut()
+        .for_each(|list| list.sort_unstable_by_key(|t| t.target));
+}
+
+fn sort_and_deduplicate_targets<NI, EV>(
+    offsets: &[NI],
+    targets: &mut [Target<NI, EV>],
+) -> (Vec<NI>, Vec<Target<NI, EV>>)
+where
+    NI: Idx,
+    EV: Copy + Send,
 {
     let node_count = offsets.len() - 1;
 
     let mut new_degrees = Vec::with_capacity(node_count);
     let mut target_slices = to_mut_slices(offsets, targets);
 
-    let key_fn = Arc::new(key_fn);
-
     target_slices
         .par_iter_mut()
         .enumerate()
-        .map_with(key_fn, |key_fn, (node, slice)| {
-            slice.sort_unstable();
+        .map(|(node, slice)| {
+            slice.sort_unstable_by_key(|t| t.target);
             // deduplicate
-            let (dedup, _) = slice.partition_dedup();
+            let (dedup, _) = slice.partition_dedup_by_key(|t| t.target);
             let mut new_degree = dedup.len();
             // remove self loops .. there is at most once occurence of node inside dedup
-            if let Ok(idx) = dedup.binary_search_by_key(&NI::new(node), |key| key_fn(key)) {
+            if let Ok(idx) = dedup.binary_search_by_key(&NI::new(node), |t| t.target) {
                 dedup[idx..].rotate_left(1);
                 new_degree -= 1;
             }
@@ -702,7 +710,7 @@ where
     debug_assert_eq!(new_offsets.len(), node_count + 1);
 
     let edge_count = new_offsets[node_count].index();
-    let mut new_targets: Vec<T> = Vec::with_capacity(edge_count);
+    let mut new_targets: Vec<Target<NI, EV>> = Vec::with_capacity(edge_count);
     let new_target_slices = to_mut_slices(&new_offsets, new_targets.spare_capacity_mut());
 
     target_slices
@@ -763,13 +771,20 @@ mod tests {
         );
     }
 
+    fn t<T>(t: T) -> Target<T, ()> {
+        Target::new(t, ())
+    }
+
     #[test]
     fn sort_targets_test() {
         let offsets = &[0, 2, 5, 5, 8];
-        let mut targets = vec![1, 0, 4, 2, 3, 5, 6, 7];
-        sort_targets::<usize, _>(offsets, &mut targets);
+        let mut targets = vec![t(1), t(0), t(4), t(2), t(3), t(5), t(6), t(7)];
+        sort_targets::<usize, _, _>(offsets, &mut targets);
 
-        assert_eq!(targets, vec![0, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(
+            targets,
+            vec![t(0), t(1), t(2), t(3), t(4), t(5), t(6), t(7)]
+        );
     }
 
     #[test]
@@ -777,12 +792,11 @@ mod tests {
         let offsets = &[0, 3, 7, 7, 10];
         // 0: [1, 1, 0]    => [1] (removed duplicate and self loop)
         // 1: [4, 2, 3, 2] => [2, 3, 4] (removed duplicate)
-        let mut targets = vec![1, 1, 0, 4, 2, 3, 2, 5, 6, 7];
-        let (offsets, targets) =
-            sort_and_deduplicate_targets::<usize, usize, _>(offsets, &mut targets, |t| *t);
+        let mut targets = vec![t(1), t(1), t(0), t(4), t(2), t(3), t(2), t(5), t(6), t(7)];
+        let (offsets, targets) = sort_and_deduplicate_targets::<usize, _>(offsets, &mut targets);
 
         assert_eq!(offsets, vec![0, 1, 4, 4, 7]);
-        assert_eq!(targets, vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(targets, vec![t(1), t(2), t(3), t(4), t(5), t(6), t(7)]);
     }
 
     #[test]

@@ -70,6 +70,30 @@ fn directed_u32_graph_from_edge_list() {
 }
 
 #[test]
+fn directed_usize_graph_from_edge_list_with_values() {
+    let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        .edges_with_values([
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ])
+        .build();
+
+    assert_eq!(
+        graph.out_neighbors_with_values(0),
+        &[Target::new(1, 0.1), Target::new(2, 0.2)]
+    );
+
+    assert_eq!(
+        graph.in_neighbors_with_values(2),
+        &[Target::new(0, 0.2), Target::new(1, 0.3)]
+    );
+}
+
+#[test]
 fn directed_usize_graph_from_gdl() {
     assert_directed_graph::<usize>(
         GraphBuilder::new()
@@ -108,6 +132,29 @@ fn undirected_u32_graph_from_edge_list() {
         GraphBuilder::new()
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
+    );
+}
+
+#[test]
+fn undirected_usize_graph_from_edge_list_with_values() {
+    let graph: UndirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        .edges_with_values([
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ])
+        .build();
+
+    assert_eq!(
+        graph.neighbors_with_values(1),
+        &[
+            Target::new(0, 0.1),
+            Target::new(2, 0.3),
+            Target::new(3, 0.4)
+        ]
     );
 }
 
