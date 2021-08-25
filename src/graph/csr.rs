@@ -334,38 +334,29 @@ where
 }
 
 pub struct DirectedCsrGraph<NI: Idx, EV = ()> {
-    node_count: NI,
-    edge_count: NI,
     csr_out: Csr<NI, NI, EV>,
     csr_inc: Csr<NI, NI, EV>,
 }
 
 impl<NI: Idx, EV> DirectedCsrGraph<NI, EV> {
     pub fn new(csr_out: Csr<NI, NI, EV>, csr_inc: Csr<NI, NI, EV>) -> Self {
-        let node_count = csr_out.node_count();
-        let edge_count = csr_out.edge_count();
-
+        let g = Self { csr_out, csr_inc };
         info!(
             "Created directed graph (node_count = {:?}, edge_count = {:?})",
-            node_count, edge_count
+            g.node_count(),
+            g.edge_count()
         );
 
-        Self {
-            node_count,
-            edge_count,
-            csr_out,
-            csr_inc,
-        }
+        g
     }
 }
 
 impl<NI: Idx, EV> Graph<NI> for DirectedCsrGraph<NI, EV> {
-    fn node_count(&self) -> NI {
-        self.node_count
-    }
-
-    fn edge_count(&self) -> NI {
-        self.edge_count
+    delegate::delegate! {
+        to self.csr_out {
+            fn node_count(&self) -> NI;
+            fn edge_count(&self) -> NI;
+        }
     }
 }
 
@@ -457,12 +448,7 @@ where
     EV: ToByteSlice,
 {
     fn serialize(&self, mut output: W) -> Result<(), Error> {
-        let DirectedCsrGraph {
-            node_count: _,
-            edge_count: _,
-            csr_out,
-            csr_inc,
-        } = self;
+        let DirectedCsrGraph { csr_out, csr_inc } = self;
 
         csr_out.serialize(&mut output)?;
         csr_inc.serialize(&mut output)?;
@@ -501,8 +487,6 @@ where
 
 #[derive(Debug)]
 pub struct UndirectedCsrGraph<NI: Idx, EV = ()> {
-    node_count: NI,
-    edge_count: NI,
     csr: Csr<NI, NI, EV>,
 }
 
@@ -514,29 +498,24 @@ impl<NI: Idx, EV> From<Csr<NI, NI, EV>> for UndirectedCsrGraph<NI, EV> {
 
 impl<NI: Idx, EV> UndirectedCsrGraph<NI, EV> {
     pub fn new(csr: Csr<NI, NI, EV>) -> Self {
-        let node_count = csr.node_count();
-        let edge_count = csr.edge_count() / NI::new(2);
-
+        let g = Self { csr };
         info!(
             "Created undirected graph (node_count = {:?}, edge_count = {:?})",
-            node_count, edge_count
+            g.node_count(),
+            g.edge_count()
         );
 
-        Self {
-            node_count,
-            edge_count,
-            csr,
-        }
+        g
     }
 }
 
 impl<NI: Idx, EV> Graph<NI> for UndirectedCsrGraph<NI, EV> {
     fn node_count(&self) -> NI {
-        self.node_count
+        self.csr.node_count()
     }
 
     fn edge_count(&self) -> NI {
-        self.edge_count
+        self.csr.edge_count() / NI::new(2)
     }
 }
 
@@ -617,11 +596,7 @@ where
     EV: ToByteSlice,
 {
     fn serialize(&self, mut output: W) -> Result<(), Error> {
-        let UndirectedCsrGraph {
-            node_count: _,
-            edge_count: _,
-            csr,
-        } = self;
+        let UndirectedCsrGraph { csr } = self;
 
         csr.serialize(&mut output)?;
 
