@@ -50,17 +50,17 @@ use super::{edgelist::EdgeList, InputCapabilities, InputPath};
 /// e 2 4
 /// e 3 4
 /// ```
-pub struct DotGraphInput<Node, Label>
+pub struct DotGraphInput<NI, Label>
 where
-    Node: Idx,
+    NI: Idx,
     Label: Idx,
 {
-    _phantom: PhantomData<(Node, Label)>,
+    _phantom: PhantomData<(NI, Label)>,
 }
 
-impl<Node, Label> Default for DotGraphInput<Node, Label>
+impl<NI, Label> Default for DotGraphInput<NI, Label>
 where
-    Node: Idx,
+    NI: Idx,
     Label: Idx,
 {
     fn default() -> Self {
@@ -70,29 +70,29 @@ where
     }
 }
 
-impl<Node: Idx, Label: Idx> InputCapabilities<Node> for DotGraphInput<Node, Label> {
-    type GraphInput = DotGraph<Node, Label>;
+impl<NI: Idx, Label: Idx> InputCapabilities<NI> for DotGraphInput<NI, Label> {
+    type GraphInput = DotGraph<NI, Label>;
 }
 
-pub struct DotGraph<Node, Label>
+pub struct DotGraph<NI, Label>
 where
-    Node: Idx,
+    NI: Idx,
     Label: Idx,
 {
     pub(crate) labels: Vec<Label>,
-    pub(crate) edge_list: EdgeList<Node>,
-    pub(crate) max_degree: Node,
+    pub(crate) edge_list: EdgeList<NI, ()>,
+    pub(crate) max_degree: NI,
     pub(crate) max_label: Label,
     pub(crate) label_frequencies: FxHashMap<Label, usize>,
 }
 
-impl<Node, Label> DotGraph<Node, Label>
+impl<NI, Label> DotGraph<NI, Label>
 where
-    Node: Idx,
+    NI: Idx,
     Label: Idx + Hash,
 {
-    fn node_count(&self) -> Node {
-        Node::new(self.labels.len())
+    fn node_count(&self) -> NI {
+        NI::new(self.labels.len())
     }
 
     pub(crate) fn label_count(&self) -> Label {
@@ -107,7 +107,7 @@ where
             .unwrap_or_default()
     }
 
-    pub(crate) fn label_index(&self) -> Csr<Label, Node> {
+    pub(crate) fn label_index(&self) -> Csr<Label, NI, ()> {
         let node_count = self.node_count();
         let label_count = self.label_count();
 
@@ -127,7 +127,7 @@ where
         // SAFETY: Label and Label::Atomic have the same memory layout
         let offsets = unsafe { transmute::<_, Vec<Label::Atomic>>(offsets) };
 
-        let mut nodes = Vec::<Target<Node, ()>>::with_capacity(node_count.index());
+        let mut nodes = Vec::<Target<NI, ()>>::with_capacity(node_count.index());
         let nodes_ptr = SharedMut::new(nodes.as_mut_ptr());
 
         self.labels
@@ -140,7 +140,7 @@ where
                 unsafe {
                     nodes_ptr
                         .add(offset.index())
-                        .write(Target::new(Node::new(node), ()));
+                        .write(Target::new(NI::new(node), ()));
                 }
             });
 
@@ -163,10 +163,10 @@ where
     }
 }
 
-impl<Node, Label, P> TryFrom<InputPath<P>> for DotGraph<Node, Label>
+impl<NI, Label, P> TryFrom<InputPath<P>> for DotGraph<NI, Label>
 where
     P: AsRef<Path>,
-    Node: Idx,
+    NI: Idx,
     Label: Idx + Hash,
 {
     type Error = Error;
@@ -179,9 +179,9 @@ where
     }
 }
 
-impl<Node, Label, R> TryFrom<LineReader<R>> for DotGraph<Node, Label>
+impl<NI, Label, R> TryFrom<LineReader<R>> for DotGraph<NI, Label>
 where
-    Node: Idx,
+    NI: Idx,
     Label: Idx + Hash,
     R: Read,
 {
@@ -193,14 +193,14 @@ where
 
         // skip "t" char and white space
         header = &header[2..];
-        let (node_count, used) = Node::parse(header);
+        let (node_count, used) = NI::parse(header);
         header = &header[used + 1..];
-        let (edge_count, _) = Node::parse(header);
+        let (edge_count, _) = NI::parse(header);
 
         let mut labels = Vec::<Label>::with_capacity(node_count.index());
         let mut edges = Vec::with_capacity(edge_count.index());
 
-        let mut max_degree = Node::zero();
+        let mut max_degree = NI::zero();
         let mut max_label = Label::zero();
         let mut label_frequency = FxHashMap::<Label, usize>::default();
 
@@ -214,11 +214,11 @@ where
             // skip "v" char and white space
             batch = &batch[2..];
             // skip node id since input is always sorted by node id
-            let (_, used) = Node::parse(batch);
+            let (_, used) = NI::parse(batch);
             batch = &batch[used + 1..];
             let (label, used) = Label::parse(batch);
             batch = &batch[used + 1..];
-            let (degree, used) = Node::parse(batch);
+            let (degree, used) = NI::parse(batch);
             batch = &batch[used + 1..];
 
             labels.push(label);
@@ -242,9 +242,9 @@ where
             }
             // skip "e" char and white space
             batch = &batch[2..];
-            let (source, used) = Node::parse(batch);
+            let (source, used) = NI::parse(batch);
             batch = &batch[used + 1..];
-            let (target, used) = Node::parse(batch);
+            let (target, used) = NI::parse(batch);
             batch = &batch[used + 1..];
 
             edges.push((source, target, ()));
@@ -262,9 +262,9 @@ where
     }
 }
 
-impl<Node, Label> From<&gdl::Graph> for DotGraph<Node, Label>
+impl<NI, Label> From<&gdl::Graph> for DotGraph<NI, Label>
 where
-    Node: Idx,
+    NI: Idx,
     Label: Idx + Hash,
 {
     /// Converts the given GDL graph into a .graph input string.
@@ -325,7 +325,7 @@ where
         let input = format!("{}\n{}{}", header, nodes_string, rels_string);
         let reader = LineReader::new(input.as_bytes());
 
-        DotGraph::<Node, Label>::try_from(reader).expect("GDL to .graph conversion failed")
+        DotGraph::<NI, Label>::try_from(reader).expect("GDL to .graph conversion failed")
     }
 }
 

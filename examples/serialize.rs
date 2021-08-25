@@ -38,11 +38,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run<G, Node>(path: PathBuf, output: PathBuf) -> Result<(), Error>
+fn run<G, NI>(path: PathBuf, output: PathBuf) -> Result<(), Error>
 where
-    Node: Idx + ToByteSlice,
-    G: Graph<Node>
-        + From<(EdgeList<Node>, CsrLayout)>
+    NI: Idx + ToByteSlice,
+    G: Graph<NI>
+        + From<(EdgeList<NI, ()>, CsrLayout)>
         + SerializeGraphOp<File>
         + TryFrom<(PathBuf, CsrLayout), Error = graph::Error>
         + SerializeGraphOp<File>,
@@ -65,10 +65,10 @@ where
     Ok(())
 }
 
-fn load_from_edge_list<G, Node>(path: PathBuf) -> Result<G, Error>
+fn load_from_edge_list<G, NI>(path: PathBuf) -> Result<G, Error>
 where
-    Node: Idx + ToByteSlice,
-    G: Graph<Node> + From<(EdgeList<Node>, CsrLayout)>,
+    NI: Idx + ToByteSlice,
+    G: Graph<NI> + From<(EdgeList<NI, ()>, CsrLayout)>,
 {
     let in_graph: G = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
@@ -80,24 +80,24 @@ where
     Ok(in_graph)
 }
 
-fn serialize_into_binary<G, Node>(graph: &G, output: &Path) -> Result<(), Error>
+fn serialize_into_binary<G, NI>(graph: &G, output: &Path) -> Result<(), Error>
 where
-    Node: Idx + ToByteSlice,
-    G: Graph<Node> + SerializeGraphOp<File>,
+    NI: Idx + ToByteSlice,
+    G: Graph<NI> + SerializeGraphOp<File>,
 {
     let file = File::create(&output)?;
     G::serialize(graph, file)?;
     Ok(())
 }
 
-fn load_from_binary<G, Node>(path: PathBuf) -> Result<G, Error>
+fn load_from_binary<G, NI>(path: PathBuf) -> Result<G, Error>
 where
-    Node: Idx + ToByteSlice,
-    G: Graph<Node> + TryFrom<(PathBuf, CsrLayout)>,
+    NI: Idx + ToByteSlice,
+    G: Graph<NI> + TryFrom<(PathBuf, CsrLayout)>,
     graph::Error: From<<G as TryFrom<(PathBuf, CsrLayout)>>::Error>,
 {
     let graph: G = GraphBuilder::new()
-        .file_format(BinaryInput::<Node>::default())
+        .file_format(BinaryInput::<NI>::default())
         .path(path)
         .build()
         .unwrap();

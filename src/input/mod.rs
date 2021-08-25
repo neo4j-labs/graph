@@ -12,7 +12,7 @@ pub use edgelist::EdgeListInput;
 
 pub struct InputPath<P>(pub(crate) P);
 
-pub trait InputCapabilities<Node: Idx> {
+pub trait InputCapabilities<NI: Idx> {
     type GraphInput;
 }
 

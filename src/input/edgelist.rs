@@ -36,56 +36,56 @@ use super::{InputCapabilities, InputPath};
 /// 1 3
 /// 2 0
 /// ```
-pub struct EdgeListInput<Node: Idx> {
-    _idx: PhantomData<Node>,
+pub struct EdgeListInput<NI: Idx> {
+    _idx: PhantomData<NI>,
 }
 
-impl<Node: Idx> Default for EdgeListInput<Node> {
+impl<NI: Idx> Default for EdgeListInput<NI> {
     fn default() -> Self {
         Self { _idx: PhantomData }
     }
 }
 
-impl<Node: Idx> InputCapabilities<Node> for EdgeListInput<Node> {
-    type GraphInput = EdgeList<Node>;
+impl<NI: Idx> InputCapabilities<NI> for EdgeListInput<NI> {
+    type GraphInput = EdgeList<NI, ()>;
 }
 
-pub struct EdgeList<Node: Idx, V = ()>(Box<[(Node, Node, V)]>);
+pub struct EdgeList<NI: Idx, EV>(Box<[(NI, NI, EV)]>);
 
-impl<Node: Idx, V> AsRef<[(Node, Node, V)]> for EdgeList<Node, V> {
-    fn as_ref(&self) -> &[(Node, Node, V)] {
+impl<NI: Idx, EV> AsRef<[(NI, NI, EV)]> for EdgeList<NI, EV> {
+    fn as_ref(&self) -> &[(NI, NI, EV)] {
         &self.0
     }
 }
 
-impl<Node: Idx, V> Deref for EdgeList<Node, V> {
-    type Target = [(Node, Node, V)];
+impl<NI: Idx, EV> Deref for EdgeList<NI, EV> {
+    type Target = [(NI, NI, EV)];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<Node: Idx, V> DerefMut for EdgeList<Node, V> {
+impl<NI: Idx, EV> DerefMut for EdgeList<NI, EV> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<Node: Idx, V: Sync> EdgeList<Node, V> {
-    pub fn new(edges: Vec<(Node, Node, V)>) -> Self {
+impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
+    pub fn new(edges: Vec<(NI, NI, EV)>) -> Self {
         Self(edges.into_boxed_slice())
     }
 
-    pub(crate) fn max_node_id(&self) -> Node {
+    pub(crate) fn max_node_id(&self) -> NI {
         self.par_iter()
-            .map(|(s, t, _)| Node::max(*s, *t))
-            .reduce(Node::zero, Node::max)
+            .map(|(s, t, _)| NI::max(*s, *t))
+            .reduce(NI::zero, NI::max)
     }
 
-    pub(crate) fn degrees(&self, node_count: Node, direction: Direction) -> Vec<Node::Atomic> {
+    pub(crate) fn degrees(&self, node_count: NI, direction: Direction) -> Vec<NI::Atomic> {
         let mut degrees = Vec::with_capacity(node_count.index());
-        degrees.resize_with(node_count.index(), Node::Atomic::zero);
+        degrees.resize_with(node_count.index(), NI::Atomic::zero);
 
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
             self.par_iter().for_each(|(s, _, _)| {
@@ -103,7 +103,7 @@ impl<Node: Idx, V: Sync> EdgeList<Node, V> {
     }
 }
 
-impl<Node: Idx> From<&gdl::Graph> for EdgeList<Node> {
+impl<NI: Idx> From<&gdl::Graph> for EdgeList<NI, ()> {
     fn from(gdl_graph: &gdl::Graph) -> Self {
         let edges = gdl_graph
             .relationships()
@@ -112,7 +112,7 @@ impl<Node: Idx> From<&gdl::Graph> for EdgeList<Node> {
                 let source = gdl_graph.get_node(r.source()).unwrap().id();
                 let target = gdl_graph.get_node(r.target()).unwrap().id();
 
-                (Node::new(source), Node::new(target), ())
+                (NI::new(source), NI::new(target), ())
             })
             .collect::<Vec<_>>();
 
@@ -120,7 +120,7 @@ impl<Node: Idx> From<&gdl::Graph> for EdgeList<Node> {
     }
 }
 
-impl<Node: Idx, P> TryFrom<InputPath<P>> for EdgeList<Node>
+impl<NI: Idx, P> TryFrom<InputPath<P>> for EdgeList<NI, ()>
 where
     P: AsRef<Path>,
 {
@@ -133,7 +133,7 @@ where
     }
 }
 
-impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
+impl<NI: Idx> TryFrom<&[u8]> for EdgeList<NI, ()> {
     type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
@@ -170,8 +170,8 @@ impl<Node: Idx> TryFrom<&[u8]> for EdgeList<Node> {
                     let mut edges = Vec::new();
                     let mut chunk = &bytes[start..end];
                     while !chunk.is_empty() {
-                        let (source, source_bytes) = Node::parse(chunk);
-                        let (target, target_bytes) = Node::parse(&chunk[source_bytes + 1..]);
+                        let (source, source_bytes) = NI::parse(chunk);
+                        let (target, target_bytes) = NI::parse(&chunk[source_bytes + 1..]);
                         edges.push((source, target, ()));
                         chunk = &chunk[source_bytes + target_bytes + 2..];
                     }
@@ -211,7 +211,7 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let edge_list = EdgeList::<usize>::try_from(InputPath(path.as_path())).unwrap();
+        let edge_list = EdgeList::<usize, _>::try_from(InputPath(path.as_path())).unwrap();
 
         assert_eq!(4, edge_list.max_node_id());
     }
