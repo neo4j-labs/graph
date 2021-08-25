@@ -57,12 +57,32 @@ pub struct Csr<Index: Idx, NI, EV> {
     targets: Box<[Target<NI, EV>]>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Target<NI, EV> {
     pub target: NI,
     pub value: EV,
 }
+
+impl<T: Ord, V> Ord for Target<T, V> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.target.cmp(&other.target)
+    }
+}
+
+impl<T: PartialOrd, V> PartialOrd for Target<T, V> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.target.partial_cmp(&other.target)
+    }
+}
+
+impl<T: PartialEq, V> PartialEq for Target<T, V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.target.eq(&other.target)
+    }
+}
+
+impl<T: Eq, V> Eq for Target<T, V> {}
 
 impl<T, EV> Target<T, EV> {
     pub fn new(target: T, value: EV) -> Self {
@@ -673,7 +693,7 @@ where
 {
     to_mut_slices(offsets, targets)
         .par_iter_mut()
-        .for_each(|list| list.sort_unstable_by_key(|t| t.target));
+        .for_each(|list| list.sort_unstable());
 }
 
 fn sort_and_deduplicate_targets<NI, EV>(
@@ -693,9 +713,9 @@ where
         .par_iter_mut()
         .enumerate()
         .map(|(node, slice)| {
-            slice.sort_unstable_by_key(|t| t.target);
+            slice.sort_unstable();
             // deduplicate
-            let (dedup, _) = slice.partition_dedup_by_key(|t| t.target);
+            let (dedup, _) = slice.partition_dedup();
             let mut new_degree = dedup.len();
             // remove self loops .. there is at most once occurence of node inside dedup
             if let Ok(idx) = dedup.binary_search_by_key(&NI::new(node), |t| t.target) {
