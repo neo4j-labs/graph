@@ -17,7 +17,7 @@ use std::{
 
 use crate::{input::Direction, Error};
 
-use super::{InputCapabilities, InputPath};
+use super::{InputCapabilities, InputPath, ParseValue};
 
 /// Reads a graph from a file that contains an edge per line.
 ///
@@ -50,6 +50,7 @@ impl<NI: Idx> InputCapabilities<NI> for EdgeListInput<NI> {
     type GraphInput = EdgeList<NI, ()>;
 }
 
+#[derive(Debug)]
 pub struct EdgeList<NI: Idx, EV>(Box<[(NI, NI, EV)]>);
 
 impl<NI: Idx, EV> AsRef<[(NI, NI, EV)]> for EdgeList<NI, EV> {
@@ -120,9 +121,11 @@ impl<NI: Idx> From<&gdl::Graph> for EdgeList<NI, ()> {
     }
 }
 
-impl<NI: Idx, P> TryFrom<InputPath<P>> for EdgeList<NI, ()>
+impl<NI, P, EV> TryFrom<InputPath<P>> for EdgeList<NI, EV>
 where
     P: AsRef<Path>,
+    NI: Idx,
+    EV: ParseValue + std::fmt::Debug + Send + Sync,
 {
     type Error = Error;
 
@@ -133,7 +136,11 @@ where
     }
 }
 
-impl<NI: Idx> TryFrom<&[u8]> for EdgeList<NI, ()> {
+impl<NI, EV> TryFrom<&[u8]> for EdgeList<NI, EV>
+where
+    NI: Idx,
+    EV: ParseValue + std::fmt::Debug + Send + Sync,
+{
     type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
@@ -171,9 +178,25 @@ impl<NI: Idx> TryFrom<&[u8]> for EdgeList<NI, ()> {
                     let mut chunk = &bytes[start..end];
                     while !chunk.is_empty() {
                         let (source, source_bytes) = NI::parse(chunk);
-                        let (target, target_bytes) = NI::parse(&chunk[source_bytes + 1..]);
-                        edges.push((source, target, ()));
-                        chunk = &chunk[source_bytes + target_bytes + 2..];
+                        chunk = &chunk[source_bytes + 1..];
+
+                        let (target, target_bytes) = NI::parse(chunk);
+                        chunk = &chunk[target_bytes..];
+
+                        let value = match chunk.strip_prefix(b" ") {
+                            Some(value_chunk) => {
+                                let (value, value_bytes) = EV::parse(value_chunk);
+                                chunk = &value_chunk[value_bytes + 1..];
+                                value
+                            }
+                            None => {
+                                chunk = &chunk[1..];
+                                // if the input does not have a value, the default for EV is used
+                                EV::parse(&[]).0
+                            }
+                        };
+
+                        edges.push((source, target, value));
                     }
 
                     let mut all_edges = all_edges.lock().unwrap();
@@ -211,8 +234,49 @@ mod tests {
             .iter()
             .collect::<PathBuf>();
 
-        let edge_list = EdgeList::<usize, _>::try_from(InputPath(path.as_path())).unwrap();
+        let expected: Vec<(usize, usize, ())> = vec![
+            (0, 1, ()),
+            (0, 2, ()),
+            (1, 2, ()),
+            (1, 3, ()),
+            (2, 4, ()),
+            (3, 4, ()),
+        ];
+
+        let edge_list = EdgeList::<usize, ()>::try_from(InputPath(path.as_path())).unwrap();
 
         assert_eq!(4, edge_list.max_node_id());
+
+        let edge_list = edge_list.0.into_vec();
+
+        assert_eq!(expected, edge_list)
+    }
+
+    #[test]
+    fn edge_list_with_values_from_file() {
+        let path = [
+            env!("CARGO_MANIFEST_DIR"),
+            "resources",
+            "test_with_values.el",
+        ]
+        .iter()
+        .collect::<PathBuf>();
+
+        let expected: Vec<(usize, usize, f32)> = vec![
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ];
+
+        let edge_list = EdgeList::<usize, f32>::try_from(InputPath(path.as_path())).unwrap();
+
+        assert_eq!(4, edge_list.max_node_id());
+
+        let edge_list = edge_list.0.into_vec();
+
+        assert_eq!(expected, edge_list)
     }
 }
