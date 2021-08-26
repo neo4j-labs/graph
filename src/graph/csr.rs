@@ -16,7 +16,7 @@ use rayon::prelude::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
-    input::{edgelist::EdgeList, Direction, DotGraph},
+    input::{edgelist::EdgeList, Direction, DotGraph, MyCypherValue},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph, SharedMut,
     UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsWithValues,
 };
@@ -427,13 +427,21 @@ where
     }
 }
 
-impl<NI: Idx> From<(&gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, ()> {
-    fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
+impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, EV>
+where
+    NI: Idx,
+    EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
+{
+    fn from((gdl_graph, csr_layout): (&'a gdl::Graph, CsrLayout)) -> Self {
         DirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
     }
 }
 
-impl<NI: Idx> From<(gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, ()> {
+impl<NI, EV> From<(gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, EV>
+where
+    NI: Idx,
+    for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
+{
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
         DirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
     }

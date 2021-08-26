@@ -106,6 +106,44 @@ fn directed_usize_graph_from_gdl() {
 }
 
 #[test]
+fn directed_usize_graph_from_gdl_with_f32_edge_values() {
+    let g: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        .gdl_str::<usize, _>(
+            "(n0)-[{ f: 0.1 }]->(n1),
+                 (n0)-[{ f: 0.2 }]->(n2),
+                 (n1)-[{ f: 0.3 }]->(n2),
+                 (n1)-[{ f: 0.4 }]->(n3),
+                 (n2)-[{ f: 0.5 }]->(n4),
+                 (n3)-[{ f: 0.6 }]->(n4)",
+        )
+        .build()
+        .unwrap();
+
+    let actual = g.out_neighbors_with_values(0);
+
+    assert_eq!(actual, &[Target::new(1, 0.1), Target::new(2, 0.2)]);
+}
+
+#[test]
+fn directed_usize_graph_from_gdl_with_i64_edge_values() {
+    let g: DirectedCsrGraph<usize, i64> = GraphBuilder::new()
+        .gdl_str::<usize, _>(
+            "(n0)-[{ f: 42 }]->(n1),
+                 (n0)-[{ f: 43 }]->(n2),
+                 (n1)-[{ f: 44 }]->(n2),
+                 (n1)-[{ f: 45 }]->(n3),
+                 (n2)-[{ f: 46 }]->(n4),
+                 (n3)-[{ f: 47 }]->(n4)",
+        )
+        .build()
+        .unwrap();
+
+    let actual = g.out_neighbors_with_values(0);
+
+    assert_eq!(actual, &[Target::new(1, 42), Target::new(2, 43)]);
+}
+
+#[test]
 fn undirected_usize_graph_from_gdl() {
     assert_undirected_graph::<usize>(
         GraphBuilder::new()

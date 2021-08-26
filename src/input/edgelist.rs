@@ -17,7 +17,7 @@ use std::{
 
 use crate::{input::Direction, Error};
 
-use super::{InputCapabilities, InputPath, ParseValue};
+use super::{InputCapabilities, InputPath, MyCypherValue, ParseValue};
 
 /// Reads a graph from a file that contains an edge per line.
 ///
@@ -104,8 +104,12 @@ impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
     }
 }
 
-impl<NI: Idx> From<&gdl::Graph> for EdgeList<NI, ()> {
-    fn from(gdl_graph: &gdl::Graph) -> Self {
+impl<'gdl, NI, EV> From<&'gdl gdl::Graph> for EdgeList<NI, EV>
+where
+    NI: Idx,
+    EV: From<MyCypherValue<'gdl>> + Default + Send + Sync,
+{
+    fn from(gdl_graph: &'gdl gdl::Graph) -> Self {
         let edges = gdl_graph
             .relationships()
             .into_iter()
@@ -113,7 +117,13 @@ impl<NI: Idx> From<&gdl::Graph> for EdgeList<NI, ()> {
                 let source = gdl_graph.get_node(r.source()).unwrap().id();
                 let target = gdl_graph.get_node(r.target()).unwrap().id();
 
-                (NI::new(source), NI::new(target), ())
+                let value = if let Some(k) = r.property_keys().next() {
+                    EV::from(MyCypherValue(r.property_value(k).unwrap()))
+                } else {
+                    EV::default()
+                };
+
+                (NI::new(source), NI::new(target), value)
             })
             .collect::<Vec<_>>();
 
