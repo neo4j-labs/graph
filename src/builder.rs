@@ -240,6 +240,23 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(g.node_count(), 3);
     /// assert_eq!(g.edge_count(), 2);
     /// ```
+    ///
+    /// One can also create weighted graphs using GDL. There needs to be exactly
+    /// one edge property with the same type as specified for the edge value.
+    /// The property key is not relevant.
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let g: UndirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    ///     .gdl_str::<usize, _>("(a)-[{f: 0.42}]->(),(a)-[{f: 13.37}]->()")
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(g.node_count(), 3);
+    /// assert_eq!(g.edge_count(), 2);
+    /// assert_eq!(g.neighbors_with_values(0), &[Target::new(1, 0.42), Target::new(2, 13.37)]);
+    /// ```
     pub fn gdl_str<NI, S>(self, gdl: S) -> GraphBuilder<FromGdlString<NI>>
     where
         NI: Idx,

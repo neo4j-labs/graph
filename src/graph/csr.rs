@@ -583,13 +583,21 @@ where
     }
 }
 
-impl<NI: Idx> From<(&gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, ()> {
-    fn from((gdl_graph, csr_layout): (&gdl::Graph, CsrLayout)) -> Self {
+impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, EV>
+where
+    NI: Idx,
+    EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
+{
+    fn from((gdl_graph, csr_layout): (&'a gdl::Graph, CsrLayout)) -> Self {
         UndirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
     }
 }
 
-impl<NI: Idx> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, ()> {
+impl<NI, EV> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, EV>
+where
+    NI: Idx,
+    for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
+{
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
         UndirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
     }
