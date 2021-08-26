@@ -36,18 +36,18 @@ use super::{InputCapabilities, InputPath, ParseValue};
 /// 1 3
 /// 2 0
 /// ```
-pub struct EdgeListInput<NI: Idx> {
-    _idx: PhantomData<NI>,
+pub struct EdgeListInput<NI: Idx, EV = ()> {
+    _idx: PhantomData<(NI, EV)>,
 }
 
-impl<NI: Idx> Default for EdgeListInput<NI> {
+impl<NI: Idx, EV> Default for EdgeListInput<NI, EV> {
     fn default() -> Self {
         Self { _idx: PhantomData }
     }
 }
 
-impl<NI: Idx> InputCapabilities<NI> for EdgeListInput<NI> {
-    type GraphInput = EdgeList<NI, ()>;
+impl<NI: Idx, EV> InputCapabilities<NI> for EdgeListInput<NI, EV> {
+    type GraphInput = EdgeList<NI, EV>;
 }
 
 #[derive(Debug)]
