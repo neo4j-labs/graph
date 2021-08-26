@@ -79,6 +79,23 @@
 //! assert_eq!(graph.neighbors(1), &[0, 2, 3]);
 //! ```
 //!
+//! Edges can have attached values to represent weighted graphs:
+//!
+//! ```
+//! use graph::prelude::*;
+//!
+//! let graph: UndirectedCsrGraph<u32, f32> = GraphBuilder::new()
+//!     .edges_with_values(vec![(0, 1, 0.5), (0, 2, 0.7), (1, 2, 0.25), (1, 3, 1.0), (2, 3, 0.33)])
+//!     .build();
+//!
+//! assert_eq!(graph.node_count(), 4);
+//! assert_eq!(graph.edge_count(), 5);
+//!
+//! assert_eq!(graph.degree(1), 3);
+//!
+//! assert_eq!(graph.neighbors_with_values(1), &[Target::new(0, 0.5), Target::new(2, 0.25), Target::new(3, 1.0)]);
+//! ```
+//!
 //! It is also possible to create a graph from a specific input format. In the
 //! following example we use the `EdgeListInput` which is an input format where
 //! each line of a file contains an edge of the graph.
@@ -107,6 +124,36 @@
 //!
 //! assert_eq!(graph.out_neighbors(1), &[2, 3]);
 //! assert_eq!(graph.in_neighbors(1), &[0]);
+//! ```
+//!
+//! The `EdgeListInput` format also supports weighted edges. This can be
+//! controlled by a single type parameter on the graph type. Note, that the edge
+//! value type needs to implement [`crate::input::ParseValue`].
+//!
+//! ```
+//! use std::path::PathBuf;
+//!
+//! use graph::prelude::*;
+//!
+//! let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.wel"]
+//!     .iter()
+//!     .collect::<PathBuf>();
+//!
+//! let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+//!     .csr_layout(CsrLayout::Sorted)
+//!     .file_format(EdgeListInput::default())
+//!     .path(path)
+//!     .build()
+//!     .expect("loading failed");
+//!
+//! assert_eq!(graph.node_count(), 4);
+//! assert_eq!(graph.edge_count(), 5);
+//!
+//! assert_eq!(graph.out_degree(1), 2);
+//! assert_eq!(graph.in_degree(1), 1);
+//!
+//! assert_eq!(graph.out_neighbors_with_values(1), &[Target::new(2, 0.25), Target::new(3, 1.0)]);
+//! assert_eq!(graph.in_neighbors_with_values(1), &[Target::new(0, 0.5)]);
 //! ```
 //!
 //! # Examples?

@@ -264,13 +264,9 @@ mod tests {
 
     #[test]
     fn edge_list_with_values_from_file() {
-        let path = [
-            env!("CARGO_MANIFEST_DIR"),
-            "resources",
-            "test_with_values.el",
-        ]
-        .iter()
-        .collect::<PathBuf>();
+        let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.wel"]
+            .iter()
+            .collect::<PathBuf>();
 
         let expected: Vec<(usize, usize, f32)> = vec![
             (0, 1, 0.1),
