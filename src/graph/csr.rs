@@ -57,6 +57,7 @@ pub struct Csr<Index: Idx, NI, EV> {
     targets: Box<[Target<NI, EV>]>,
 }
 
+/// Represents the target of an edge and its associated value.
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Target<NI, EV> {

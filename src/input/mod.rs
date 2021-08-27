@@ -24,7 +24,27 @@ pub enum Direction {
     Undirected,
 }
 
+/// Used by input formats to read node or edge values from bytes.
 pub trait ParseValue: Default + Sized {
+    /// Parses a value from a slice.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph::input::ParseValue;
+    ///
+    /// let bytes = "13.37".as_bytes();
+    ///
+    /// let (number, len) = f32::parse(bytes);
+    ///
+    /// assert_eq!(number, 13.37);
+    /// assert_eq!(len, 5);
+    /// ```
+    ///
+    /// # Return
+    ///
+    /// Returns a tuple containing two entries. The first is the parsed value,
+    /// the second is the index of the byte right after the parsed value.
     fn parse(bytes: &[u8]) -> (Self, usize);
 }
 
@@ -76,6 +96,7 @@ fn parse_float<T: fast_float::FastFloat>(bytes: &[u8]) -> (T, usize) {
     fast_float::parse_partial(bytes).unwrap()
 }
 
+/// A wrapper around [`gdl::CypherValue`] to allow custom From implementations.
 pub struct MyCypherValue<'a>(&'a CypherValue);
 
 impl<'a> From<MyCypherValue<'a>> for () {
