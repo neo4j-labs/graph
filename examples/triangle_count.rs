@@ -28,12 +28,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn run<Node: Idx>(
+fn run<NI: Idx>(
     path: PathBuf,
     relabel: bool,
     runs: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut graph: UndirectedCsrGraph<Node> = GraphBuilder::new()
+    let mut graph: UndirectedCsrGraph<NI> = GraphBuilder::new()
         .csr_layout(CsrLayout::Deduplicated)
         .file_format(EdgeListInput::default())
         .path(path)
@@ -51,17 +51,17 @@ fn run<Node: Idx>(
     Ok(())
 }
 
-fn relabel_graph<Node: Idx>(graph: UndirectedCsrGraph<Node>) -> UndirectedCsrGraph<Node> {
+fn relabel_graph<NI: Idx>(graph: UndirectedCsrGraph<NI>) -> UndirectedCsrGraph<NI> {
     let start = Instant::now();
     let graph = graph.to_degree_ordered();
     info!("Relabeled graph in {:?}", start.elapsed());
     graph
 }
 
-fn global_triangle_count<Node: Idx>(graph: &UndirectedCsrGraph<Node>) -> u64 {
+fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
     let start = Instant::now();
 
-    let next_chunk = Node::zero().atomic();
+    let next_chunk = NI::zero().atomic();
     let total_triangles = AtomicU64::new(0);
 
     rayon::scope(|s| {
@@ -70,12 +70,12 @@ fn global_triangle_count<Node: Idx>(graph: &UndirectedCsrGraph<Node>) -> u64 {
                 let mut triangles = 0;
 
                 loop {
-                    let start = next_chunk.fetch_add(Node::new(CHUNK_SIZE), Ordering::AcqRel);
+                    let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
                     if start >= graph.node_count() {
                         break;
                     }
 
-                    let end = (start + Node::new(CHUNK_SIZE)).min(graph.node_count());
+                    let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
                     for u in start..end {
                         for &v in graph.neighbors(u) {

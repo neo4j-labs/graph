@@ -79,6 +79,23 @@
 //! assert_eq!(graph.neighbors(1), &[0, 2, 3]);
 //! ```
 //!
+//! Edges can have attached values to represent weighted graphs:
+//!
+//! ```
+//! use graph::prelude::*;
+//!
+//! let graph: UndirectedCsrGraph<u32, f32> = GraphBuilder::new()
+//!     .edges_with_values(vec![(0, 1, 0.5), (0, 2, 0.7), (1, 2, 0.25), (1, 3, 1.0), (2, 3, 0.33)])
+//!     .build();
+//!
+//! assert_eq!(graph.node_count(), 4);
+//! assert_eq!(graph.edge_count(), 5);
+//!
+//! assert_eq!(graph.degree(1), 3);
+//!
+//! assert_eq!(graph.neighbors_with_values(1), &[Target::new(0, 0.5), Target::new(2, 0.25), Target::new(3, 1.0)]);
+//! ```
+//!
 //! It is also possible to create a graph from a specific input format. In the
 //! following example we use the `EdgeListInput` which is an input format where
 //! each line of a file contains an edge of the graph.
@@ -109,6 +126,36 @@
 //! assert_eq!(graph.in_neighbors(1), &[0]);
 //! ```
 //!
+//! The `EdgeListInput` format also supports weighted edges. This can be
+//! controlled by a single type parameter on the graph type. Note, that the edge
+//! value type needs to implement [`crate::input::ParseValue`].
+//!
+//! ```
+//! use std::path::PathBuf;
+//!
+//! use graph::prelude::*;
+//!
+//! let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.wel"]
+//!     .iter()
+//!     .collect::<PathBuf>();
+//!
+//! let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+//!     .csr_layout(CsrLayout::Sorted)
+//!     .file_format(EdgeListInput::default())
+//!     .path(path)
+//!     .build()
+//!     .expect("loading failed");
+//!
+//! assert_eq!(graph.node_count(), 4);
+//! assert_eq!(graph.edge_count(), 5);
+//!
+//! assert_eq!(graph.out_degree(1), 2);
+//! assert_eq!(graph.in_degree(1), 1);
+//!
+//! assert_eq!(graph.out_neighbors_with_values(1), &[Target::new(2, 0.25), Target::new(3, 1.0)]);
+//! assert_eq!(graph.in_neighbors_with_values(1), &[Target::new(0, 0.5)]);
+//! ```
+//!
 //! # Examples?
 //!
 //! Check the [TriangleCount](./examples/triangle_count.rs) and
@@ -131,8 +178,8 @@ pub use crate::graph::labeled::UndirectedNodeLabeledCsrGraph;
 
 use std::convert::Infallible;
 
+use crate::graph::csr::Target;
 use crate::index::Idx;
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -166,23 +213,50 @@ impl From<Infallible> for Error {
 ///
 /// `Graph` is parameterized over the node index type `Node` which is used to
 /// uniquely identify a node. An edge is a tuple of node identifiers.
-pub trait Graph<Node: Idx> {
+pub trait Graph<NI: Idx> {
     /// Returns the number of nodes in the graph.
-    fn node_count(&self) -> Node;
+    fn node_count(&self) -> NI;
 
     /// Returns the number of edges in the graph.
-    fn edge_count(&self) -> Node;
+    fn edge_count(&self) -> NI;
+}
+
+pub trait UndirectedDegrees<NI: Idx> {
+    /// Returns the number of edges connected to the given node.
+    fn degree(&self, node: NI) -> NI;
 }
 
 /// A graph where the order within an edge tuple is unimportant.
 ///
 /// The edge `(42, 1337)` is equivalent to the edge `(1337, 42)`.
-pub trait UndirectedGraph<Node: Idx>: Graph<Node> {
-    /// Returns the number of edges connected to the given node.
-    fn degree(&self, node: Node) -> Node;
-
+pub trait UndirectedNeighbors<NI: Idx> {
     /// Returns a slice of all nodes connected to the given node.
-    fn neighbors(&self, node: Node) -> &[Node];
+    fn neighbors(&self, node: NI) -> &[NI];
+}
+
+pub trait UndirectedNeighborsWithValues<NI: Idx, EV> {
+    /// Returns a slice of all nodes connected to the given node.
+    fn neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
+}
+
+pub trait DirectedDegrees<NI: Idx> {
+    /// Returns the number of edges where the given node is a source node.
+    fn out_degree(&self, node: NI) -> NI;
+
+    /// Returns the number of edges where the given node is a target node.
+    fn in_degree(&self, node: NI) -> NI;
+}
+
+pub trait DirectedNeighbors<NI: Idx> {
+    /// Returns a slice of all nodes which are connected in outgoing direction
+    /// to the given node, i.e., the given node is the source node of the
+    /// connecting edge.
+    fn out_neighbors(&self, node: NI) -> &[NI];
+
+    /// Returns a slice of all nodes which are connected in incoming direction
+    /// to the given node, i.e., the given node is the target node of the
+    /// connecting edge.
+    fn in_neighbors(&self, node: NI) -> &[NI];
 }
 
 /// A graph where the order within an edge tuple is important.
@@ -191,38 +265,32 @@ pub trait UndirectedGraph<Node: Idx>: Graph<Node> {
 /// the perspective of `u`, the edge `e` is an **outgoing** edge. From the
 /// perspective of node `v`, the edge `e` is an **incoming** edge. The edges
 /// `(u, v)` and `(v, u)` are not considered equivalent.
-pub trait DirectedGraph<Node: Idx>: Graph<Node> {
-    /// Returns the number of edges where the given node is a source node.
-    fn out_degree(&self, node: Node) -> Node;
-
+pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
     /// Returns a slice of all nodes which are connected in outgoing direction
     /// to the given node, i.e., the given node is the source node of the
     /// connecting edge.
-    fn out_neighbors(&self, node: Node) -> &[Node];
-
-    /// Returns the number of edges where the given node is a target node.
-    fn in_degree(&self, node: Node) -> Node;
+    fn out_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
 
     /// Returns a slice of all nodes which are connected in incoming direction
     /// to the given node, i.e., the given node is the target node of the
     /// connecting edge.
-    fn in_neighbors(&self, node: Node) -> &[Node];
+    fn in_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
 }
 
 /// A graph where each node has a label.
 ///
 /// The label is generic, but must derive the [`Idx`] trait to allow additional
 /// accessors, such as `nodes_by_label`.
-pub trait NodeLabeledGraph<Node, Label>: Graph<Node>
+pub trait NodeLabeledGraph<NI, Label>: Graph<NI>
 where
-    Node: Idx,
+    NI: Idx,
     Label: Idx,
 {
     /// Returns the label of the given node.
-    fn label(&self, node: Node) -> Label;
+    fn label(&self, node: NI) -> Label;
 
     /// Returns all nodes with the given label.
-    fn nodes_by_label(&self, label: Label) -> &[Node];
+    fn nodes_by_label(&self, label: Label) -> &[NI];
 
     /// Returns the total number of labels. Note, that this is equivalent to
     /// `max_label + 1`.

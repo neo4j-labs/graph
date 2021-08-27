@@ -70,6 +70,30 @@ fn directed_u32_graph_from_edge_list() {
 }
 
 #[test]
+fn directed_usize_graph_from_edge_list_with_values() {
+    let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        .edges_with_values([
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ])
+        .build();
+
+    assert_eq!(
+        graph.out_neighbors_with_values(0),
+        &[Target::new(1, 0.1), Target::new(2, 0.2)]
+    );
+
+    assert_eq!(
+        graph.in_neighbors_with_values(2),
+        &[Target::new(0, 0.2), Target::new(1, 0.3)]
+    );
+}
+
+#[test]
 fn directed_usize_graph_from_gdl() {
     assert_directed_graph::<usize>(
         GraphBuilder::new()
@@ -79,6 +103,44 @@ fn directed_usize_graph_from_gdl() {
             .build()
             .unwrap(),
     )
+}
+
+#[test]
+fn directed_usize_graph_from_gdl_with_f32_edge_values() {
+    let g: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        .gdl_str::<usize, _>(
+            "(n0)-[{ f: 0.1 }]->(n1),
+                 (n0)-[{ f: 0.2 }]->(n2),
+                 (n1)-[{ f: 0.3 }]->(n2),
+                 (n1)-[{ f: 0.4 }]->(n3),
+                 (n2)-[{ f: 0.5 }]->(n4),
+                 (n3)-[{ f: 0.6 }]->(n4)",
+        )
+        .build()
+        .unwrap();
+
+    let actual = g.out_neighbors_with_values(0);
+
+    assert_eq!(actual, &[Target::new(1, 0.1), Target::new(2, 0.2)]);
+}
+
+#[test]
+fn directed_usize_graph_from_gdl_with_i64_edge_values() {
+    let g: DirectedCsrGraph<usize, i64> = GraphBuilder::new()
+        .gdl_str::<usize, _>(
+            "(n0)-[{ f: 42 }]->(n1),
+                 (n0)-[{ f: 43 }]->(n2),
+                 (n1)-[{ f: 44 }]->(n2),
+                 (n1)-[{ f: 45 }]->(n3),
+                 (n2)-[{ f: 46 }]->(n4),
+                 (n3)-[{ f: 47 }]->(n4)",
+        )
+        .build()
+        .unwrap();
+
+    let actual = g.out_neighbors_with_values(0);
+
+    assert_eq!(actual, &[Target::new(1, 42), Target::new(2, 43)]);
 }
 
 #[test]
@@ -108,6 +170,29 @@ fn undirected_u32_graph_from_edge_list() {
         GraphBuilder::new()
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
+    );
+}
+
+#[test]
+fn undirected_usize_graph_from_edge_list_with_values() {
+    let graph: UndirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        .edges_with_values([
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ])
+        .build();
+
+    assert_eq!(
+        graph.neighbors_with_values(1),
+        &[
+            Target::new(0, 0.1),
+            Target::new(2, 0.3),
+            Target::new(3, 0.4)
+        ]
     );
 }
 
@@ -207,54 +292,54 @@ fn undirected_u32_graph_from_dot_graph_file() {
     assert_undirected_graph::<u32>(graph);
 }
 
-fn assert_directed_graph<Node: Idx>(g: DirectedCsrGraph<Node>) {
-    assert_eq!(g.node_count(), Node::new(5));
-    assert_eq!(g.edge_count(), Node::new(6));
+fn assert_directed_graph<NI: Idx>(g: DirectedCsrGraph<NI>) {
+    assert_eq!(g.node_count(), NI::new(5));
+    assert_eq!(g.edge_count(), NI::new(6));
 
-    assert_eq!(g.out_degree(Node::new(0)), Node::new(2));
-    assert_eq!(g.out_degree(Node::new(1)), Node::new(2));
-    assert_eq!(g.out_degree(Node::new(2)), Node::new(1));
-    assert_eq!(g.out_degree(Node::new(3)), Node::new(1));
-    assert_eq!(g.out_degree(Node::new(4)), Node::new(0));
+    assert_eq!(g.out_degree(NI::new(0)), NI::new(2));
+    assert_eq!(g.out_degree(NI::new(1)), NI::new(2));
+    assert_eq!(g.out_degree(NI::new(2)), NI::new(1));
+    assert_eq!(g.out_degree(NI::new(3)), NI::new(1));
+    assert_eq!(g.out_degree(NI::new(4)), NI::new(0));
 
-    assert_eq!(g.in_degree(Node::new(0)), Node::new(0));
-    assert_eq!(g.in_degree(Node::new(1)), Node::new(1));
-    assert_eq!(g.in_degree(Node::new(2)), Node::new(2));
-    assert_eq!(g.in_degree(Node::new(3)), Node::new(1));
-    assert_eq!(g.in_degree(Node::new(4)), Node::new(2));
+    assert_eq!(g.in_degree(NI::new(0)), NI::new(0));
+    assert_eq!(g.in_degree(NI::new(1)), NI::new(1));
+    assert_eq!(g.in_degree(NI::new(2)), NI::new(2));
+    assert_eq!(g.in_degree(NI::new(3)), NI::new(1));
+    assert_eq!(g.in_degree(NI::new(4)), NI::new(2));
 
-    assert_eq!(g.out_neighbors(Node::new(0)), &[Node::new(1), Node::new(2)]);
-    assert_eq!(g.out_neighbors(Node::new(1)), &[Node::new(2), Node::new(3)]);
-    assert_eq!(g.out_neighbors(Node::new(2)), &[Node::new(4)]);
-    assert_eq!(g.out_neighbors(Node::new(3)), &[Node::new(4)]);
-    assert_eq!(g.out_neighbors(Node::new(4)), &[]);
+    assert_eq!(g.out_neighbors(NI::new(0)), &[NI::new(1), NI::new(2)]);
+    assert_eq!(g.out_neighbors(NI::new(1)), &[NI::new(2), NI::new(3)]);
+    assert_eq!(g.out_neighbors(NI::new(2)), &[NI::new(4)]);
+    assert_eq!(g.out_neighbors(NI::new(3)), &[NI::new(4)]);
+    assert_eq!(g.out_neighbors(NI::new(4)), &[]);
 
-    assert_eq!(g.in_neighbors(Node::new(0)), &[]);
-    assert_eq!(g.in_neighbors(Node::new(1)), &[Node::new(0)]);
-    assert_eq!(g.in_neighbors(Node::new(2)), &[Node::new(0), Node::new(1)]);
-    assert_eq!(g.in_neighbors(Node::new(3)), &[Node::new(1)]);
-    assert_eq!(g.in_neighbors(Node::new(4)), &[Node::new(2), Node::new(3)]);
+    assert_eq!(g.in_neighbors(NI::new(0)), &[]);
+    assert_eq!(g.in_neighbors(NI::new(1)), &[NI::new(0)]);
+    assert_eq!(g.in_neighbors(NI::new(2)), &[NI::new(0), NI::new(1)]);
+    assert_eq!(g.in_neighbors(NI::new(3)), &[NI::new(1)]);
+    assert_eq!(g.in_neighbors(NI::new(4)), &[NI::new(2), NI::new(3)]);
 }
 
-fn assert_undirected_graph<Node: Idx>(g: UndirectedCsrGraph<Node>) {
-    assert_eq!(g.node_count(), Node::new(5));
-    assert_eq!(g.edge_count(), Node::new(6));
+fn assert_undirected_graph<NI: Idx>(g: UndirectedCsrGraph<NI>) {
+    assert_eq!(g.node_count(), NI::new(5));
+    assert_eq!(g.edge_count(), NI::new(6));
 
-    assert_eq!(g.degree(Node::new(0)), Node::new(2));
-    assert_eq!(g.degree(Node::new(1)), Node::new(3));
-    assert_eq!(g.degree(Node::new(2)), Node::new(3));
-    assert_eq!(g.degree(Node::new(3)), Node::new(2));
-    assert_eq!(g.degree(Node::new(4)), Node::new(2));
+    assert_eq!(g.degree(NI::new(0)), NI::new(2));
+    assert_eq!(g.degree(NI::new(1)), NI::new(3));
+    assert_eq!(g.degree(NI::new(2)), NI::new(3));
+    assert_eq!(g.degree(NI::new(3)), NI::new(2));
+    assert_eq!(g.degree(NI::new(4)), NI::new(2));
 
-    assert_eq!(g.neighbors(Node::new(0)), &[Node::new(1), Node::new(2)]);
+    assert_eq!(g.neighbors(NI::new(0)), &[NI::new(1), NI::new(2)]);
     assert_eq!(
-        g.neighbors(Node::new(1)),
-        &[Node::new(0), Node::new(2), Node::new(3)]
+        g.neighbors(NI::new(1)),
+        &[NI::new(0), NI::new(2), NI::new(3)]
     );
     assert_eq!(
-        g.neighbors(Node::new(2)),
-        &[Node::new(0), Node::new(1), Node::new(4)]
+        g.neighbors(NI::new(2)),
+        &[NI::new(0), NI::new(1), NI::new(4)]
     );
-    assert_eq!(g.neighbors(Node::new(3)), &[Node::new(1), Node::new(4)]);
-    assert_eq!(g.neighbors(Node::new(4)), &[Node::new(2), Node::new(3)]);
+    assert_eq!(g.neighbors(NI::new(3)), &[NI::new(1), NI::new(4)]);
+    assert_eq!(g.neighbors(NI::new(4)), &[NI::new(2), NI::new(3)]);
 }

@@ -12,17 +12,17 @@ use super::{InputCapabilities, InputPath};
 
 /// Reads a graph that has been written via
 /// [`crate::graph_ops::SerializeGraphOp`].
-pub struct BinaryInput<Node: Idx + ToByteSlice> {
-    _idx: PhantomData<Node>,
+pub struct BinaryInput<NI: Idx + ToByteSlice> {
+    _idx: PhantomData<NI>,
 }
 
-impl<Node: Idx + ToByteSlice> Default for BinaryInput<Node> {
+impl<NI: Idx + ToByteSlice> Default for BinaryInput<NI> {
     fn default() -> Self {
         Self { _idx: PhantomData }
     }
 }
 
-impl<Node: Idx + ToByteSlice> InputCapabilities<Node> for BinaryInput<Node> {
+impl<NI: Idx + ToByteSlice> InputCapabilities<NI> for BinaryInput<NI> {
     type GraphInput = PathBuf;
 }
 

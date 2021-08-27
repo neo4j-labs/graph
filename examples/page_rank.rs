@@ -33,13 +33,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn run<Node: Idx>(
+fn run<NI: Idx>(
     path: PathBuf,
     runs: usize,
     max_iterations: usize,
     tolerance: f64,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let graph: DirectedCsrGraph<Node> = GraphBuilder::new()
+    let graph: DirectedCsrGraph<NI> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(EdgeListInput::default())
         .path(path)
@@ -62,8 +62,8 @@ fn run<Node: Idx>(
     Ok(())
 }
 
-fn page_rank<Node: Idx>(
-    graph: &DirectedCsrGraph<Node>,
+fn page_rank<NI: Idx>(
+    graph: &DirectedCsrGraph<NI>,
     max_iterations: usize,
     tolerance: f64,
 ) -> (Vec<f32>, usize, f64) {
@@ -76,7 +76,7 @@ fn page_rank<Node: Idx>(
 
     (0..node_count)
         .into_par_iter()
-        .map(Node::new)
+        .map(NI::new)
         .map(|node| init_score / graph.out_degree(node).index() as f32)
         .collect_into_vec(&mut out_scores);
 
@@ -112,14 +112,14 @@ fn page_rank<Node: Idx>(
     }
 }
 
-fn page_rank_iteration<Node: Idx>(
-    graph: &DirectedCsrGraph<Node>,
+fn page_rank_iteration<NI: Idx>(
+    graph: &DirectedCsrGraph<NI>,
     base_score: f32,
     damping_factor: f32,
     out_scores: &SharedMut<f32>,
     scores: &SharedMut<f32>,
 ) -> f64 {
-    let next_chunk = Node::zero().atomic();
+    let next_chunk = NI::zero().atomic();
     let total_error = AtomicF64::new(0_f64);
 
     rayon::scope(|s| {
@@ -128,12 +128,12 @@ fn page_rank_iteration<Node: Idx>(
                 let mut error = 0_f64;
 
                 loop {
-                    let start = next_chunk.fetch_add(Node::new(CHUNK_SIZE), Ordering::AcqRel);
+                    let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
                     if start >= graph.node_count() {
                         break;
                     }
 
-                    let end = (start + Node::new(CHUNK_SIZE)).min(graph.node_count());
+                    let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
                     for u in start..end {
                         let incoming_total = graph

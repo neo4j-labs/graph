@@ -12,58 +12,68 @@ pub struct Uninitialized {
     csr_layout: CsrLayout,
 }
 
-pub struct FromEdges<Node, Edges>
+pub struct FromEdges<NI, Edges>
 where
-    Node: Idx,
-    Edges: IntoIterator<Item = (Node, Node)>,
+    NI: Idx,
+    Edges: IntoIterator<Item = (NI, NI)>,
 {
     csr_layout: CsrLayout,
     edges: Edges,
-    _node: PhantomData<Node>,
+    _node: PhantomData<NI>,
 }
 
-pub struct FromGdlString<Node>
+pub struct FromEdgesWithValues<NI, Edges, EV>
 where
-    Node: Idx,
+    NI: Idx,
+    Edges: IntoIterator<Item = (NI, NI, EV)>,
+{
+    csr_layout: CsrLayout,
+    edges: Edges,
+    _node: PhantomData<NI>,
+}
+
+pub struct FromGdlString<NI>
+where
+    NI: Idx,
 {
     csr_layout: CsrLayout,
     gdl: String,
-    _node: PhantomData<Node>,
+    _node: PhantomData<NI>,
 }
 
-pub struct FromGdlGraph<'a, Node>
+pub struct FromGdlGraph<'a, NI>
 where
-    Node: Idx,
+    NI: Idx,
 {
     csr_layout: CsrLayout,
     gdl_graph: &'a gdl::Graph,
-    _node: PhantomData<Node>,
+    _node: PhantomData<NI>,
 }
 
-pub struct FromInput<Node, P, Format>
+pub struct FromInput<NI, P, Format>
 where
     P: AsRef<StdPath>,
-    Node: Idx,
-    Format: InputCapabilities<Node>,
+    NI: Idx,
+    Format: InputCapabilities<NI>,
     Format::GraphInput: TryFrom<InputPath<P>>,
 {
     csr_layout: CsrLayout,
     format: Format,
-    _idx: PhantomData<Node>,
+    _idx: PhantomData<NI>,
     _path: PhantomData<P>,
 }
 
-pub struct FromPath<Node, P, Format>
+pub struct FromPath<NI, P, Format>
 where
     P: AsRef<StdPath>,
-    Node: Idx,
-    Format: InputCapabilities<Node>,
+    NI: Idx,
+    Format: InputCapabilities<NI>,
     Format::GraphInput: TryFrom<InputPath<P>>,
 {
     csr_layout: CsrLayout,
     format: Format,
     path: P,
-    _idx: PhantomData<Node>,
+    _idx: PhantomData<NI>,
 }
 
 /// A builder to create graphs in a type-safe way.
@@ -164,13 +174,44 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(graph.node_count(), 4);
     /// assert_eq!(graph.edge_count(), 5);
     /// ```
-    pub fn edges<Node, Edges>(self, edges: Edges) -> GraphBuilder<FromEdges<Node, Edges>>
+    pub fn edges<NI, Edges>(self, edges: Edges) -> GraphBuilder<FromEdges<NI, Edges>>
     where
-        Node: Idx,
-        Edges: IntoIterator<Item = (Node, Node)>,
+        NI: Idx,
+        Edges: IntoIterator<Item = (NI, NI)>,
     {
         GraphBuilder {
             state: FromEdges {
+                csr_layout: self.state.csr_layout,
+                edges,
+                _node: PhantomData,
+            },
+        }
+    }
+
+    /// Create a graph from the given edge triplets.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    ///     .edges_with_values(vec![(0, 1, 0.1), (0, 2, 0.2), (1, 2, 0.3), (1, 3, 0.4), (2, 3, 0.5)])
+    ///     .build();
+    ///
+    /// assert_eq!(graph.node_count(), 4);
+    /// assert_eq!(graph.edge_count(), 5);
+    /// ```
+    pub fn edges_with_values<NI, Edges, EV>(
+        self,
+        edges: Edges,
+    ) -> GraphBuilder<FromEdgesWithValues<NI, Edges, EV>>
+    where
+        NI: Idx,
+        Edges: IntoIterator<Item = (NI, NI, EV)>,
+    {
+        GraphBuilder {
+            state: FromEdgesWithValues {
                 csr_layout: self.state.csr_layout,
                 edges,
                 _node: PhantomData,
@@ -199,9 +240,26 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(g.node_count(), 3);
     /// assert_eq!(g.edge_count(), 2);
     /// ```
-    pub fn gdl_str<Node, S>(self, gdl: S) -> GraphBuilder<FromGdlString<Node>>
+    ///
+    /// One can also create weighted graphs using GDL. There needs to be exactly
+    /// one edge property with the same type as specified for the edge value.
+    /// The property key is not relevant.
+    ///
+    /// ```
+    /// use graph::prelude::*;
+    ///
+    /// let g: UndirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    ///     .gdl_str::<usize, _>("(a)-[{f: 0.42}]->(),(a)-[{f: 13.37}]->()")
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(g.node_count(), 3);
+    /// assert_eq!(g.edge_count(), 2);
+    /// assert_eq!(g.neighbors_with_values(0), &[Target::new(1, 0.42), Target::new(2, 13.37)]);
+    /// ```
+    pub fn gdl_str<NI, S>(self, gdl: S) -> GraphBuilder<FromGdlString<NI>>
     where
-        Node: Idx,
+        NI: Idx,
         S: Into<String>,
     {
         GraphBuilder {
@@ -240,9 +298,9 @@ impl GraphBuilder<Uninitialized> {
     ///
     /// assert_eq!(g.out_neighbors(id_a).len(), 2);
     /// ```
-    pub fn gdl_graph<Node>(self, gdl_graph: &gdl::Graph) -> GraphBuilder<FromGdlGraph<Node>>
+    pub fn gdl_graph<NI>(self, gdl_graph: &gdl::Graph) -> GraphBuilder<FromGdlGraph<NI>>
     where
-        Node: Idx,
+        NI: Idx,
     {
         GraphBuilder {
             state: FromGdlGraph {
@@ -298,14 +356,14 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(graph.node_count(), 4);
     /// assert_eq!(graph.edge_count(), 5);
     /// ```
-    pub fn file_format<Format, Path, Node>(
+    pub fn file_format<Format, Path, NI>(
         self,
         format: Format,
-    ) -> GraphBuilder<FromInput<Node, Path, Format>>
+    ) -> GraphBuilder<FromInput<NI, Path, Format>>
     where
         Path: AsRef<StdPath>,
-        Node: Idx,
-        Format: InputCapabilities<Node>,
+        NI: Idx,
+        Format: InputCapabilities<NI>,
         Format::GraphInput: TryFrom<InputPath<Path>>,
     {
         GraphBuilder {
@@ -319,15 +377,39 @@ impl GraphBuilder<Uninitialized> {
     }
 }
 
-impl<Node, Edges> GraphBuilder<FromEdges<Node, Edges>>
+impl<NI, Edges> GraphBuilder<FromEdges<NI, Edges>>
 where
-    Node: Idx,
-    Edges: IntoIterator<Item = (Node, Node)>,
+    NI: Idx,
+    Edges: IntoIterator<Item = (NI, NI)>,
 {
     /// Build the graph from the given vec of edges.
     pub fn build<Graph>(self) -> Graph
     where
-        Graph: From<(EdgeList<Node>, CsrLayout)>,
+        Graph: From<(EdgeList<NI, ()>, CsrLayout)>,
+    {
+        Graph::from((
+            EdgeList::new(
+                self.state
+                    .edges
+                    .into_iter()
+                    .map(|(s, t)| (s, t, ()))
+                    .collect(),
+            ),
+            self.state.csr_layout,
+        ))
+    }
+}
+
+impl<NI, Edges, EV> GraphBuilder<FromEdgesWithValues<NI, Edges, EV>>
+where
+    NI: Idx,
+    EV: Sync,
+    Edges: IntoIterator<Item = (NI, NI, EV)>,
+{
+    /// Build the graph from the given vec of edges.
+    pub fn build<Graph>(self) -> Graph
+    where
+        Graph: From<(EdgeList<NI, EV>, CsrLayout)>,
     {
         Graph::from((
             EdgeList::new(self.state.edges.into_iter().collect()),
@@ -336,9 +418,9 @@ where
     }
 }
 
-impl<Node> GraphBuilder<FromGdlString<Node>>
+impl<NI> GraphBuilder<FromGdlString<NI>>
 where
-    Node: Idx,
+    NI: Idx,
 {
     /// Builds the graph from the given GDL string.
     pub fn build<Graph>(self) -> Result<Graph, Error>
@@ -351,9 +433,9 @@ where
     }
 }
 
-impl<'a, Node> GraphBuilder<FromGdlGraph<'a, Node>>
+impl<'a, NI> GraphBuilder<FromGdlGraph<'a, NI>>
 where
-    Node: Idx,
+    NI: Idx,
 {
     /// Build the graph from the given GDL graph.
     pub fn build<Graph>(self) -> Result<Graph, Error>
@@ -364,15 +446,15 @@ where
     }
 }
 
-impl<Node, Path, Format> GraphBuilder<FromInput<Node, Path, Format>>
+impl<NI, Path, Format> GraphBuilder<FromInput<NI, Path, Format>>
 where
     Path: AsRef<StdPath>,
-    Node: Idx,
-    Format: InputCapabilities<Node>,
+    NI: Idx,
+    Format: InputCapabilities<NI>,
     Format::GraphInput: TryFrom<InputPath<Path>>,
 {
     /// Set the location where the graph is stored.
-    pub fn path(self, path: Path) -> GraphBuilder<FromPath<Node, Path, Format>> {
+    pub fn path(self, path: Path) -> GraphBuilder<FromPath<NI, Path, Format>> {
         GraphBuilder {
             state: FromPath {
                 csr_layout: self.state.csr_layout,
@@ -384,11 +466,11 @@ where
     }
 }
 
-impl<Node, Path, Format> GraphBuilder<FromPath<Node, Path, Format>>
+impl<NI, Path, Format> GraphBuilder<FromPath<NI, Path, Format>>
 where
     Path: AsRef<StdPath>,
-    Node: Idx,
-    Format: InputCapabilities<Node>,
+    NI: Idx,
+    Format: InputCapabilities<NI>,
     Format::GraphInput: TryFrom<InputPath<Path>>,
     crate::Error: From<<Format::GraphInput as TryFrom<InputPath<Path>>>::Error>,
 {
