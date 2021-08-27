@@ -4,7 +4,7 @@ use std::{
     convert::TryFrom,
     fs::File,
     hash::Hash,
-    io::{Read, Write},
+    io::{BufReader, Read, Write},
     mem::{transmute, MaybeUninit},
     path::PathBuf,
     sync::atomic::Ordering::Acquire,
@@ -485,8 +485,8 @@ where
     type Error = Error;
 
     fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
-        let f = File::open(&path)?;
-        let graph = DirectedCsrGraph::deserialize(&f)?;
+        let reader = BufReader::new(File::open(&path)?);
+        let graph = DirectedCsrGraph::deserialize(reader)?;
 
         Ok(graph)
     }
@@ -639,7 +639,8 @@ where
     type Error = Error;
 
     fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
-        UndirectedCsrGraph::deserialize(&File::open(&path)?)
+        let reader = BufReader::new(File::open(&path)?);
+        UndirectedCsrGraph::deserialize(reader)
     }
 }
 

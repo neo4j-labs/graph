@@ -5,6 +5,7 @@ use log::info;
 
 use std::convert::TryFrom;
 use std::fs::File;
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -43,9 +44,8 @@ where
     NI: Idx + ToByteSlice,
     G: Graph<NI>
         + From<(EdgeList<NI, ()>, CsrLayout)>
-        + SerializeGraphOp<File>
-        + TryFrom<(PathBuf, CsrLayout), Error = graph::Error>
-        + SerializeGraphOp<File>,
+        + SerializeGraphOp<BufWriter<File>>
+        + TryFrom<(PathBuf, CsrLayout), Error = graph::Error>,
 {
     let start = Instant::now();
     let actual = load_from_edge_list::<G, _>(path)?;
@@ -83,10 +83,10 @@ where
 fn serialize_into_binary<G, NI>(graph: &G, output: &Path) -> Result<(), Error>
 where
     NI: Idx + ToByteSlice,
-    G: Graph<NI> + SerializeGraphOp<File>,
+    G: Graph<NI> + SerializeGraphOp<BufWriter<File>>,
 {
-    let file = File::create(&output)?;
-    G::serialize(graph, file)?;
+    let writer = BufWriter::new(File::create(&output)?);
+    G::serialize(graph, writer)?;
     Ok(())
 }
 
