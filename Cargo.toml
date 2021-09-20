@@ -13,7 +13,7 @@ license = "MIT"
 
 [dependencies]
 atoi = "0.4.0"
-byte-slice-cast = "1.0.0"
+byte-slice-cast = "1.1.0"
 delegate = "0.6.1"
 fast-float = "0.2.0"
 fxhash = "0.2.1"
@@ -34,6 +34,3 @@ env_logger = "0.9.0"
 num-format = "0.4.0"
 pico-args = "0.4.0"
 tempfile = "3"
-
-[patch.crates-io]
-byte-slice-cast = { git = "https://github.com/s1ck/byte-slice-cast", branch = "unit-support" }
