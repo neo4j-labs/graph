@@ -1,9 +1,11 @@
 use atomic_float::AtomicF32;
+use float_ord::FloatOrd;
 use graph::prelude::*;
 use log::info;
 
 use rayon::prelude::*;
 use std::{
+    cmp::Reverse,
     path::PathBuf,
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
@@ -21,6 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli::AppArgs {
         path,
         use_32_bit,
+        validate,
         runs,
         start_node,
         delta,
@@ -31,6 +34,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if use_32_bit { "32" } else { "64" },
         path
     );
+
+    if validate {
+        if use_32_bit {
+            validate_result::<u32>(&path, start_node as u32, delta);
+        } else {
+            validate_result::<usize>(&path, start_node, delta);
+        }
+    }
 
     if use_32_bit {
         run::<u32>(path, runs, start_node as u32, delta)
@@ -82,6 +93,13 @@ fn delta_stepping<NI: Idx>(
     let mut iter = 0;
 
     while curr_bin != NO_BIN {
+        info!(
+            "iter = {}, curr_bin = {}, frontier length = {}",
+            iter,
+            curr_bin,
+            frontier.len()
+        );
+
         frontier_index.store(0, Ordering::Relaxed);
 
         let next_bin = local_bins
@@ -189,8 +207,8 @@ fn relax_edges<NI: Idx>(
     delta: f32,
 ) {
     for Target { target, value } in graph.out_neighbors_with_values(node) {
-        let mut old_distance = distances[target.index()].load(Ordering::Relaxed);
-        let new_distance = distances[node.index()].load(Ordering::Relaxed) + value;
+        let mut old_distance = distances[target.index()].load(Ordering::Acquire);
+        let new_distance = distances[node.index()].load(Ordering::Acquire) + value;
 
         while new_distance < old_distance {
             match distances[target.index()].compare_exchange_weak(
@@ -212,6 +230,65 @@ fn relax_edges<NI: Idx>(
             }
         }
     }
+}
+
+fn validate_result<NI: Idx>(path: &PathBuf, start_node: NI, delta: f32) {
+    let graph: DirectedCsrGraph<NI, f32> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
+        .file_format(EdgeListInput::default())
+        .path(path)
+        .build()
+        .unwrap();
+
+    let par_result = delta_stepping(&graph, start_node, delta);
+    let seq_result = dijkstra(&graph, start_node);
+
+    assert_eq!(par_result.len(), seq_result.len());
+
+    par_result
+        .into_iter()
+        .enumerate()
+        .zip(seq_result.into_iter())
+        .filter_map(|((node, actual), expected)| {
+            let actual = actual.load(Ordering::Acquire);
+            if actual != expected {
+                Some((node, actual, expected))
+            } else {
+                None
+            }
+        })
+        .for_each(|(node, actual, expected)| {
+            println!(
+                "mismatch for node {}, actual = {}, expected = {}",
+                node, actual, expected
+            );
+        });
+}
+
+fn dijkstra<NI: Idx>(graph: &DirectedCsrGraph<NI, f32>, start_node: NI) -> Vec<f32> {
+    let node_count = graph.node_count().index();
+
+    let mut distances = Vec::with_capacity(node_count);
+    distances.resize_with(node_count, || FloatOrd(INF));
+    distances[start_node.index()] = FloatOrd(0.0);
+
+    let mut queue = std::collections::BinaryHeap::new();
+    queue.push(Reverse((FloatOrd(0.0), start_node)));
+
+    while let Some(Reverse((cost, node))) = queue.pop() {
+        if cost == distances[node.index()] {
+            for Target { target, value } in graph.out_neighbors_with_values(node) {
+                let new_distance = cost.0 + value;
+                if new_distance < distances[target.index()].0 {
+                    let new_distance = FloatOrd(new_distance);
+                    distances[target.index()] = new_distance;
+                    queue.push(Reverse((new_distance, *target)));
+                }
+            }
+        }
+    }
+
+    distances.into_iter().map(|d| d.0).collect()
 }
 
 #[derive(Debug)]
@@ -269,6 +346,7 @@ mod cli {
         pub(crate) path: std::path::PathBuf,
         pub(crate) runs: usize,
         pub(crate) use_32_bit: bool,
+        pub(crate) validate: bool,
         pub(crate) start_node: usize,
         pub(crate) delta: f32,
     }
@@ -284,6 +362,7 @@ mod cli {
             path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
             runs: pargs.opt_value_from_str(["-r", "--runs"])?.unwrap_or(1),
             use_32_bit: pargs.contains("--use-32-bit"),
+            validate: pargs.contains("--validate"),
             start_node: pargs.value_from_str("--start-node")?,
             delta: pargs.value_from_str("--delta")?,
         };
@@ -324,6 +403,34 @@ mod tests {
             .into_iter()
             .map(|d| d.load(Ordering::Relaxed))
             .collect();
+        let expected: Vec<f32> = vec![0.0, 4.0, 2.0, 9.0, 5.0, 20.0];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_dijkstra() {
+        let gdl = "(a:A)
+                        (b:B)
+                        (c:C)
+                        (d:D)
+                        (e:E)
+                        (f:F)
+                        (a)-[{cost:  4.0 }]->(b)
+                        (a)-[{cost:  2.0 }]->(c)
+                        (b)-[{cost:  5.0 }]->(c)
+                        (b)-[{cost: 10.0 }]->(d)
+                        (c)-[{cost:  3.0 }]->(e)
+                        (d)-[{cost: 11.0 }]->(f)
+                        (e)-[{cost:  4.0 }]->(d)";
+
+        let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
+            .gdl_str::<usize, _>(gdl)
+            .build()
+            .unwrap();
+
+        let actual: Vec<f32> = dijkstra(&graph, 0);
         let expected: Vec<f32> = vec![0.0, 4.0, 2.0, 9.0, 5.0, 20.0];
 
         assert_eq!(actual, expected);
