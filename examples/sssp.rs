@@ -91,14 +91,8 @@ fn delta_stepping<NI: Idx>(
     local_bins.resize_with(thread_count, ThreadLocalBins::<NI>::new);
 
     let mut curr_bin = 0;
-    let mut iter = 0;
 
     while curr_bin != NO_BIN {
-        info!(
-            "iter = {}, curr_bin = {}, frontier_len = {}",
-            iter, curr_bin, frontier_len
-        );
-
         frontier_idx.store(0, Ordering::Relaxed);
 
         let next_bin = local_bins
@@ -133,14 +127,9 @@ fn delta_stepping<NI: Idx>(
             .sum();
 
         curr_bin = next_bin;
-        iter += 1;
     }
 
-    info!(
-        "Computed SSSP in {:?}, took {} iterations.",
-        start.elapsed(),
-        iter
-    );
+    info!("Computed SSSP in {:?}", start.elapsed());
 
     distance
 }
