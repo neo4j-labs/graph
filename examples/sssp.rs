@@ -9,7 +9,6 @@ use std::{
     path::PathBuf,
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
-    vec::Drain,
 };
 
 const INF: f32 = f32::MAX;
@@ -83,8 +82,10 @@ fn delta_stepping<NI: Idx>(
     distance.resize_with(node_count, || AtomicF32::new(INF));
     distance[start_node.index()].store(0.0, Ordering::Release);
 
-    let mut frontier = vec![start_node];
-    let frontier_index = AtomicUsize::new(0);
+    let mut frontier = vec![NI::zero(); graph.edge_count().index()];
+    frontier[0] = start_node;
+    let frontier_idx = AtomicUsize::new(0);
+    let mut frontier_len = 1;
 
     let mut local_bins = Vec::with_capacity(thread_count);
     local_bins.resize_with(thread_count, ThreadLocalBins::<NI>::new);
@@ -94,13 +95,11 @@ fn delta_stepping<NI: Idx>(
 
     while curr_bin != NO_BIN {
         info!(
-            "iter = {}, curr_bin = {}, frontier length = {}",
-            iter,
-            curr_bin,
-            frontier.len()
+            "iter = {}, curr_bin = {}, frontier_len = {}",
+            iter, curr_bin, frontier_len
         );
 
-        frontier_index.store(0, Ordering::Relaxed);
+        frontier_idx.store(0, Ordering::Relaxed);
 
         let next_bin = local_bins
             .par_iter_mut()
@@ -109,7 +108,8 @@ fn delta_stepping<NI: Idx>(
                     local_bins,
                     curr_bin,
                     graph,
-                    &frontier_index,
+                    &frontier_idx,
+                    frontier_len,
                     &frontier,
                     &distance,
                     delta,
@@ -120,12 +120,17 @@ fn delta_stepping<NI: Idx>(
             .min_by(|x, y| x.cmp(y))
             .unwrap_or(NO_BIN);
 
-        // compute next shared bin (frontier) and clear next local bin
-        frontier = local_bins
+        // copy next local bins into shared global bin
+        frontier_len = frontier_slices(&mut frontier, &local_bins, next_bin)
             .par_iter_mut()
-            .filter(|local_bins| next_bin < local_bins.len())
-            .flat_map(|local_bins| local_bins.drain(next_bin).collect::<Vec<_>>())
-            .collect::<Vec<_>>();
+            .zip(local_bins.par_iter_mut())
+            .filter(|(_, local_bins)| local_bins.contains(next_bin))
+            .map(|(slice, local_bins)| {
+                slice.copy_from_slice(local_bins.slice(next_bin));
+                local_bins.clear(next_bin);
+                slice.len()
+            })
+            .sum();
 
         curr_bin = next_bin;
         iter += 1;
@@ -144,19 +149,20 @@ fn process_shared_bin<'bins, NI: Idx>(
     bins: &'bins mut ThreadLocalBins<NI>,
     curr_bin: usize,
     graph: &DirectedCsrGraph<NI, f32>,
-    frontier_index: &AtomicUsize,
+    frontier_idx: &AtomicUsize,
+    frontier_len: usize,
     frontier: &[NI],
     distance: &[AtomicF32],
     delta: f32,
 ) -> &'bins mut ThreadLocalBins<NI> {
     loop {
-        let offset = frontier_index.fetch_add(BATCH_SIZE, Ordering::AcqRel);
+        let offset = frontier_idx.fetch_add(BATCH_SIZE, Ordering::AcqRel);
 
-        if offset >= frontier.len() {
+        if offset >= frontier_len {
             break;
         }
 
-        let limit = usize::min(offset + BATCH_SIZE, frontier.len());
+        let limit = usize::min(offset + BATCH_SIZE, frontier_len);
 
         for node in frontier[offset..limit].iter() {
             if distance[node.index()].load(Ordering::Acquire) >= delta * curr_bin as f32 {
@@ -232,6 +238,27 @@ fn relax_edges<NI: Idx>(
     }
 }
 
+fn frontier_slices<'a, NI: Idx>(
+    frontier: &'a mut [NI],
+    bins: &[ThreadLocalBins<NI>],
+    next_bin: usize,
+) -> Vec<&'a mut [NI]> {
+    let mut slices = Vec::with_capacity(bins.len());
+    let mut tail = frontier;
+
+    for local_bins in bins.iter() {
+        if local_bins.contains(next_bin) {
+            let (head, remainder) = tail.split_at_mut(local_bins.bin_len(next_bin));
+            slices.push(head);
+            tail = remainder;
+        } else {
+            slices.push(&mut []);
+        }
+    }
+
+    slices
+}
+
 fn validate_result<NI: Idx>(path: &PathBuf, start_node: NI, delta: f32) {
     let graph: DirectedCsrGraph<NI, f32> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
@@ -266,6 +293,8 @@ fn validate_result<NI: Idx>(path: &PathBuf, start_node: NI, delta: f32) {
 }
 
 fn dijkstra<NI: Idx>(graph: &DirectedCsrGraph<NI, f32>, start_node: NI) -> Vec<f32> {
+    let start = Instant::now();
+
     let node_count = graph.node_count().index();
 
     let mut distances = Vec::with_capacity(node_count);
@@ -288,6 +317,8 @@ fn dijkstra<NI: Idx>(graph: &DirectedCsrGraph<NI, f32>, start_node: NI) -> Vec<f
         }
     }
 
+    println!("Computed Dijkstra in {:?}", start.elapsed());
+
     distances.into_iter().map(|d| d.0).collect()
 }
 
@@ -302,6 +333,10 @@ where
 {
     fn new() -> Self {
         Self { bins: vec![vec![]] }
+    }
+
+    fn contains(&self, bin: usize) -> bool {
+        self.len() > bin
     }
 
     fn len(&self) -> usize {
@@ -321,11 +356,11 @@ where
     }
 
     fn clear(&mut self, bin: usize) {
-        self.bins[bin].drain(..);
+        self.bins[bin].clear();
     }
 
-    fn drain(&mut self, bin: usize) -> Drain<T> {
-        self.bins[bin].drain(..)
+    fn slice(&self, bin: usize) -> &[T] {
+        &self.bins[bin]
     }
 
     fn resize(&mut self, new_len: usize) {
