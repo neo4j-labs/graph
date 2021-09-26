@@ -98,7 +98,7 @@ fn delta_stepping<NI: Idx>(
                 )
             })
             .map(|local_bins| process_local_bins(local_bins, curr_bin, graph, &distance, delta))
-            .map(|local_bins| min_non_empty_bin(local_bins))
+            .map(|local_bins| min_non_empty_bin(local_bins, curr_bin))
             .min_by(|x, y| x.cmp(y))
             .unwrap_or(NO_BIN);
 
@@ -170,11 +170,12 @@ fn process_local_bins<'bins, NI: Idx>(
     bins
 }
 
-fn min_non_empty_bin<NI: Idx>(local_bins: &mut ThreadLocalBins<NI>) -> usize {
+fn min_non_empty_bin<NI: Idx>(local_bins: &mut ThreadLocalBins<NI>, curr_bin: usize) -> usize {
     let mut next_local_bin = NO_BIN;
-    for bin in 0..local_bins.len() {
+    for bin in curr_bin..local_bins.len() {
         if !local_bins.is_empty(bin) {
             next_local_bin = bin;
+            break;
         }
     }
     next_local_bin
