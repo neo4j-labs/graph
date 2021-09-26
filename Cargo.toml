@@ -13,7 +13,6 @@ license = "MIT"
 
 [dependencies]
 atoi = "0.4.0"
-atomic_float = "0.1.0"
 byte-slice-cast = "1.1.0"
 delegate = "0.6.1"
 fast-float = "0.2.0"
