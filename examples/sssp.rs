@@ -36,16 +36,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if validate {
         if use_32_bit {
-            validate_result::<u32>(&path, start_node as u32, delta);
+            validate_result::<u32>(&path, start_node as u32, delta)
         } else {
-            validate_result::<usize>(&path, start_node, delta);
+            validate_result::<usize>(&path, start_node, delta)
         }
-    }
-
-    if use_32_bit {
-        run::<u32>(path, runs, start_node as u32, delta)
     } else {
-        run::<usize>(path, runs, start_node, delta)
+        if use_32_bit {
+            run::<u32>(path, runs, start_node as u32, delta)
+        } else {
+            run::<usize>(path, runs, start_node, delta)
+        }
     }
 }
 
@@ -248,15 +248,36 @@ fn frontier_slices<'a, NI: Idx>(
     slices
 }
 
-fn validate_result<NI: Idx>(path: &PathBuf, start_node: NI, delta: f32) {
+fn validate_result<NI: Idx>(
+    path: &PathBuf,
+    start_node: NI,
+    delta: f32,
+) -> Result<(), Box<dyn std::error::Error>> {
     let graph: DirectedCsrGraph<NI, f32> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(EdgeListInput::default())
         .path(path)
-        .build()
-        .unwrap();
+        .build()?;
 
     let par_result = delta_stepping(&graph, start_node, delta);
+
+    let reached_nodes: usize = par_result
+        .par_iter()
+        .filter_map(|distance| {
+            if distance.load(Ordering::Acquire) == INF {
+                None
+            } else {
+                Some(1)
+            }
+        })
+        .sum();
+
+    info!(
+        "SSSP reached {} nodes ({:.2}%)",
+        reached_nodes,
+        reached_nodes as f64 / graph.node_count().index() as f64 * 100.0
+    );
+
     let seq_result = dijkstra(&graph, start_node);
 
     assert_eq!(par_result.len(), seq_result.len());
@@ -279,6 +300,8 @@ fn validate_result<NI: Idx>(path: &PathBuf, start_node: NI, delta: f32) {
                 node, actual, expected
             );
         });
+
+    Ok(())
 }
 
 fn dijkstra<NI: Idx>(graph: &DirectedCsrGraph<NI, f32>, start_node: NI) -> Vec<f32> {
@@ -306,7 +329,7 @@ fn dijkstra<NI: Idx>(graph: &DirectedCsrGraph<NI, f32>, start_node: NI) -> Vec<f
         }
     }
 
-    println!("Computed Dijkstra in {:?}", start.elapsed());
+    info!("Computed Dijkstra in {:?}", start.elapsed());
 
     distances.into_iter().map(|d| d.0).collect()
 }
