@@ -39,5 +39,5 @@ rand = "0.8.4"
 tempfile = "3"
 
 [[bench]]
-name = "benchmark"
+name = "graph_builder"
 harness = false
