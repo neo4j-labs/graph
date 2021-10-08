@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::iter::{Step, Sum};
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 
 use atoi::FromRadix10;
 
@@ -47,119 +47,79 @@ pub trait AtomicIdx: Send + Sync {
     fn into_inner(self) -> Self::Inner;
 }
 
-impl Idx for usize {
-    type Atomic = AtomicUsize;
+macro_rules! impl_idx {
+    ($TYPE:ty,$ATOMIC_TYPE:ident) => {
+        use std::sync::atomic::$ATOMIC_TYPE;
 
-    #[inline]
-    fn new(idx: usize) -> Self {
-        idx
-    }
+        impl Idx for $TYPE {
+            type Atomic = $ATOMIC_TYPE;
 
-    #[inline]
-    fn zero() -> Self {
-        0
-    }
+            #[inline]
+            fn new(idx: usize) -> Self {
+                assert!(idx <= <$TYPE>::MAX as usize);
+                idx as $TYPE
+            }
 
-    #[inline]
-    fn index(self) -> usize {
-        self
-    }
+            #[inline]
+            fn zero() -> Self {
+                0
+            }
 
-    #[inline]
-    fn atomic(self) -> AtomicUsize {
-        AtomicUsize::new(self)
-    }
+            #[inline]
+            fn index(self) -> usize {
+                self as usize
+            }
 
-    #[inline]
-    fn parse(bytes: &[u8]) -> (Self, usize) {
-        FromRadix10::from_radix_10(bytes)
-    }
+            #[inline]
+            fn atomic(self) -> $ATOMIC_TYPE {
+                <$ATOMIC_TYPE>::new(self)
+            }
+
+            #[inline]
+            fn parse(bytes: &[u8]) -> (Self, usize) {
+                FromRadix10::from_radix_10(bytes)
+            }
+        }
+
+        impl AtomicIdx for $ATOMIC_TYPE {
+            type Inner = $TYPE;
+
+            #[inline]
+            fn load(&self, order: Ordering) -> Self::Inner {
+                self.load(order)
+            }
+
+            #[inline]
+            fn fetch_add(&self, val: $TYPE, order: Ordering) -> Self::Inner {
+                self.fetch_add(val, order)
+            }
+
+            #[inline]
+            fn get_and_increment(&self, order: Ordering) -> Self::Inner {
+                self.fetch_add(1, order)
+            }
+
+            #[inline]
+            fn zero() -> Self {
+                <$ATOMIC_TYPE>::new(0)
+            }
+
+            #[inline]
+            fn into_inner(self) -> Self::Inner {
+                self.into_inner()
+            }
+        }
+    };
 }
 
-impl AtomicIdx for AtomicUsize {
-    type Inner = usize;
+impl_idx!(u8, AtomicU8);
+impl_idx!(u16, AtomicU16);
+impl_idx!(u32, AtomicU32);
+impl_idx!(u64, AtomicU64);
+impl_idx!(usize, AtomicUsize);
 
-    #[inline]
-    fn load(&self, order: Ordering) -> Self::Inner {
-        self.load(order)
-    }
-
-    #[inline]
-    fn fetch_add(&self, val: usize, order: Ordering) -> Self::Inner {
-        self.fetch_add(val, order)
-    }
-
-    #[inline]
-    fn get_and_increment(&self, order: Ordering) -> Self::Inner {
-        self.fetch_add(1, order)
-    }
-
-    #[inline]
-    fn zero() -> Self {
-        AtomicUsize::new(0)
-    }
-
-    #[inline]
-    fn into_inner(self) -> Self::Inner {
-        self.into_inner()
-    }
-}
-
-impl Idx for u32 {
-    type Atomic = AtomicU32;
-
-    #[inline]
-    fn new(idx: usize) -> Self {
-        assert!(idx <= u32::MAX as usize);
-        idx as u32
-    }
-
-    #[inline]
-    fn zero() -> Self {
-        0
-    }
-
-    #[inline]
-    fn index(self) -> usize {
-        self as usize
-    }
-
-    #[inline]
-    fn atomic(self) -> AtomicU32 {
-        AtomicU32::new(self)
-    }
-
-    #[inline]
-    fn parse(bytes: &[u8]) -> (Self, usize) {
-        FromRadix10::from_radix_10(bytes)
-    }
-}
-
-impl AtomicIdx for AtomicU32 {
-    type Inner = u32;
-
-    #[inline]
-    fn load(&self, order: Ordering) -> Self::Inner {
-        self.load(order)
-    }
-
-    #[inline]
-    fn fetch_add(&self, val: u32, order: Ordering) -> Self::Inner {
-        self.fetch_add(val, order)
-    }
-
-    #[inline]
-    fn get_and_increment(&self, order: Ordering) -> Self::Inner {
-        self.fetch_add(1, order)
-    }
-
-    #[inline]
-    fn zero() -> Self {
-        AtomicU32::new(0)
-    }
-
-    #[inline]
-    fn into_inner(self) -> Self::Inner {
-        self.into_inner()
-    }
-}
+impl_idx!(i8, AtomicI8);
+impl_idx!(i16, AtomicI16);
+impl_idx!(i32, AtomicI32);
+impl_idx!(i64, AtomicI64);
+impl_idx!(isize, AtomicIsize);
