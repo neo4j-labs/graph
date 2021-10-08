@@ -30,8 +30,14 @@ thiserror = "1.0.24"
 
 [dev-dependencies]
 atomic_float = "0.1.0"
+criterion = "*"
 env_logger = "0.9.0"
 float-ord = "0.3.2"
 num-format = "0.4.0"
 pico-args = "0.4.0"
+rand = "0.8.4"
 tempfile = "3"
+
+[[bench]]
+name = "edgelist"
+harness = false

@@ -23,7 +23,7 @@ use crate::{
 
 /// Defines how the neighbor list of individual nodes are organized within the
 /// CSR target array.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum CsrLayout {
     /// Neighbor lists are sorted and may contain duplicate target ids. This is
     /// the default representation.
