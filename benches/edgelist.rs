@@ -1,6 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode};
-use graph::prelude::{Direction, EdgeList, Idx};
-use rand::prelude::*;
+use graph::prelude::{Direction, EdgeList};
+
+mod common;
+use crate::common::gen::uniform_edge_list;
 
 #[derive(Clone, Copy)]
 struct Input {
@@ -50,8 +52,15 @@ fn max_node_id(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_max_node_id(b: &mut criterion::Bencher, input: Input) {
-    let input: Vec<(usize, usize, ())> = gen_input(input.node_count, input.edge_count, |_, _| ());
+fn bench_max_node_id(
+    b: &mut criterion::Bencher,
+    Input {
+        name: _,
+        node_count,
+        edge_count,
+    }: Input,
+) {
+    let input: Vec<(usize, usize, ())> = uniform_edge_list(node_count, edge_count, |_, _| ());
     b.iter_batched(
         || EdgeList::new(input.clone()),
         |edge_list| black_box(edge_list.max_node_id()),
@@ -88,31 +97,22 @@ fn degrees(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_degrees(b: &mut criterion::Bencher, input: Input, direction: Direction) {
-    let edges: Vec<(usize, usize, ())> = gen_input(input.node_count, input.edge_count, |_, _| ());
+fn bench_degrees(
+    b: &mut criterion::Bencher,
+    Input {
+        name: _,
+        node_count,
+        edge_count,
+    }: Input,
+    direction: Direction,
+) {
+    let edges: Vec<(usize, usize, ())> = uniform_edge_list(node_count, edge_count, |_, _| ());
     b.iter_batched(
         || EdgeList::new(edges.clone()),
-        |edge_list| black_box(edge_list.degrees(input.node_count, direction)),
+        |edge_list| black_box(edge_list.degrees(node_count, direction)),
         criterion::BatchSize::SmallInput,
     )
 }
 
 criterion_group!(benches, max_node_id, degrees);
 criterion_main!(benches);
-
-fn gen_input<NI, EV, F>(node_count: usize, edge_count: usize, edge_value: F) -> Vec<(NI, NI, EV)>
-where
-    NI: Idx,
-    F: Fn(NI, NI) -> EV,
-{
-    let mut rng = StdRng::seed_from_u64(42);
-
-    (0..edge_count)
-        .map(|_| {
-            let source = NI::new(rng.gen_range(0..node_count));
-            let target = NI::new(rng.gen_range(0..node_count));
-
-            (source, target, edge_value(source, target))
-        })
-        .collect::<Vec<_>>()
-}
