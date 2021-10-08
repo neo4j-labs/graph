@@ -78,13 +78,13 @@ impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
         Self(edges.into_boxed_slice())
     }
 
-    pub(crate) fn max_node_id(&self) -> NI {
+    pub fn max_node_id(&self) -> NI {
         self.par_iter()
             .map(|(s, t, _)| NI::max(*s, *t))
             .reduce(NI::zero, NI::max)
     }
 
-    pub(crate) fn degrees(&self, node_count: NI, direction: Direction) -> Vec<NI::Atomic> {
+    pub fn degrees(&self, node_count: NI, direction: Direction) -> Vec<NI::Atomic> {
         let mut degrees = Vec::with_capacity(node_count.index());
         degrees.resize_with(node_count.index(), NI::Atomic::zero);
 
