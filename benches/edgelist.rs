@@ -2,32 +2,9 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use graph::prelude::{Direction, EdgeList};
 
 mod common;
-use crate::common::gen::uniform_edge_list;
 
-#[derive(Clone, Copy)]
-struct Input {
-    name: &'static str,
-    node_count: usize,
-    edge_count: usize,
-}
-
-const SMALL: Input = Input {
-    name: "small",
-    node_count: 1_000,
-    edge_count: 10_000,
-};
-
-const MEDIUM: Input = Input {
-    name: "medium",
-    node_count: 10_000,
-    edge_count: 100_000,
-};
-
-const LARGE: Input = Input {
-    name: "large",
-    node_count: 100_000,
-    edge_count: 1_000_000,
-};
+use common::gen::uniform_edge_list;
+use common::*;
 
 fn max_node_id(c: &mut Criterion) {
     let mut group = c.benchmark_group("max_node_id");
