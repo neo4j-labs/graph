@@ -259,7 +259,7 @@ impl GraphBuilder<Uninitialized> {
     /// ```
     /// use graph::prelude::*;
     ///
-    /// let g: UndirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    /// let g: UndirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
     ///     .gdl_str::<usize, _>("(a)-[{f: 0.42}]->(),(a)-[{f: 13.37}]->()")
     ///     .build()
     ///     .unwrap();

@@ -84,7 +84,7 @@
 //! ```
 //! use graph::prelude::*;
 //!
-//! let graph: UndirectedCsrGraph<u32, f32> = GraphBuilder::new()
+//! let graph: UndirectedCsrGraph<u32, (), f32> = GraphBuilder::new()
 //!     .edges_with_values(vec![(0, 1, 0.5), (0, 2, 0.7), (1, 2, 0.25), (1, 3, 1.0), (2, 3, 0.33)])
 //!     .build();
 //!

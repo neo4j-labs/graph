@@ -200,6 +200,41 @@ fn undirected_usize_graph_from_edge_list() {
 }
 
 #[test]
+fn undirected_usize_graph_from_edge_list_and_node_values() {
+    let g: UndirectedCsrGraph<usize, u32, ()> = GraphBuilder::new()
+        .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
+        .node_values([1, 3, 3, 7, 3])
+        .build();
+
+    assert_eq!(*g.node_value(0), 1);
+    assert_eq!(*g.node_value(1), 3);
+    assert_eq!(*g.node_value(2), 3);
+    assert_eq!(*g.node_value(3), 7);
+    assert_eq!(*g.node_value(4), 3);
+}
+
+#[test]
+fn undirected_usize_graph_from_edge_list_with_values_and_node_values() {
+    let g: UndirectedCsrGraph<usize, u32, f32> = GraphBuilder::new()
+        .edges_with_values([
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ])
+        .node_values([1, 3, 3, 7, 3])
+        .build();
+
+    assert_eq!(*g.node_value(0), 1);
+    assert_eq!(*g.node_value(1), 3);
+    assert_eq!(*g.node_value(2), 3);
+    assert_eq!(*g.node_value(3), 7);
+    assert_eq!(*g.node_value(4), 3);
+}
+
+#[test]
 fn undirected_u32_graph_from_edge_list() {
     assert_undirected_graph::<u32>(
         GraphBuilder::new()
@@ -210,7 +245,7 @@ fn undirected_u32_graph_from_edge_list() {
 
 #[test]
 fn undirected_usize_graph_from_edge_list_with_values() {
-    let graph: UndirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    let graph: UndirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
         .edges_with_values([
             (0, 1, 0.1),
             (0, 2, 0.2),

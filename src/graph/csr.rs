@@ -526,11 +526,7 @@ where
     EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
 {
     fn from((gdl_graph, csr_layout): (&'a gdl::Graph, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((
-            NodeValues::new(vec![(); gdl_graph.node_count()]),
-            EdgeList::from(gdl_graph),
-            csr_layout,
-        ))
+        DirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
     }
 }
 
@@ -562,11 +558,7 @@ where
     for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
 {
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((
-            NodeValues::new(vec![(); gdl_graph.node_count()]),
-            EdgeList::from(&gdl_graph),
-            csr_layout,
-        ))
+        DirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
     }
 }
 
@@ -600,20 +592,20 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct UndirectedCsrGraph<NI: Idx, EV = ()> {
+pub struct UndirectedCsrGraph<NI: Idx, NV = (), EV = ()> {
+    node_values: NodeValues<NV>,
     csr: Csr<NI, NI, EV>,
 }
 
-impl<NI: Idx, EV> From<Csr<NI, NI, EV>> for UndirectedCsrGraph<NI, EV> {
+impl<NI: Idx, EV> From<Csr<NI, NI, EV>> for UndirectedCsrGraph<NI, (), EV> {
     fn from(csr: Csr<NI, NI, EV>) -> Self {
-        UndirectedCsrGraph::new(csr)
+        UndirectedCsrGraph::new(NodeValues::new(vec![(); csr.node_count().index()]), csr)
     }
 }
 
-impl<NI: Idx, EV> UndirectedCsrGraph<NI, EV> {
-    pub fn new(csr: Csr<NI, NI, EV>) -> Self {
-        let g = Self { csr };
+impl<NI: Idx, NV, EV> UndirectedCsrGraph<NI, NV, EV> {
+    pub fn new(node_values: NodeValues<NV>, csr: Csr<NI, NI, EV>) -> Self {
+        let g = Self { node_values, csr };
         info!(
             "Created undirected graph (node_count = {:?}, edge_count = {:?})",
             g.node_count(),
@@ -624,7 +616,7 @@ impl<NI: Idx, EV> UndirectedCsrGraph<NI, EV> {
     }
 }
 
-impl<NI: Idx, EV> Graph<NI> for UndirectedCsrGraph<NI, EV> {
+impl<NI: Idx, NV, EV> Graph<NI> for UndirectedCsrGraph<NI, NV, EV> {
     fn node_count(&self) -> NI {
         self.csr.node_count()
     }
@@ -634,30 +626,63 @@ impl<NI: Idx, EV> Graph<NI> for UndirectedCsrGraph<NI, EV> {
     }
 }
 
-impl<NI: Idx, EV> UndirectedDegrees<NI> for UndirectedCsrGraph<NI, EV> {
+impl<NI: Idx, NV, EV> NodeValuesTrait<NI, NV> for UndirectedCsrGraph<NI, NV, EV> {
+    fn node_value(&self, node: NI) -> &NV {
+        &self.node_values.0[node.index()]
+    }
+}
+
+impl<NI: Idx, NV, EV> UndirectedDegrees<NI> for UndirectedCsrGraph<NI, NV, EV> {
     fn degree(&self, node: NI) -> NI {
         self.csr.degree(node)
     }
 }
 
-impl<NI: Idx> UndirectedNeighbors<NI> for UndirectedCsrGraph<NI, ()> {
+impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedCsrGraph<NI, NV> {
     fn neighbors(&self, node: NI) -> &[NI] {
         self.csr.targets(node)
     }
 }
 
-impl<NI: Idx, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedCsrGraph<NI, EV> {
+impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedCsrGraph<NI, NV, EV> {
     fn neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
         self.csr.targets_with_values(node)
     }
 }
 
-impl<NI, EV> From<(EdgeList<NI, EV>, CsrLayout)> for UndirectedCsrGraph<NI, EV>
+impl<NI, EV> From<(EdgeList<NI, EV>, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
 where
     NI: Idx,
     EV: Copy + Send + Sync,
 {
     fn from((mut edge_list, csr_option): (EdgeList<NI, EV>, CsrLayout)) -> Self {
+        info!("Creating undirected graph");
+        let node_count = edge_list.max_node_id() + NI::new(1);
+
+        let node_values = NodeValues::new(vec![(); node_count.index()]);
+
+        let start = Instant::now();
+        let csr = Csr::from((
+            &mut edge_list,
+            node_count,
+            Direction::Undirected,
+            csr_option,
+        ));
+        info!("Created csr in {:?}.", start.elapsed());
+
+        UndirectedCsrGraph::new(node_values, csr)
+    }
+}
+
+impl<NI, NV, EV> From<(NodeValues<NV>, EdgeList<NI, EV>, CsrLayout)>
+    for UndirectedCsrGraph<NI, NV, EV>
+where
+    NI: Idx,
+    EV: Copy + Send + Sync,
+{
+    fn from(
+        (node_values, mut edge_list, csr_option): (NodeValues<NV>, EdgeList<NI, EV>, CsrLayout),
+    ) -> Self {
         info!("Creating undirected graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
@@ -670,7 +695,7 @@ where
         ));
         info!("Created csr in {:?}.", start.elapsed());
 
-        UndirectedCsrGraph::new(csr)
+        UndirectedCsrGraph::new(node_values, csr)
     }
 }
 
@@ -692,7 +717,7 @@ where
     }
 }
 
-impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, EV>
+impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
 where
     NI: Idx,
     EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
@@ -702,7 +727,7 @@ where
     }
 }
 
-impl<NI, EV> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, EV>
+impl<NI, EV> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
 where
     NI: Idx,
     for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
@@ -712,30 +737,34 @@ where
     }
 }
 
-impl<W, NI, EV> SerializeGraphOp<W> for UndirectedCsrGraph<NI, EV>
+impl<W, NI, NV, EV> SerializeGraphOp<W> for UndirectedCsrGraph<NI, NV, EV>
 where
     W: Write,
     NI: Idx + ToByteSlice,
+    NV: ToByteSlice,
     EV: ToByteSlice,
 {
     fn serialize(&self, mut output: W) -> Result<(), Error> {
-        let UndirectedCsrGraph { csr } = self;
+        let UndirectedCsrGraph { node_values, csr } = self;
 
+        node_values.serialize(&mut output)?;
         csr.serialize(&mut output)?;
 
         Ok(())
     }
 }
 
-impl<R, NI, EV> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<NI, EV>
+impl<R, NI, NV, EV> DeserializeGraphOp<R, Self> for UndirectedCsrGraph<NI, NV, EV>
 where
     R: Read,
     NI: Idx + ToMutByteSlice,
+    NV: ToMutByteSlice,
     EV: ToMutByteSlice,
 {
     fn deserialize(mut read: R) -> Result<Self, Error> {
+        let node_values = NodeValues::deserialize(&mut read)?;
         let csr: Csr<NI, NI, EV> = Csr::deserialize(&mut read)?;
-        Ok(UndirectedCsrGraph::new(csr))
+        Ok(UndirectedCsrGraph::new(node_values, csr))
     }
 }
 
