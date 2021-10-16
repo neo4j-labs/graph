@@ -104,6 +104,31 @@ impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
     }
 }
 
+pub(crate) struct EdgeIterator<NI: Idx, I: IntoIterator<Item = (NI, NI)>>(pub I);
+
+impl<NI, I> From<EdgeIterator<NI, I>> for EdgeList<NI, ()>
+where
+    NI: Idx,
+    I: IntoIterator<Item = (NI, NI)>,
+{
+    fn from(iter: EdgeIterator<NI, I>) -> Self {
+        EdgeList::new(iter.0.into_iter().map(|(s, t)| (s, t, ())).collect())
+    }
+}
+
+pub(crate) struct EdgeWithValueIterator<NI: Idx, EV, I: IntoIterator<Item = (NI, NI, EV)>>(pub I);
+
+impl<NI, EV, I> From<EdgeWithValueIterator<NI, EV, I>> for EdgeList<NI, EV>
+where
+    NI: Idx,
+    EV: Sync,
+    I: IntoIterator<Item = (NI, NI, EV)>,
+{
+    fn from(iter: EdgeWithValueIterator<NI, EV, I>) -> Self {
+        EdgeList::new(iter.0.into_iter().map(|(s, t, v)| (s, t, v)).collect())
+    }
+}
+
 impl<'gdl, NI, EV> From<&'gdl gdl::Graph> for EdgeList<NI, EV>
 where
     NI: Idx,

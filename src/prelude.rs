@@ -25,6 +25,7 @@ pub use crate::DirectedNeighbors;
 pub use crate::DirectedNeighborsWithValues;
 pub use crate::Graph;
 pub use crate::NodeLabeledGraph;
+pub use crate::NodeValues;
 pub use crate::UndirectedDegrees;
 pub use crate::UndirectedNeighbors;
 pub use crate::UndirectedNeighborsWithValues;

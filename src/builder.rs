@@ -4,6 +4,7 @@ use crate::{
     graph::csr::CsrLayout,
     index::Idx,
     input::{edgelist::EdgeList, InputCapabilities, InputPath},
+    prelude::edgelist::{EdgeIterator, EdgeWithValueIterator},
     Error,
 };
 use std::path::Path as StdPath;
@@ -19,6 +20,16 @@ where
 {
     csr_layout: CsrLayout,
     edges: Edges,
+    _node: PhantomData<NI>,
+}
+
+pub struct FromEdgeListAndNodeValues<NI, NV, EV>
+where
+    NI: Idx,
+{
+    csr_layout: CsrLayout,
+    node_values: crate::graph::csr::NodeValues<NV>,
+    edge_list: EdgeList<NI, EV>,
     _node: PhantomData<NI>,
 }
 
@@ -195,7 +206,7 @@ impl GraphBuilder<Uninitialized> {
     /// ```
     /// use graph::prelude::*;
     ///
-    /// let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    /// let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
     ///     .edges_with_values(vec![(0, 1, 0.1), (0, 2, 0.2), (1, 2, 0.3), (1, 3, 0.4), (2, 3, 0.5)])
     ///     .build();
     ///
@@ -382,19 +393,33 @@ where
     NI: Idx,
     Edges: IntoIterator<Item = (NI, NI)>,
 {
+    pub fn node_values<NV, I>(
+        self,
+        node_values: I,
+    ) -> GraphBuilder<FromEdgeListAndNodeValues<NI, NV, ()>>
+    where
+        I: IntoIterator<Item = NV>,
+    {
+        let edge_list = EdgeList::from(EdgeIterator(self.state.edges));
+        let node_values = crate::graph::csr::NodeValues::new(node_values.into_iter().collect());
+
+        GraphBuilder {
+            state: FromEdgeListAndNodeValues {
+                csr_layout: self.state.csr_layout,
+                node_values,
+                edge_list,
+                _node: PhantomData,
+            },
+        }
+    }
+
     /// Build the graph from the given vec of edges.
     pub fn build<Graph>(self) -> Graph
     where
         Graph: From<(EdgeList<NI, ()>, CsrLayout)>,
     {
         Graph::from((
-            EdgeList::new(
-                self.state
-                    .edges
-                    .into_iter()
-                    .map(|(s, t)| (s, t, ()))
-                    .collect(),
-            ),
+            EdgeList::from(EdgeIterator(self.state.edges)),
             self.state.csr_layout,
         ))
     }
@@ -406,6 +431,26 @@ where
     EV: Sync,
     Edges: IntoIterator<Item = (NI, NI, EV)>,
 {
+    pub fn node_values<NV, I>(
+        self,
+        node_values: I,
+    ) -> GraphBuilder<FromEdgeListAndNodeValues<NI, NV, EV>>
+    where
+        I: IntoIterator<Item = NV>,
+    {
+        let edge_list = EdgeList::from(EdgeWithValueIterator(self.state.edges));
+        let node_values = crate::graph::csr::NodeValues::new(node_values.into_iter().collect());
+
+        GraphBuilder {
+            state: FromEdgeListAndNodeValues {
+                csr_layout: self.state.csr_layout,
+                node_values,
+                edge_list,
+                _node: PhantomData,
+            },
+        }
+    }
+
     /// Build the graph from the given vec of edges.
     pub fn build<Graph>(self) -> Graph
     where
@@ -413,6 +458,23 @@ where
     {
         Graph::from((
             EdgeList::new(self.state.edges.into_iter().collect()),
+            self.state.csr_layout,
+        ))
+    }
+}
+
+impl<NI: Idx, NV, EV> GraphBuilder<FromEdgeListAndNodeValues<NI, NV, EV>> {
+    pub fn build<Graph>(self) -> Graph
+    where
+        Graph: From<(
+            crate::graph::csr::NodeValues<NV>,
+            EdgeList<NI, EV>,
+            CsrLayout,
+        )>,
+    {
+        Graph::from((
+            self.state.node_values,
+            self.state.edge_list,
             self.state.csr_layout,
         ))
     }
