@@ -482,13 +482,12 @@ where
         info!("Creating directed graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
-        if node_values.0.len() != node_count.index() {
-            panic!(
-                "number of node values ({}) does not match node count of edge list ({})",
-                node_values.0.len(),
-                node_count.index()
-            );
-        }
+        assert!(
+            node_values.0.len() == node_count.index(),
+            "number of node values ({}) does not match node count of edge list ({})",
+            node_values.0.len(),
+            node_count.index()
+        );
 
         let start = Instant::now();
         let csr_out = Csr::from((&mut edge_list, node_count, Direction::Outgoing, csr_option));
