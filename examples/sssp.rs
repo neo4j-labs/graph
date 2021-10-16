@@ -440,7 +440,7 @@ mod tests {
                         (d)-[{cost: 11.0 }]->(f)
                         (e)-[{cost:  4.0 }]->(d)";
 
-        let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
             .gdl_str::<usize, _>(gdl)
             .build()
@@ -471,7 +471,7 @@ mod tests {
                         (d)-[{cost: 11.0 }]->(f)
                         (e)-[{cost:  4.0 }]->(d)";
 
-        let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
             .gdl_str::<usize, _>(gdl)
             .build()
