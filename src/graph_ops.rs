@@ -1,7 +1,7 @@
 use log::info;
 use rayon::prelude::*;
 
-use crate::graph::csr::{prefix_sum, Csr, Target};
+use crate::graph::csr::{prefix_sum, Csr, SwapCsr, Target};
 use crate::index::Idx;
 use crate::{
     DirectedDegrees, DirectedNeighborsWithValues, Error, Graph, SharedMut, UndirectedDegrees,
@@ -146,7 +146,7 @@ pub trait RelabelByDegreeOp<N, EV> {
     /// ```
     /// use graph::prelude::*;
     ///
-    /// let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
+    /// let mut graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (1, 2), (1, 3), (3, 0)])
     ///     .build();
     ///
@@ -157,7 +157,7 @@ pub trait RelabelByDegreeOp<N, EV> {
     ///
     /// assert_eq!(graph.neighbors(0), &[1, 3]);
     ///
-    /// let graph = graph.to_degree_ordered();
+    /// graph.to_degree_ordered();
     ///
     /// assert_eq!(graph.degree(0), 3);
     /// assert_eq!(graph.degree(1), 2);
@@ -166,7 +166,7 @@ pub trait RelabelByDegreeOp<N, EV> {
     ///
     /// assert_eq!(graph.neighbors(0), &[1, 2, 3]);
     /// ```
-    fn to_degree_ordered(&self) -> Self;
+    fn to_degree_ordered(&mut self);
 }
 
 pub trait SerializeGraphOp<W> {
@@ -184,10 +184,10 @@ where
     G: Graph<NI>
         + UndirectedDegrees<NI>
         + UndirectedNeighborsWithValues<NI, EV>
-        + From<Csr<NI, NI, EV>>
+        + SwapCsr<NI, NI, EV>
         + Sync,
 {
-    fn to_degree_ordered(&self) -> Self {
+    fn to_degree_ordered(&mut self) {
         relabel_by_degree(self)
     }
 }
@@ -447,13 +447,13 @@ where
     partitions
 }
 
-fn relabel_by_degree<NI, G, EV>(graph: &G) -> G
+fn relabel_by_degree<NI, G, EV>(graph: &mut G)
 where
     NI: Idx,
-    G: From<Csr<NI, NI, EV>>
-        + Graph<NI>
+    G: Graph<NI>
         + UndirectedDegrees<NI>
         + UndirectedNeighborsWithValues<NI, EV>
+        + SwapCsr<NI, NI, EV>
         + Sync,
     EV: Copy + Ord + Sync,
 {
@@ -470,10 +470,10 @@ where
     let targets = relabel_targets(graph, nodes, &offsets);
     info!("Relabel: built and sorted targets in {:?}", start.elapsed());
 
-    G::from(Csr::new(
+    graph.swap_csr(Csr::new(
         offsets.into_boxed_slice(),
         targets.into_boxed_slice(),
-    ))
+    ));
 }
 
 // Extracts (degree, node_id) pairs from the given graph and sorts them by
@@ -682,7 +682,7 @@ mod tests {
 
     #[test]
     fn relabel_by_degree_test() {
-        let graph: UndirectedCsrGraph<_> = GraphBuilder::new()
+        let mut graph: UndirectedCsrGraph<_> = GraphBuilder::new()
             .edges::<u32, _>(vec![
                 (0, 1),
                 (1, 2),
@@ -695,24 +695,24 @@ mod tests {
             ])
             .build();
 
-        let relabeled_graph = graph.to_degree_ordered();
+        graph.to_degree_ordered();
 
-        assert_eq!(graph.node_count(), relabeled_graph.node_count());
-        assert_eq!(graph.edge_count(), relabeled_graph.edge_count());
+        assert_eq!(graph.node_count(), graph.node_count());
+        assert_eq!(graph.edge_count(), graph.edge_count());
 
         // old -> new
         //   0 -> 3
         //   1 -> 2
         //   2 -> 0
         //   3 -> 1
-        assert_eq!(relabeled_graph.degree(0), 5);
-        assert_eq!(relabeled_graph.degree(1), 4);
-        assert_eq!(relabeled_graph.degree(2), 4);
-        assert_eq!(relabeled_graph.degree(3), 3);
+        assert_eq!(graph.degree(0), 5);
+        assert_eq!(graph.degree(1), 4);
+        assert_eq!(graph.degree(2), 4);
+        assert_eq!(graph.degree(3), 3);
 
-        assert_eq!(relabeled_graph.neighbors(0), &[1, 1, 2, 2, 3]);
-        assert_eq!(relabeled_graph.neighbors(1), &[0, 0, 2, 3]);
-        assert_eq!(relabeled_graph.neighbors(2), &[0, 0, 1, 3]);
-        assert_eq!(relabeled_graph.neighbors(3), &[0, 1, 2]);
+        assert_eq!(graph.neighbors(0), &[1, 1, 2, 2, 3]);
+        assert_eq!(graph.neighbors(1), &[0, 0, 2, 3]);
+        assert_eq!(graph.neighbors(2), &[0, 0, 1, 3]);
+        assert_eq!(graph.neighbors(3), &[0, 1, 2]);
     }
 }

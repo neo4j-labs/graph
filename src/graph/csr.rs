@@ -149,6 +149,10 @@ impl<Index: Idx, NI> Csr<Index, NI, ()> {
     }
 }
 
+pub trait SwapCsr<Index: Idx, NI, EV> {
+    fn swap_csr(&mut self, csr: Csr<Index, NI, EV>) -> &mut Self;
+}
+
 type CsrInput<'a, NI, EV> = (&'a mut EdgeList<NI, EV>, NI, Direction, CsrLayout);
 
 impl<NI, EV> From<CsrInput<'_, NI, EV>> for Csr<NI, NI, EV>
@@ -646,6 +650,13 @@ impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedCsrGraph<NI, NV> {
 impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedCsrGraph<NI, NV, EV> {
     fn neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
         self.csr.targets_with_values(node)
+    }
+}
+
+impl<NI: Idx, NV, EV> SwapCsr<NI, NI, EV> for UndirectedCsrGraph<NI, NV, EV> {
+    fn swap_csr(&mut self, mut csr: Csr<NI, NI, EV>) -> &mut Self {
+        std::mem::swap(&mut self.csr, &mut csr);
+        self
     }
 }
 
