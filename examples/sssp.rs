@@ -55,7 +55,7 @@ fn run<NI: Idx>(
     start_node: NI,
     delta: f32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let graph: DirectedCsrGraph<NI, f32> = GraphBuilder::new()
+    let graph: DirectedCsrGraph<NI, (), f32> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(EdgeListInput::default())
         .path(path)
@@ -69,7 +69,7 @@ fn run<NI: Idx>(
 }
 
 fn delta_stepping<NI: Idx>(
-    graph: &DirectedCsrGraph<NI, f32>,
+    graph: &DirectedCsrGraph<NI, (), f32>,
     start_node: NI,
     delta: f32,
 ) -> Vec<AtomicF32> {
@@ -137,7 +137,7 @@ fn delta_stepping<NI: Idx>(
 fn process_shared_bin<'bins, NI: Idx>(
     bins: &'bins mut ThreadLocalBins<NI>,
     curr_bin: usize,
-    graph: &DirectedCsrGraph<NI, f32>,
+    graph: &DirectedCsrGraph<NI, (), f32>,
     frontier_idx: &AtomicUsize,
     frontier_len: usize,
     frontier: &[NI],
@@ -165,7 +165,7 @@ fn process_shared_bin<'bins, NI: Idx>(
 fn process_local_bins<'bins, NI: Idx>(
     bins: &'bins mut ThreadLocalBins<NI>,
     curr_bin: usize,
-    graph: &DirectedCsrGraph<NI, f32>,
+    graph: &DirectedCsrGraph<NI, (), f32>,
     distance: &[AtomicF32],
     delta: f32,
 ) -> &'bins mut ThreadLocalBins<NI> {
@@ -195,7 +195,7 @@ fn min_non_empty_bin<NI: Idx>(local_bins: &mut ThreadLocalBins<NI>, curr_bin: us
 }
 
 fn relax_edges<NI: Idx>(
-    graph: &DirectedCsrGraph<NI, f32>,
+    graph: &DirectedCsrGraph<NI, (), f32>,
     distances: &[AtomicF32],
     local_bins: &mut ThreadLocalBins<NI>,
     node: NI,
@@ -253,7 +253,7 @@ fn validate_result<NI: Idx>(
     start_node: NI,
     delta: f32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let graph: DirectedCsrGraph<NI, f32> = GraphBuilder::new()
+    let graph: DirectedCsrGraph<NI, (), f32> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(EdgeListInput::default())
         .path(path)
@@ -304,7 +304,7 @@ fn validate_result<NI: Idx>(
     Ok(())
 }
 
-fn dijkstra<NI: Idx>(graph: &DirectedCsrGraph<NI, f32>, start_node: NI) -> Vec<f32> {
+fn dijkstra<NI: Idx>(graph: &DirectedCsrGraph<NI, (), f32>, start_node: NI) -> Vec<f32> {
     let start = Instant::now();
 
     let node_count = graph.node_count().index();
@@ -440,7 +440,7 @@ mod tests {
                         (d)-[{cost: 11.0 }]->(f)
                         (e)-[{cost:  4.0 }]->(d)";
 
-        let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
             .gdl_str::<usize, _>(gdl)
             .build()
@@ -471,7 +471,7 @@ mod tests {
                         (d)-[{cost: 11.0 }]->(f)
                         (e)-[{cost:  4.0 }]->(d)";
 
-        let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+        let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
             .gdl_str::<usize, _>(gdl)
             .build()

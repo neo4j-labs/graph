@@ -84,7 +84,7 @@
 //! ```
 //! use graph::prelude::*;
 //!
-//! let graph: UndirectedCsrGraph<u32, f32> = GraphBuilder::new()
+//! let graph: UndirectedCsrGraph<u32, (), f32> = GraphBuilder::new()
 //!     .edges_with_values(vec![(0, 1, 0.5), (0, 2, 0.7), (1, 2, 0.25), (1, 3, 1.0), (2, 3, 0.33)])
 //!     .build();
 //!
@@ -139,7 +139,7 @@
 //!     .iter()
 //!     .collect::<PathBuf>();
 //!
-//! let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+//! let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
 //!     .csr_layout(CsrLayout::Sorted)
 //!     .file_format(EdgeListInput::default())
 //!     .path(path)
@@ -219,6 +219,11 @@ pub trait Graph<NI: Idx> {
 
     /// Returns the number of edges in the graph.
     fn edge_count(&self) -> NI;
+}
+
+/// A graph that allows storing a value per node.
+pub trait NodeValues<NI: Idx, NV> {
+    fn node_value(&self, node: NI) -> &NV;
 }
 
 pub trait UndirectedDegrees<NI: Idx> {

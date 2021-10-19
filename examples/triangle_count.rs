@@ -41,7 +41,7 @@ fn run<NI: Idx>(
         .unwrap();
 
     if relabel {
-        graph = relabel_graph(graph);
+        relabel_graph(&mut graph);
     }
 
     for _ in 0..runs {
@@ -51,11 +51,10 @@ fn run<NI: Idx>(
     Ok(())
 }
 
-fn relabel_graph<NI: Idx>(graph: UndirectedCsrGraph<NI>) -> UndirectedCsrGraph<NI> {
+fn relabel_graph<NI: Idx>(graph: &mut UndirectedCsrGraph<NI>) {
     let start = Instant::now();
-    let graph = graph.to_degree_ordered();
+    graph.to_degree_ordered();
     info!("Relabeled graph in {:?}", start.elapsed());
-    graph
 }
 
 fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {

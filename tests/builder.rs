@@ -61,6 +61,41 @@ fn directed_usize_graph_from_edge_list() {
 }
 
 #[test]
+fn directed_usize_graph_from_edge_list_and_node_values() {
+    let g: DirectedCsrGraph<usize, u32, ()> = GraphBuilder::new()
+        .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
+        .node_values([1, 3, 3, 7, 2])
+        .build();
+
+    assert_eq!(*g.node_value(0), 1);
+    assert_eq!(*g.node_value(1), 3);
+    assert_eq!(*g.node_value(2), 3);
+    assert_eq!(*g.node_value(3), 7);
+    assert_eq!(*g.node_value(4), 2);
+}
+
+#[test]
+fn directed_usize_graph_from_edge_list_with_values_and_node_values() {
+    let g: DirectedCsrGraph<usize, u32, f32> = GraphBuilder::new()
+        .edges_with_values([
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ])
+        .node_values([1, 3, 3, 7, 2])
+        .build();
+
+    assert_eq!(*g.node_value(0), 1);
+    assert_eq!(*g.node_value(1), 3);
+    assert_eq!(*g.node_value(2), 3);
+    assert_eq!(*g.node_value(3), 7);
+    assert_eq!(*g.node_value(4), 2);
+}
+
+#[test]
 fn directed_u32_graph_from_edge_list() {
     assert_directed_graph::<u32>(
         GraphBuilder::new()
@@ -71,7 +106,7 @@ fn directed_u32_graph_from_edge_list() {
 
 #[test]
 fn directed_usize_graph_from_edge_list_with_values() {
-    let graph: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
         .edges_with_values([
             (0, 1, 0.1),
             (0, 2, 0.2),
@@ -107,7 +142,7 @@ fn directed_usize_graph_from_gdl() {
 
 #[test]
 fn directed_usize_graph_from_gdl_with_f32_edge_values() {
-    let g: DirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    let g: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
         .gdl_str::<usize, _>(
             "(n0)-[{ f: 0.1 }]->(n1),
                  (n0)-[{ f: 0.2 }]->(n2),
@@ -126,7 +161,7 @@ fn directed_usize_graph_from_gdl_with_f32_edge_values() {
 
 #[test]
 fn directed_usize_graph_from_gdl_with_i64_edge_values() {
-    let g: DirectedCsrGraph<usize, i64> = GraphBuilder::new()
+    let g: DirectedCsrGraph<usize, (), i64> = GraphBuilder::new()
         .gdl_str::<usize, _>(
             "(n0)-[{ f: 42 }]->(n1),
                  (n0)-[{ f: 43 }]->(n2),
@@ -165,6 +200,41 @@ fn undirected_usize_graph_from_edge_list() {
 }
 
 #[test]
+fn undirected_usize_graph_from_edge_list_and_node_values() {
+    let g: UndirectedCsrGraph<usize, u32, ()> = GraphBuilder::new()
+        .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
+        .node_values([1, 3, 3, 7, 2])
+        .build();
+
+    assert_eq!(*g.node_value(0), 1);
+    assert_eq!(*g.node_value(1), 3);
+    assert_eq!(*g.node_value(2), 3);
+    assert_eq!(*g.node_value(3), 7);
+    assert_eq!(*g.node_value(4), 2);
+}
+
+#[test]
+fn undirected_usize_graph_from_edge_list_with_values_and_node_values() {
+    let g: UndirectedCsrGraph<usize, u32, f32> = GraphBuilder::new()
+        .edges_with_values([
+            (0, 1, 0.1),
+            (0, 2, 0.2),
+            (1, 2, 0.3),
+            (1, 3, 0.4),
+            (2, 4, 0.5),
+            (3, 4, 0.6),
+        ])
+        .node_values([1, 3, 3, 7, 2])
+        .build();
+
+    assert_eq!(*g.node_value(0), 1);
+    assert_eq!(*g.node_value(1), 3);
+    assert_eq!(*g.node_value(2), 3);
+    assert_eq!(*g.node_value(3), 7);
+    assert_eq!(*g.node_value(4), 2);
+}
+
+#[test]
 fn undirected_u32_graph_from_edge_list() {
     assert_undirected_graph::<u32>(
         GraphBuilder::new()
@@ -175,7 +245,7 @@ fn undirected_u32_graph_from_edge_list() {
 
 #[test]
 fn undirected_usize_graph_from_edge_list_with_values() {
-    let graph: UndirectedCsrGraph<usize, f32> = GraphBuilder::new()
+    let graph: UndirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
         .edges_with_values([
             (0, 1, 0.1),
             (0, 2, 0.2),

@@ -43,9 +43,9 @@ where
     EV: ParseValue + std::fmt::Debug + Copy + Send + Sync,
 {
     if undirected {
-        load::<UndirectedCsrGraph<NI, EV>, NI, EV>(path)
+        load::<UndirectedCsrGraph<NI, (), EV>, NI, EV>(path)
     } else {
-        load::<DirectedCsrGraph<NI, EV>, NI, EV>(path)
+        load::<DirectedCsrGraph<NI, (), EV>, NI, EV>(path)
     }
 }
 
