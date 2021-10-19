@@ -376,9 +376,9 @@ where
 
         let mut node_values = Box::<[NV]>::new_uninit_slice(node_count);
         let node_values_ptr = node_values.as_mut_ptr() as *mut NV;
-        let node_values_ptr =
-            unsafe { std::slice::from_raw_parts_mut(node_values_ptr, node_count.index() + 1) };
-        read.read_exact(node_values_ptr.as_mut_byte_slice())?;
+        let node_values_slice =
+            unsafe { std::slice::from_raw_parts_mut(node_values_ptr, node_count.index()) };
+        read.read_exact(node_values_slice.as_mut_byte_slice())?;
 
         let offsets = unsafe { node_values.assume_init() };
 
