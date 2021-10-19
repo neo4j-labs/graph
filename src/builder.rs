@@ -1,7 +1,7 @@
 use std::{convert::TryFrom, marker::PhantomData};
 
 use crate::{
-    graph::csr::CsrLayout,
+    graph::csr::{CsrLayout, NodeValues},
     index::Idx,
     input::{edgelist::EdgeList, InputCapabilities, InputPath},
     prelude::edgelist::{EdgeIterator, EdgeWithValueIterator},
@@ -28,9 +28,8 @@ where
     NI: Idx,
 {
     csr_layout: CsrLayout,
-    node_values: crate::graph::csr::NodeValues<NV>,
+    node_values: NodeValues<NV>,
     edge_list: EdgeList<NI, EV>,
-    _node: PhantomData<NI>,
 }
 
 pub struct FromEdgesWithValues<NI, Edges, EV>
@@ -401,14 +400,13 @@ where
         I: IntoIterator<Item = NV>,
     {
         let edge_list = EdgeList::from(EdgeIterator(self.state.edges));
-        let node_values = crate::graph::csr::NodeValues::new(node_values.into_iter().collect());
+        let node_values = node_values.into_iter().collect::<NodeValues<NV>>();
 
         GraphBuilder {
             state: FromEdgeListAndNodeValues {
                 csr_layout: self.state.csr_layout,
                 node_values,
                 edge_list,
-                _node: PhantomData,
             },
         }
     }
@@ -439,14 +437,13 @@ where
         I: IntoIterator<Item = NV>,
     {
         let edge_list = EdgeList::from(EdgeWithValueIterator(self.state.edges));
-        let node_values = crate::graph::csr::NodeValues::new(node_values.into_iter().collect());
+        let node_values = node_values.into_iter().collect::<NodeValues<NV>>();
 
         GraphBuilder {
             state: FromEdgeListAndNodeValues {
                 csr_layout: self.state.csr_layout,
                 node_values,
                 edge_list,
-                _node: PhantomData,
             },
         }
     }
@@ -466,11 +463,7 @@ where
 impl<NI: Idx, NV, EV> GraphBuilder<FromEdgeListAndNodeValues<NI, NV, EV>> {
     pub fn build<Graph>(self) -> Graph
     where
-        Graph: From<(
-            crate::graph::csr::NodeValues<NV>,
-            EdgeList<NI, EV>,
-            CsrLayout,
-        )>,
+        Graph: From<(NodeValues<NV>, EdgeList<NI, EV>, CsrLayout)>,
     {
         Graph::from((
             self.state.node_values,

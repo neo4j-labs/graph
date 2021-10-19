@@ -5,6 +5,7 @@ use std::{
     fs::File,
     hash::Hash,
     io::{BufReader, Read, Write},
+    iter::FromIterator,
     mem::{transmute, MaybeUninit},
     path::PathBuf,
     sync::atomic::Ordering::Acquire,
@@ -342,6 +343,12 @@ pub struct NodeValues<NV>(Box<[NV]>);
 impl<NV> NodeValues<NV> {
     pub fn new(node_values: Vec<NV>) -> Self {
         Self(node_values.into_boxed_slice())
+    }
+}
+
+impl<NV> FromIterator<NV> for NodeValues<NV> {
+    fn from_iter<T: IntoIterator<Item = NV>>(iter: T) -> Self {
+        Self(iter.into_iter().collect::<Vec<_>>().into_boxed_slice())
     }
 }
 
