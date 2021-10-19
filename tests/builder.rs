@@ -64,14 +64,14 @@ fn directed_usize_graph_from_edge_list() {
 fn directed_usize_graph_from_edge_list_and_node_values() {
     let g: DirectedCsrGraph<usize, u32, ()> = GraphBuilder::new()
         .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
-        .node_values([1, 3, 3, 7, 3])
+        .node_values([1, 3, 3, 7, 2])
         .build();
 
     assert_eq!(*g.node_value(0), 1);
     assert_eq!(*g.node_value(1), 3);
     assert_eq!(*g.node_value(2), 3);
     assert_eq!(*g.node_value(3), 7);
-    assert_eq!(*g.node_value(4), 3);
+    assert_eq!(*g.node_value(4), 2);
 }
 
 #[test]
@@ -85,14 +85,14 @@ fn directed_usize_graph_from_edge_list_with_values_and_node_values() {
             (2, 4, 0.5),
             (3, 4, 0.6),
         ])
-        .node_values([1, 3, 3, 7, 3])
+        .node_values([1, 3, 3, 7, 2])
         .build();
 
     assert_eq!(*g.node_value(0), 1);
     assert_eq!(*g.node_value(1), 3);
     assert_eq!(*g.node_value(2), 3);
     assert_eq!(*g.node_value(3), 7);
-    assert_eq!(*g.node_value(4), 3);
+    assert_eq!(*g.node_value(4), 2);
 }
 
 #[test]
@@ -203,14 +203,14 @@ fn undirected_usize_graph_from_edge_list() {
 fn undirected_usize_graph_from_edge_list_and_node_values() {
     let g: UndirectedCsrGraph<usize, u32, ()> = GraphBuilder::new()
         .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
-        .node_values([1, 3, 3, 7, 3])
+        .node_values([1, 3, 3, 7, 2])
         .build();
 
     assert_eq!(*g.node_value(0), 1);
     assert_eq!(*g.node_value(1), 3);
     assert_eq!(*g.node_value(2), 3);
     assert_eq!(*g.node_value(3), 7);
-    assert_eq!(*g.node_value(4), 3);
+    assert_eq!(*g.node_value(4), 2);
 }
 
 #[test]
@@ -224,14 +224,14 @@ fn undirected_usize_graph_from_edge_list_with_values_and_node_values() {
             (2, 4, 0.5),
             (3, 4, 0.6),
         ])
-        .node_values([1, 3, 3, 7, 3])
+        .node_values([1, 3, 3, 7, 2])
         .build();
 
     assert_eq!(*g.node_value(0), 1);
     assert_eq!(*g.node_value(1), 3);
     assert_eq!(*g.node_value(2), 3);
     assert_eq!(*g.node_value(3), 7);
-    assert_eq!(*g.node_value(4), 3);
+    assert_eq!(*g.node_value(4), 2);
 }
 
 #[test]
