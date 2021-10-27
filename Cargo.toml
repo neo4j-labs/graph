@@ -8,7 +8,7 @@ authors = [
 description = "A building block for high-performant graph algorithms."
 keywords = ["graph", "csr", "algorithms"]
 repository = "https://github.com/s1ck/graph"
-edition = "2018"
+edition = "2021"
 license = "MIT"
 
 [dependencies]
