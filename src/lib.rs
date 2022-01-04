@@ -173,8 +173,6 @@ pub use crate::builder::GraphBuilder;
 pub use crate::graph::csr::CsrLayout;
 pub use crate::graph::csr::DirectedCsrGraph;
 pub use crate::graph::csr::UndirectedCsrGraph;
-pub use crate::graph::labeled::DirectedNodeLabeledCsrGraph;
-pub use crate::graph::labeled::UndirectedNodeLabeledCsrGraph;
 
 use std::convert::Infallible;
 
@@ -280,35 +278,6 @@ pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
     /// to the given node, i.e., the given node is the target node of the
     /// connecting edge.
     fn in_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
-}
-
-/// A graph where each node has a label.
-///
-/// The label is generic, but must derive the [`Idx`] trait to allow additional
-/// accessors, such as `nodes_by_label`.
-pub trait NodeLabeledGraph<NI, Label>: Graph<NI>
-where
-    NI: Idx,
-    Label: Idx,
-{
-    /// Returns the label of the given node.
-    fn label(&self, node: NI) -> Label;
-
-    /// Returns all nodes with the given label.
-    fn nodes_by_label(&self, label: Label) -> &[NI];
-
-    /// Returns the total number of labels. Note, that this is equivalent to
-    /// `max_label + 1`.
-    fn label_count(&self) -> Label;
-
-    /// Returns the maximum label.
-    fn max_label(&self) -> Label;
-
-    /// Return the number of nodes that have the given label.
-    fn label_frequency(&self, label: Label) -> usize;
-
-    /// Returns the maximum label frequency.
-    fn max_label_frequency(&self) -> usize;
 }
 
 #[repr(transparent)]

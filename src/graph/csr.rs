@@ -530,6 +530,26 @@ where
     }
 }
 
+impl<NI, Label> From<(DotGraph<NI, Label>, CsrLayout)> for DirectedCsrGraph<NI, Label>
+where
+    NI: Idx,
+    Label: Idx + Hash,
+{
+    fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
+        let DotGraph {
+            label_frequencies: _,
+            edge_list,
+            labels,
+            max_degree: _,
+            max_label: _,
+        } = dot_graph;
+
+        let node_values = NodeValues::new(labels);
+
+        DirectedCsrGraph::from((node_values, edge_list, csr_layout))
+    }
+}
+
 impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, (), EV>
 where
     NI: Idx,
@@ -731,6 +751,26 @@ where
         } = dot_graph;
 
         UndirectedCsrGraph::from((edge_list, csr_layout))
+    }
+}
+
+impl<NI, Label> From<(DotGraph<NI, Label>, CsrLayout)> for UndirectedCsrGraph<NI, Label>
+where
+    NI: Idx,
+    Label: Idx + Hash,
+{
+    fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
+        let DotGraph {
+            label_frequencies: _,
+            edge_list,
+            labels,
+            max_degree: _,
+            max_label: _,
+        } = dot_graph;
+
+        let node_values = NodeValues::new(labels);
+
+        UndirectedCsrGraph::from((node_values, edge_list, csr_layout))
     }
 }
 

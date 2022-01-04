@@ -165,6 +165,7 @@ impl GraphBuilder<Uninitialized> {
     ///
     /// assert_eq!(graph.neighbors(0), &[1, 3, 7]);
     /// ```
+    #[must_use]
     pub fn csr_layout(mut self, csr_layout: CsrLayout) -> Self {
         self.state.csr_layout = csr_layout;
         self
@@ -357,7 +358,7 @@ impl GraphBuilder<Uninitialized> {
     ///     .iter()
     ///     .collect::<PathBuf>();
     ///
-    /// let graph: DirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
+    /// let graph: DirectedCsrGraph<usize, usize> = GraphBuilder::new()
     ///     .file_format(DotGraphInput::default())
     ///     .path(path)
     ///     .build()

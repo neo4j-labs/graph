@@ -35,12 +35,12 @@ fn should_compile_test() {
             .path("graph")
             .build()?;
 
-        let _g: DirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
+        let _g: DirectedCsrGraph<usize, usize> = GraphBuilder::new()
             .file_format(DotGraphInput::default())
             .path("graph")
             .build()?;
 
-        let _g: UndirectedNodeLabeledCsrGraph<usize, usize> = GraphBuilder::new()
+        let _g: UndirectedCsrGraph<usize, usize> = GraphBuilder::new()
             .file_format(DotGraphInput::default())
             .path("graph")
             .build()?;
@@ -53,7 +53,7 @@ fn should_compile_test() {
 
 #[test]
 fn directed_usize_graph_from_edge_list() {
-    assert_directed_graph::<usize>(
+    assert_directed_graph::<usize, ()>(
         GraphBuilder::new()
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
@@ -97,7 +97,7 @@ fn directed_usize_graph_from_edge_list_with_values_and_node_values() {
 
 #[test]
 fn directed_u32_graph_from_edge_list() {
-    assert_directed_graph::<u32>(
+    assert_directed_graph::<u32, ()>(
         GraphBuilder::new()
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
@@ -130,7 +130,7 @@ fn directed_usize_graph_from_edge_list_with_values() {
 
 #[test]
 fn directed_usize_graph_from_gdl() {
-    assert_directed_graph::<usize>(
+    assert_directed_graph::<usize, ()>(
         GraphBuilder::new()
             .gdl_str::<usize, _>(
                 "(n0)-->(n1),(n0)-->(n2),(n1)-->(n2),(n1)-->(n3),(n2)-->(n4),(n3)-->(n4)",
@@ -180,7 +180,7 @@ fn directed_usize_graph_from_gdl_with_i64_edge_values() {
 
 #[test]
 fn undirected_usize_graph_from_gdl() {
-    assert_undirected_graph::<usize>(
+    assert_undirected_graph::<usize, ()>(
         GraphBuilder::new()
             .gdl_str::<usize, _>(
                 "(n0)-->(n1),(n0)-->(n2),(n1)-->(n2),(n1)-->(n3),(n2)-->(n4),(n3)-->(n4)",
@@ -192,7 +192,7 @@ fn undirected_usize_graph_from_gdl() {
 
 #[test]
 fn undirected_usize_graph_from_edge_list() {
-    assert_undirected_graph::<usize>(
+    assert_undirected_graph::<usize, ()>(
         GraphBuilder::new()
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
@@ -236,7 +236,7 @@ fn undirected_usize_graph_from_edge_list_with_values_and_node_values() {
 
 #[test]
 fn undirected_u32_graph_from_edge_list() {
-    assert_undirected_graph::<u32>(
+    assert_undirected_graph::<u32, ()>(
         GraphBuilder::new()
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
@@ -279,7 +279,7 @@ fn directed_usize_graph_from_edge_list_file() {
         .build()
         .expect("loading failed");
 
-    assert_directed_graph::<usize>(graph);
+    assert_directed_graph::<usize, ()>(graph);
 }
 
 #[test]
@@ -295,7 +295,7 @@ fn directed_u32_graph_from_edge_list_file() {
         .build()
         .expect("loading failed");
 
-    assert_directed_graph::<u32>(graph);
+    assert_directed_graph::<u32, ()>(graph);
 }
 
 #[test]
@@ -304,14 +304,20 @@ fn directed_u32_graph_from_dot_graph_file() {
         .iter()
         .collect::<PathBuf>();
 
-    let graph = GraphBuilder::new()
+    let graph: DirectedCsrGraph<u32, u32, ()> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(DotGraphInput::<u32, u32>::default())
         .path(path)
         .build()
         .expect("loading failed");
 
-    assert_directed_graph::<u32>(graph);
+    assert_eq!(*graph.node_value(0), 0);
+    assert_eq!(*graph.node_value(1), 1);
+    assert_eq!(*graph.node_value(2), 2);
+    assert_eq!(*graph.node_value(3), 1);
+    assert_eq!(*graph.node_value(4), 2);
+
+    assert_directed_graph::<u32, u32>(graph);
 }
 
 #[test]
@@ -327,7 +333,7 @@ fn undirected_usize_graph_from_edge_list_file() {
         .build()
         .expect("loading failed");
 
-    assert_undirected_graph::<usize>(graph);
+    assert_undirected_graph::<usize, ()>(graph);
 }
 
 #[test]
@@ -343,7 +349,7 @@ fn undirected_u32_graph_from_edge_list_file() {
         .build()
         .expect("loading failed");
 
-    assert_undirected_graph::<u32>(graph);
+    assert_undirected_graph::<u32, ()>(graph);
 }
 
 #[test]
@@ -352,17 +358,23 @@ fn undirected_u32_graph_from_dot_graph_file() {
         .iter()
         .collect::<PathBuf>();
 
-    let graph = GraphBuilder::new()
+    let graph: UndirectedCsrGraph<u32, u32, ()> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(DotGraphInput::<u32, u32>::default())
         .path(path)
         .build()
         .expect("loading failed");
 
-    assert_undirected_graph::<u32>(graph);
+    assert_eq!(*graph.node_value(0), 0);
+    assert_eq!(*graph.node_value(1), 1);
+    assert_eq!(*graph.node_value(2), 2);
+    assert_eq!(*graph.node_value(3), 1);
+    assert_eq!(*graph.node_value(4), 2);
+
+    assert_undirected_graph::<u32, u32>(graph);
 }
 
-fn assert_directed_graph<NI: Idx>(g: DirectedCsrGraph<NI>) {
+fn assert_directed_graph<NI: Idx, NV>(g: DirectedCsrGraph<NI, NV, ()>) {
     assert_eq!(g.node_count(), NI::new(5));
     assert_eq!(g.edge_count(), NI::new(6));
 
@@ -391,7 +403,7 @@ fn assert_directed_graph<NI: Idx>(g: DirectedCsrGraph<NI>) {
     assert_eq!(g.in_neighbors(NI::new(4)), &[NI::new(2), NI::new(3)]);
 }
 
-fn assert_undirected_graph<NI: Idx>(g: UndirectedCsrGraph<NI>) {
+fn assert_undirected_graph<NI: Idx, NV>(g: UndirectedCsrGraph<NI, NV, ()>) {
     assert_eq!(g.node_count(), NI::new(5));
     assert_eq!(g.edge_count(), NI::new(6));
 
