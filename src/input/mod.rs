@@ -1,6 +1,8 @@
 pub mod binary;
 pub mod dotgraph;
 pub mod edgelist;
+#[doc(cfg(feature = "gdl"))]
+pub mod gdl;
 
 pub use binary::BinaryInput;
 pub use dotgraph::DotGraph;
@@ -9,7 +11,6 @@ pub use edgelist::EdgeList;
 pub use edgelist::EdgeListInput;
 
 use crate::index::Idx;
-use gdl::CypherValue;
 
 pub struct InputPath<P>(pub(crate) P);
 
@@ -95,29 +96,3 @@ impl_parse_value!(parse_float, f32, f64);
 fn parse_float<T: fast_float::FastFloat>(bytes: &[u8]) -> (T, usize) {
     fast_float::parse_partial(bytes).unwrap()
 }
-
-/// A wrapper around [`gdl::CypherValue`] to allow custom From implementations.
-pub struct MyCypherValue<'a>(&'a CypherValue);
-
-impl<'a> From<MyCypherValue<'a>> for () {
-    fn from(_: MyCypherValue) -> Self {}
-}
-
-macro_rules! impl_from_cypher_value {
-    ($enum:path, $ty:ty) => {
-        impl<'a> ::std::convert::From<$crate::input::MyCypherValue<'a>> for $ty {
-            fn from(cv: $crate::input::MyCypherValue) -> Self {
-                if let $enum(f) = cv.0 {
-                    *f as $ty
-                } else {
-                    panic!("expected {} value", stringify!($ty))
-                }
-            }
-        }
-    };
-}
-
-impl_from_cypher_value!(CypherValue::Float, f32);
-impl_from_cypher_value!(CypherValue::Float, f64);
-impl_from_cypher_value!(CypherValue::Integer, i32);
-impl_from_cypher_value!(CypherValue::Integer, i64);
