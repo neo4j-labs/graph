@@ -1,8 +1,8 @@
 [package]
 name = "graph"
-version = "0.1.6"
+version = "0.1.7"
 authors = [
-    "Martin Junghanns <nerdfaktor42@mailbox.org>",
+    "Martin Junghanns <github@s1ck.dev>",
     "Paul Horn <developer@knutwalker.de>",
 ]
 description = "A building block for high-performant graph algorithms."
