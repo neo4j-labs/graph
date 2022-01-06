@@ -23,6 +23,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
+          args: --features gdl
 
   test:
     name: Test Suite
@@ -37,10 +38,11 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --features gdl
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --examples
+          args: --examples --features gdl
 
   fmt:
     name: Rustfmt
@@ -72,4 +74,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --features gdl -- -D warnings

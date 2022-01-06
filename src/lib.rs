@@ -4,6 +4,7 @@
 #![feature(maybe_uninit_slice)]
 #![feature(step_trait)]
 #![feature(new_uninit)]
+#![feature(doc_cfg)]
 #![allow(dead_code)]
 
 //! A library that can be used as a building block for high-performant graph
@@ -187,6 +188,7 @@ pub enum Error {
         #[from]
         source: std::io::Error,
     },
+    #[doc(cfg(feature = "gdl"))]
     #[error("error while parsing GDL input")]
     GdlError {
         #[from]

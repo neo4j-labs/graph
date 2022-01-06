@@ -128,6 +128,7 @@ fn directed_usize_graph_from_edge_list_with_values() {
     );
 }
 
+#[cfg(feature = "gdl")]
 #[test]
 fn directed_usize_graph_from_gdl() {
     assert_directed_graph::<usize, ()>(
@@ -140,6 +141,7 @@ fn directed_usize_graph_from_gdl() {
     )
 }
 
+#[cfg(feature = "gdl")]
 #[test]
 fn directed_usize_graph_from_gdl_with_f32_edge_values() {
     let g: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
@@ -159,6 +161,7 @@ fn directed_usize_graph_from_gdl_with_f32_edge_values() {
     assert_eq!(actual, &[Target::new(1, 0.1), Target::new(2, 0.2)]);
 }
 
+#[cfg(feature = "gdl")]
 #[test]
 fn directed_usize_graph_from_gdl_with_i64_edge_values() {
     let g: DirectedCsrGraph<usize, (), i64> = GraphBuilder::new()
@@ -178,6 +181,7 @@ fn directed_usize_graph_from_gdl_with_i64_edge_values() {
     assert_eq!(actual, &[Target::new(1, 42), Target::new(2, 43)]);
 }
 
+#[cfg(feature = "gdl")]
 #[test]
 fn undirected_usize_graph_from_gdl() {
     assert_undirected_graph::<usize, ()>(

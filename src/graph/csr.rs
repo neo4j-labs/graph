@@ -17,7 +17,7 @@ use rayon::prelude::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
-    input::{edgelist::EdgeList, Direction, DotGraph, MyCypherValue},
+    input::{edgelist::EdgeList, Direction, DotGraph},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
     NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
     UndirectedNeighborsWithValues,
@@ -550,16 +550,6 @@ where
     }
 }
 
-impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, (), EV>
-where
-    NI: Idx,
-    EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
-{
-    fn from((gdl_graph, csr_layout): (&'a gdl::Graph, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
-    }
-}
-
 impl<W, NI, NV, EV> SerializeGraphOp<W> for DirectedCsrGraph<NI, NV, EV>
 where
     W: Write,
@@ -579,16 +569,6 @@ where
         csr_inc.serialize(&mut output)?;
 
         Ok(())
-    }
-}
-
-impl<NI, EV> From<(gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, (), EV>
-where
-    NI: Idx,
-    for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
-{
-    fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
     }
 }
 
@@ -771,26 +751,6 @@ where
         let node_values = NodeValues::new(labels);
 
         UndirectedCsrGraph::from((node_values, edge_list, csr_layout))
-    }
-}
-
-impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
-where
-    NI: Idx,
-    EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
-{
-    fn from((gdl_graph, csr_layout): (&'a gdl::Graph, CsrLayout)) -> Self {
-        UndirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
-    }
-}
-
-impl<NI, EV> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
-where
-    NI: Idx,
-    for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
-{
-    fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
-        UndirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
     }
 }
 
