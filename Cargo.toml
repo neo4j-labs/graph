@@ -45,3 +45,6 @@ harness = false
 [[bench]]
 name = "csr"
 harness = false
+
+[package.metadata.docs.rs]
+features = ["gdl"]
