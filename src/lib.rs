@@ -188,6 +188,7 @@ pub enum Error {
         #[from]
         source: std::io::Error,
     },
+    #[cfg(feature = "gdl")]
     #[doc(cfg(feature = "gdl"))]
     #[error("error while parsing GDL input")]
     GdlError {

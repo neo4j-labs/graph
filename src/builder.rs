@@ -42,6 +42,7 @@ where
     _node: PhantomData<NI>,
 }
 
+#[cfg(feature = "gdl")]
 #[doc(cfg(feature = "gdl"))]
 pub struct FromGdlString<NI>
 where
@@ -52,6 +53,7 @@ where
     _node: PhantomData<NI>,
 }
 
+#[cfg(feature = "gdl")]
 #[doc(cfg(feature = "gdl"))]
 pub struct FromGdlGraph<'a, NI>
 where
@@ -270,6 +272,7 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(g.edge_count(), 2);
     /// assert_eq!(g.neighbors_with_values(0), &[Target::new(1, 0.42), Target::new(2, 13.37)]);
     /// ```
+    #[cfg(feature = "gdl")]
     #[doc(cfg(feature = "gdl"))]
     pub fn gdl_str<NI, S>(self, gdl: S) -> GraphBuilder<FromGdlString<NI>>
     where
@@ -312,6 +315,7 @@ impl GraphBuilder<Uninitialized> {
     ///
     /// assert_eq!(g.out_neighbors(id_a).len(), 2);
     /// ```
+    #[cfg(feature = "gdl")]
     #[doc(cfg(feature = "gdl"))]
     pub fn gdl_graph<NI>(self, gdl_graph: &::gdl::Graph) -> GraphBuilder<FromGdlGraph<NI>>
     where
@@ -478,6 +482,7 @@ impl<NI: Idx, NV, EV> GraphBuilder<FromEdgeListAndNodeValues<NI, NV, EV>> {
     }
 }
 
+#[cfg(feature = "gdl")]
 #[doc(cfg(feature = "gdl"))]
 impl<NI> GraphBuilder<FromGdlString<NI>>
 where
@@ -494,6 +499,7 @@ where
     }
 }
 
+#[cfg(feature = "gdl")]
 #[doc(cfg(feature = "gdl"))]
 impl<'a, NI> GraphBuilder<FromGdlGraph<'a, NI>>
 where

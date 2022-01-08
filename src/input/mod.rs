@@ -1,6 +1,7 @@
 pub mod binary;
 pub mod dotgraph;
 pub mod edgelist;
+#[cfg(feature = "gdl")]
 #[doc(cfg(feature = "gdl"))]
 pub mod gdl;
 
