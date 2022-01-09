@@ -1,3 +1,4 @@
+use log::info;
 use std::{fs::File, path::Path};
 
 use memmap2::Mmap;
@@ -20,12 +21,17 @@ where
     type Error = Error;
 
     fn try_from(path: InputPath<P>) -> Result<Self, Self::Error> {
+        let start = std::time::Instant::now();
+
         let file = File::open(path.0.as_ref())?;
         let map = unsafe { Mmap::map(&file)? };
+        let file_size = map.len();
+
         let edge_count = map.len() / std::mem::size_of::<PackedEdge>();
 
         let map = map.as_ptr();
         assert_eq!(map as usize % std::mem::align_of::<PackedEdge>(), 0);
+
         let edges = unsafe { std::slice::from_raw_parts(map as *const PackedEdge, edge_count) };
 
         let edges = edges
@@ -34,6 +40,15 @@ where
             .collect::<Vec<_>>();
 
         let edges = EdgeList::new(edges);
+
+        let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
+
+        info!(
+            "Read {} edges in {:.2}s ({:.2} MB/s)",
+            edges.len(),
+            elapsed,
+            ((file_size as f64) / elapsed) / (1024.0 * 1024.0)
+        );
 
         Ok(Self(edges))
     }
