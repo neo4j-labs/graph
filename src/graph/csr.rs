@@ -17,7 +17,7 @@ use rayon::prelude::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp},
     index::{AtomicIdx, Idx},
-    input::{edgelist::EdgeList, Direction, DotGraph},
+    input::{edgelist::EdgeList, Direction, DotGraph, Graph500},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
     NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
     UndirectedNeighborsWithValues,
@@ -550,6 +550,12 @@ where
     }
 }
 
+impl From<(Graph500, CsrLayout)> for DirectedCsrGraph<u64> {
+    fn from((graph500, csr_layout): (Graph500, CsrLayout)) -> Self {
+        DirectedCsrGraph::from((graph500.0, csr_layout))
+    }
+}
+
 impl<W, NI, NV, EV> SerializeGraphOp<W> for DirectedCsrGraph<NI, NV, EV>
 where
     W: Write,
@@ -751,6 +757,12 @@ where
         let node_values = NodeValues::new(labels);
 
         UndirectedCsrGraph::from((node_values, edge_list, csr_layout))
+    }
+}
+
+impl From<(Graph500, CsrLayout)> for UndirectedCsrGraph<u64> {
+    fn from((graph500, csr_layout): (Graph500, CsrLayout)) -> Self {
+        UndirectedCsrGraph::from((graph500.0, csr_layout))
     }
 }
 
