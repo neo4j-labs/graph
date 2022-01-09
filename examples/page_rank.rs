@@ -2,7 +2,9 @@ use atomic_float::AtomicF64;
 use log::{debug, info};
 
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
+use std::path::Path as StdPath;
+use std::str::FromStr;
+use std::{sync::atomic::Ordering, time::Instant};
 
 use graph::{prelude::*, SharedMut};
 
@@ -10,10 +12,29 @@ use graph::index::AtomicIdx;
 
 const CHUNK_SIZE: usize = 16384;
 
+#[derive(Debug)]
+enum FileFormat {
+    EdgeList,
+    Graph500,
+}
+
+impl FromStr for FileFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "edgelist" => Ok(Self::EdgeList),
+            "graph500" => Ok(Self::Graph500),
+            _ => Err(format!("unsupported file format {}", s)),
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let cli::AppArgs {
         path,
+        format,
         use_32_bit,
         runs,
         max_iterations,
@@ -26,25 +47,59 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         path
     );
 
-    if use_32_bit {
-        run::<u32>(path, runs, max_iterations, tolerance)
-    } else {
-        run::<usize>(path, runs, max_iterations, tolerance)
+    match (use_32_bit, format) {
+        (true, FileFormat::EdgeList) => run::<u32, _, _>(
+            path,
+            EdgeListInput::default(),
+            runs,
+            max_iterations,
+            tolerance,
+        ),
+        (true, FileFormat::Graph500) => run::<u32, _, _>(
+            path,
+            Graph500Input::default(),
+            runs,
+            max_iterations,
+            tolerance,
+        ),
+        (false, FileFormat::EdgeList) => run::<usize, _, _>(
+            path,
+            EdgeListInput::default(),
+            runs,
+            max_iterations,
+            tolerance,
+        ),
+        (false, FileFormat::Graph500) => run::<usize, _, _>(
+            path,
+            Graph500Input::default(),
+            runs,
+            max_iterations,
+            tolerance,
+        ),
     }
 }
 
-fn run<NI: Idx>(
-    path: PathBuf,
+fn run<NI, Format, Path>(
+    path: Path,
+    file_format: Format,
     runs: usize,
     max_iterations: usize,
     tolerance: f64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    NI: Idx,
+    Path: AsRef<StdPath>,
+    Format: InputCapabilities<NI>,
+    Format::GraphInput: TryFrom<InputPath<Path>>,
+    DirectedCsrGraph<NI>: TryFrom<(Format::GraphInput, CsrLayout)>,
+    graph::Error: From<<Format::GraphInput as TryFrom<graph::input::InputPath<Path>>>::Error>,
+    graph::Error: From<<DirectedCsrGraph<NI> as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
+{
     let graph: DirectedCsrGraph<NI> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
-        .file_format(EdgeListInput::default())
+        .file_format(file_format)
         .path(path)
-        .build()
-        .unwrap();
+        .build()?;
 
     for run in 1..=runs {
         let start = Instant::now();
@@ -171,6 +226,7 @@ mod cli {
     #[derive(Debug)]
     pub(crate) struct AppArgs {
         pub(crate) path: std::path::PathBuf,
+        pub(crate) format: crate::FileFormat,
         pub(crate) runs: usize,
         pub(crate) use_32_bit: bool,
         pub(crate) max_iterations: usize,
@@ -186,6 +242,9 @@ mod cli {
 
         let args = AppArgs {
             path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
+            format: pargs
+                .opt_value_from_str(["-f", "--format"])?
+                .unwrap_or(crate::FileFormat::EdgeList),
             runs: pargs.opt_value_from_str(["-r", "--runs"])?.unwrap_or(1),
             use_32_bit: pargs.contains("--use-32-bit"),
             max_iterations: pargs
