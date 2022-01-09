@@ -550,8 +550,8 @@ where
     }
 }
 
-impl From<(Graph500, CsrLayout)> for DirectedCsrGraph<u64> {
-    fn from((graph500, csr_layout): (Graph500, CsrLayout)) -> Self {
+impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for DirectedCsrGraph<NI> {
+    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
         DirectedCsrGraph::from((graph500.0, csr_layout))
     }
 }
@@ -760,8 +760,8 @@ where
     }
 }
 
-impl From<(Graph500, CsrLayout)> for UndirectedCsrGraph<u64> {
-    fn from((graph500, csr_layout): (Graph500, CsrLayout)) -> Self {
+impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for UndirectedCsrGraph<NI> {
+    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
         UndirectedCsrGraph::from((graph500.0, csr_layout))
     }
 }

@@ -1,20 +1,22 @@
 use log::info;
-use std::{fs::File, path::Path};
+use std::{fs::File, marker::PhantomData, path::Path};
 
 use memmap2::Mmap;
 
 use crate::prelude::*;
 
 #[derive(Default)]
-pub struct Graph500Input;
-
-impl InputCapabilities<u64> for Graph500Input {
-    type GraphInput = Graph500;
+pub struct Graph500Input<NI> {
+    _phantom: PhantomData<NI>,
 }
 
-pub struct Graph500(pub EdgeList<u64, ()>);
+impl<NI: Idx> InputCapabilities<NI> for Graph500Input<NI> {
+    type GraphInput = Graph500<NI>;
+}
 
-impl<P> TryFrom<InputPath<P>> for Graph500
+pub struct Graph500<NI: Idx>(pub EdgeList<NI, ()>);
+
+impl<NI: Idx, P> TryFrom<InputPath<P>> for Graph500<NI>
 where
     P: AsRef<Path>,
 {
@@ -36,8 +38,14 @@ where
 
         let edges = edges
             .iter()
-            .map(|edge| (edge.source(), edge.target(), ()))
-            .collect::<Vec<_>>();
+            .map(|edge| {
+                Ok((
+                    NI::new(usize::try_from(edge.source())?),
+                    NI::new(usize::try_from(edge.target())?),
+                    (),
+                ))
+            })
+            .collect::<Result<Vec<_>, std::num::TryFromIntError>>()?;
 
         let edges = EdgeList::new(edges);
 
