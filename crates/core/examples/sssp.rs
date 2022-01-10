@@ -1,6 +1,6 @@
 use atomic_float::AtomicF32;
 use float_ord::FloatOrd;
-use graph::prelude::*;
+use graph_core::prelude::*;
 use log::info;
 
 use rayon::prelude::*;

@@ -6,9 +6,7 @@ use std::path::Path as StdPath;
 use std::str::FromStr;
 use std::{sync::atomic::Ordering, time::Instant};
 
-use graph::{prelude::*, SharedMut};
-
-use graph::index::AtomicIdx;
+use graph_core::{prelude::*, SharedMut};
 
 const CHUNK_SIZE: usize = 16384;
 
@@ -92,8 +90,10 @@ where
     Format: InputCapabilities<NI>,
     Format::GraphInput: TryFrom<InputPath<Path>>,
     DirectedCsrGraph<NI>: TryFrom<(Format::GraphInput, CsrLayout)>,
-    graph::Error: From<<Format::GraphInput as TryFrom<graph::input::InputPath<Path>>>::Error>,
-    graph::Error: From<<DirectedCsrGraph<NI> as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
+    graph_core::Error:
+        From<<Format::GraphInput as TryFrom<graph_core::input::InputPath<Path>>>::Error>,
+    graph_core::Error:
+        From<<DirectedCsrGraph<NI> as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
 {
     let graph: DirectedCsrGraph<NI> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)

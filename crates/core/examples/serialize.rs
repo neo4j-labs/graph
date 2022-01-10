@@ -1,6 +1,6 @@
 use byte_slice_cast::ToByteSlice;
-use graph::graph_ops::SerializeGraphOp;
-use graph::prelude::*;
+use graph_core::graph_ops::SerializeGraphOp;
+use graph_core::prelude::*;
 use log::info;
 
 use std::convert::TryFrom;
@@ -45,7 +45,7 @@ where
     G: Graph<NI>
         + From<(EdgeList<NI, ()>, CsrLayout)>
         + SerializeGraphOp<BufWriter<File>>
-        + TryFrom<(PathBuf, CsrLayout), Error = graph::Error>,
+        + TryFrom<(PathBuf, CsrLayout), Error = Error>,
 {
     let start = Instant::now();
     let actual = load_from_edge_list::<G, _>(path)?;
@@ -94,7 +94,7 @@ fn load_from_binary<G, NI>(path: PathBuf) -> Result<G, Error>
 where
     NI: Idx + ToByteSlice,
     G: Graph<NI> + TryFrom<(PathBuf, CsrLayout)>,
-    graph::Error: From<<G as TryFrom<(PathBuf, CsrLayout)>>::Error>,
+    Error: From<<G as TryFrom<(PathBuf, CsrLayout)>>::Error>,
 {
     let graph: G = GraphBuilder::new()
         .file_format(BinaryInput::<NI>::default())

@@ -1,0 +1,50 @@
+[package]
+name = "graph_core"
+version = "0.1.10"
+authors = [
+    "Martin Junghanns <github@s1ck.dev>",
+    "Paul Horn <developer@knutwalker.de>",
+]
+description = "A building block for high-performant graph algorithms."
+keywords = ["graph", "csr", "algorithms"]
+repository = "https://github.com/s1ck/graph"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+atoi = "0.4.0"
+byte-slice-cast = "1.1.0"
+delegate = "0.6.1"
+fast-float = "0.2.0"
+fxhash = "0.2.1"
+gdl = { version = "0.2.4", optional = true }
+linereader = "0.4.0"
+log = "0.4.14"
+memmap2 = "0.5.0"
+num = "0.4"
+num-format = "0.4.0"
+num_cpus = "1.13.0"
+page_size = "0.4.2"
+rayon = "1.5.1"
+thiserror = "1.0.24"
+
+[dev-dependencies]
+atomic_float = "0.1.0"
+criterion = { version = "0.3.5", features = ["html_reports"] }
+env_logger = "0.9.0"
+float-ord = "0.3.2"
+num-format = "0.4.0"
+pico-args = "0.4.0"
+rand = "0.8.4"
+tempfile = "3"
+
+[[bench]]
+name = "edgelist"
+harness = false
+
+[[bench]]
+name = "csr"
+harness = false
+
+[package.metadata.docs.rs]
+features = ["gdl"]

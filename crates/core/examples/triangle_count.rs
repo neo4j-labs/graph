@@ -2,7 +2,7 @@ use log::info;
 use num_format::{Locale, ToFormattedString};
 use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 
-use graph::prelude::*;
+use graph_core::prelude::*;
 
 const CHUNK_SIZE: usize = 64;
 

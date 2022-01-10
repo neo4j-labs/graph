@@ -1,5 +1,5 @@
 use criterion::*;
-use graph::{graph::csr::Csr, prelude::*};
+use graph_core::{graph::csr::Csr, prelude::*};
 
 mod common;
 
