@@ -45,6 +45,16 @@ fn should_compile_test() {
             .path("graph")
             .build()?;
 
+        let _g: DirectedCsrGraph<u64> = GraphBuilder::new()
+            .file_format(Graph500Input::default())
+            .path("graph")
+            .build()?;
+
+        let _g: UndirectedCsrGraph<u64> = GraphBuilder::new()
+            .file_format(Graph500Input::default())
+            .path("graph")
+            .build()?;
+
         Ok(())
     }
 
@@ -376,6 +386,51 @@ fn undirected_u32_graph_from_dot_graph_file() {
     assert_eq!(*graph.node_value(4), 2);
 
     assert_undirected_graph::<u32, u32>(graph);
+}
+
+#[test]
+fn directed_u64_graph_from_graph_500_file() {
+    let path = [env!("CARGO_MANIFEST_DIR"), "resources", "scale_8.graph500"]
+        .iter()
+        .collect::<PathBuf>();
+
+    let graph: DirectedCsrGraph<u64> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
+        .file_format(Graph500Input::default())
+        .path(path)
+        .build()
+        .expect("loading failed");
+
+    assert_eq!(graph.node_count(), 256);
+    assert_eq!(graph.edge_count(), 4096);
+
+    assert_eq!(graph.out_neighbors(0), &[37, 157]);
+    assert_eq!(
+        graph.in_neighbors(0),
+        &[12, 26, 50, 50, 52, 82, 82, 82, 106, 109, 172, 186, 250, 250]
+    );
+}
+
+#[test]
+fn undirected_u64_graph_from_graph_500_file() {
+    let path = [env!("CARGO_MANIFEST_DIR"), "resources", "scale_8.graph500"]
+        .iter()
+        .collect::<PathBuf>();
+
+    let graph: UndirectedCsrGraph<u64> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
+        .file_format(Graph500Input::default())
+        .path(path)
+        .build()
+        .expect("loading failed");
+
+    assert_eq!(graph.node_count(), 256);
+    assert_eq!(graph.edge_count(), 4096);
+
+    assert_eq!(
+        graph.neighbors(0),
+        &[12, 26, 37, 50, 50, 52, 82, 82, 82, 106, 109, 157, 172, 186, 250, 250]
+    );
 }
 
 fn assert_directed_graph<NI: Idx, NV>(g: DirectedCsrGraph<NI, NV, ()>) {

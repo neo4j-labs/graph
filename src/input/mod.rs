@@ -4,12 +4,15 @@ pub mod edgelist;
 #[cfg(feature = "gdl")]
 #[doc(cfg(feature = "gdl"))]
 pub mod gdl;
+pub mod graph500;
 
 pub use binary::BinaryInput;
 pub use dotgraph::DotGraph;
 pub use dotgraph::DotGraphInput;
 pub use edgelist::EdgeList;
 pub use edgelist::EdgeListInput;
+pub use graph500::Graph500;
+pub use graph500::Graph500Input;
 
 use crate::index::Idx;
 

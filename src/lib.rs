@@ -188,6 +188,11 @@ pub enum Error {
         #[from]
         source: std::io::Error,
     },
+    #[error("incompatible index type")]
+    IdxError {
+        #[from]
+        source: std::num::TryFromIntError,
+    },
     #[cfg(feature = "gdl")]
     #[doc(cfg(feature = "gdl"))]
     #[error("error while parsing GDL input")]
