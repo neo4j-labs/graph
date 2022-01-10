@@ -1,9 +1,10 @@
+use crate::prelude::*;
+
 use log::info;
 use num_format::{Locale, ToFormattedString};
+
 use std::sync::atomic::AtomicU64;
 use std::{sync::atomic::Ordering, time::Instant};
-
-use crate::prelude::*;
 
 const CHUNK_SIZE: usize = 64;
 
@@ -76,7 +77,7 @@ pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use graph_core::{CsrLayout, GraphBuilder, UndirectedCsrGraph};
+    use crate::prelude::{CsrLayout, GraphBuilder, UndirectedCsrGraph};
 
     #[test]
     fn test_tc_two_components() {

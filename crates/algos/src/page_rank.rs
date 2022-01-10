@@ -1,10 +1,12 @@
+use crate::prelude::*;
+
 use atomic_float::AtomicF64;
+use graph_core::SharedMut;
 use log::info;
+use rayon::prelude::*;
+
 use std::sync::atomic::Ordering;
 use std::time::Instant;
-
-use graph_core::{prelude::*, SharedMut};
-use rayon::prelude::*;
 
 const CHUNK_SIZE: usize = 16384;
 
@@ -113,7 +115,7 @@ fn page_rank_iteration<NI: Idx>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use graph_core::{CsrLayout, GraphBuilder};
+    use crate::prelude::{CsrLayout, GraphBuilder};
 
     #[test]
     fn test_pr_two_components() {

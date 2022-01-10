@@ -15,6 +15,7 @@ license = "MIT"
 
 [dependencies]
 atomic_float = "0.1.0"
+float-ord = "0.3.2"
 graph_core = { path = "../core", version = "^0.1.0" }
 log = "0.4.14"
 num-format = "0.4.0"
