@@ -4,7 +4,7 @@ use float_ord::FloatOrd;
 use log::info;
 use rayon::prelude::*;
 
-use std::{cmp::Reverse, path::PathBuf, sync::atomic::Ordering, time::Instant};
+use std::{cmp::Reverse, path::Path, path::PathBuf, sync::atomic::Ordering, time::Instant};
 
 const INF: f32 = f32::MAX;
 
@@ -31,12 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             validate_result::<usize>(&path, start_node, delta)
         }
+    } else if use_32_bit {
+        run::<u32>(path, runs, start_node as u32, delta)
     } else {
-        if use_32_bit {
-            run::<u32>(path, runs, start_node as u32, delta)
-        } else {
-            run::<usize>(path, runs, start_node, delta)
-        }
+        run::<usize>(path, runs, start_node, delta)
     }
 }
 
@@ -60,7 +58,7 @@ fn run<NI: Idx>(
 }
 
 fn validate_result<NI: Idx>(
-    path: &PathBuf,
+    path: &Path,
     start_node: NI,
     delta: f32,
 ) -> Result<(), Box<dyn std::error::Error>> {

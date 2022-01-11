@@ -49,9 +49,7 @@ pub fn delta_stepping<NI: Idx>(
                     local_bins,
                     curr_bin,
                     graph,
-                    &frontier_idx,
-                    frontier_len,
-                    &frontier,
+                    (&frontier, &frontier_idx, frontier_len),
                     &distance,
                     delta,
                 )
@@ -85,9 +83,7 @@ fn process_shared_bin<'bins, NI: Idx>(
     bins: &'bins mut ThreadLocalBins<NI>,
     curr_bin: usize,
     graph: &DirectedCsrGraph<NI, (), f32>,
-    frontier_idx: &AtomicUsize,
-    frontier_len: usize,
-    frontier: &[NI],
+    (frontier, frontier_idx, frontier_len): (&[NI], &AtomicUsize, usize),
     distance: &[AtomicF32],
     delta: f32,
 ) -> &'bins mut ThreadLocalBins<NI> {
