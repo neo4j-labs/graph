@@ -1,6 +1,6 @@
+use graph::prelude::*;
+
 use byte_slice_cast::ToByteSlice;
-use graph_core::graph_ops::SerializeGraphOp;
-use graph_core::prelude::*;
 use log::info;
 
 use std::convert::TryFrom;
