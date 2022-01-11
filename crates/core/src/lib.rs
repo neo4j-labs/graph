@@ -156,12 +156,6 @@
 //! assert_eq!(graph.out_neighbors_with_values(1), &[Target::new(2, 0.25), Target::new(3, 1.0)]);
 //! assert_eq!(graph.in_neighbors_with_values(1), &[Target::new(0, 0.5)]);
 //! ```
-//!
-//! # Examples?
-//!
-//! Check the [TriangleCount](./examples/triangle_count.rs) and
-//! [PageRank](./examples/page_rank.rs) implementations  to see how the library
-//! is used to implement high-performant graph algorithms.
 
 pub mod builder;
 pub mod graph;
