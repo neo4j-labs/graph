@@ -46,7 +46,7 @@
 //! identifier, one can use the builder like so:
 //!
 //! ```
-//! use graph::prelude::*;
+//! use graph_core::prelude::*;
 //!
 //! let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
 //!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
@@ -66,7 +66,7 @@
 //! change the expected types:
 //!
 //! ```
-//! use graph::prelude::*;
+//! use graph_core::prelude::*;
 //!
 //! let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
 //!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
@@ -83,7 +83,7 @@
 //! Edges can have attached values to represent weighted graphs:
 //!
 //! ```
-//! use graph::prelude::*;
+//! use graph_core::prelude::*;
 //!
 //! let graph: UndirectedCsrGraph<u32, (), f32> = GraphBuilder::new()
 //!     .edges_with_values(vec![(0, 1, 0.5), (0, 2, 0.7), (1, 2, 0.25), (1, 3, 1.0), (2, 3, 0.33)])
@@ -104,7 +104,7 @@
 //! ```
 //! use std::path::PathBuf;
 //!
-//! use graph::prelude::*;
+//! use graph_core::prelude::*;
 //!
 //! let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.el"]
 //!     .iter()
@@ -134,7 +134,7 @@
 //! ```
 //! use std::path::PathBuf;
 //!
-//! use graph::prelude::*;
+//! use graph_core::prelude::*;
 //!
 //! let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.wel"]
 //!     .iter()
@@ -156,12 +156,6 @@
 //! assert_eq!(graph.out_neighbors_with_values(1), &[Target::new(2, 0.25), Target::new(3, 1.0)]);
 //! assert_eq!(graph.in_neighbors_with_values(1), &[Target::new(0, 0.5)]);
 //! ```
-//!
-//! # Examples?
-//!
-//! Check the [TriangleCount](./examples/triangle_count.rs) and
-//! [PageRank](./examples/page_rank.rs) implementations  to see how the library
-//! is used to implement high-performant graph algorithms.
 
 pub mod builder;
 pub mod graph;

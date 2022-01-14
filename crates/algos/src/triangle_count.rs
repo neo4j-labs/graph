@@ -1,63 +1,20 @@
+use crate::prelude::*;
+
 use log::info;
 use num_format::{Locale, ToFormattedString};
-use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 
-use graph::prelude::*;
+use std::sync::atomic::AtomicU64;
+use std::{sync::atomic::Ordering, time::Instant};
 
 const CHUNK_SIZE: usize = 64;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-    let cli::AppArgs {
-        path,
-        use_32_bit,
-        runs,
-        relabel,
-    } = cli::create()?;
-
-    info!(
-        "Reading graph ({} bit) from: {:?}",
-        if use_32_bit { "32" } else { "64" },
-        path
-    );
-
-    if use_32_bit {
-        run::<u32>(path, relabel, runs)
-    } else {
-        run::<usize>(path, relabel, runs)
-    }
-}
-
-fn run<NI: Idx>(
-    path: PathBuf,
-    relabel: bool,
-    runs: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut graph: UndirectedCsrGraph<NI> = GraphBuilder::new()
-        .csr_layout(CsrLayout::Deduplicated)
-        .file_format(EdgeListInput::default())
-        .path(path)
-        .build()
-        .unwrap();
-
-    if relabel {
-        relabel_graph(&mut graph);
-    }
-
-    for _ in 0..runs {
-        global_triangle_count(&graph);
-    }
-
-    Ok(())
-}
-
-fn relabel_graph<NI: Idx>(graph: &mut UndirectedCsrGraph<NI>) {
+pub fn relabel_graph<NI: Idx>(graph: &mut UndirectedCsrGraph<NI>) {
     let start = Instant::now();
     graph.to_degree_ordered();
     info!("Relabeled graph in {:?}", start.elapsed());
 }
 
-fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
+pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
     let start = Instant::now();
 
     let next_chunk = NI::zero().atomic();
@@ -117,42 +74,10 @@ fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
     tc
 }
 
-mod cli {
-    use pico_args::Arguments;
-    use std::{convert::Infallible, ffi::OsStr, path::PathBuf};
-
-    #[derive(Debug)]
-    pub(crate) struct AppArgs {
-        pub(crate) path: std::path::PathBuf,
-        pub(crate) runs: usize,
-        pub(crate) use_32_bit: bool,
-        pub(crate) relabel: bool,
-    }
-
-    pub(crate) fn create() -> Result<AppArgs, Box<dyn std::error::Error>> {
-        let mut pargs = Arguments::from_env();
-
-        fn as_path_buf(arg: &OsStr) -> Result<PathBuf, Infallible> {
-            Ok(arg.into())
-        }
-
-        let args = AppArgs {
-            path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
-            runs: pargs.opt_value_from_str(["-r", "--runs"])?.unwrap_or(1),
-            use_32_bit: pargs.contains("--use-32-bit"),
-            relabel: pargs.contains("--relabel"),
-        };
-
-        Ok(args)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CsrLayout;
-    use crate::GraphBuilder;
-    use crate::UndirectedCsrGraph;
+    use crate::prelude::{CsrLayout, GraphBuilder, UndirectedCsrGraph};
 
     #[test]
     fn test_tc_two_components() {
@@ -193,5 +118,3 @@ mod tests {
         assert_eq!(global_triangle_count(&graph), 2);
     }
 }
-
-use std::sync::atomic::AtomicU64;

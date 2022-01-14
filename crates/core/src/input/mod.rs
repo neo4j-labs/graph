@@ -36,7 +36,7 @@ pub trait ParseValue: Default + Sized {
     /// # Example
     ///
     /// ```
-    /// use graph::input::ParseValue;
+    /// use graph_core::input::ParseValue;
     ///
     /// let bytes = "13.37".as_bytes();
     ///

@@ -1,0 +1,44 @@
+[package]
+name = "graph_app"
+version = "0.1.0"
+authors = [
+    "Martin Junghanns <github@s1ck.dev>",
+    "Paul Horn <developer@knutwalker.de>",
+]
+description = "A binary to execute graph algorithms."
+keywords = ["graph", "algorithms", "parallel"]
+repository = "https://github.com/s1ck/graph"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+byte-slice-cast = "1.2.0"
+env_logger = "0.9.0"
+float-ord = "0.3.2"
+graph = { path = "../algos", version = "^0.1.0" }
+log = "0.4.14"
+pico-args = "0.4.2"
+rayon = "1.5.1"
+
+[[bin]]
+name = "page_rank"
+path = "src/page_rank.rs"
+
+[[bin]]
+name = "triangle_count"
+path = "src/triangle_count.rs"
+
+[[bin]]
+name = "sssp"
+path = "src/sssp.rs"
+
+[[bin]]
+name = "serialize"
+path = "src/serialize.rs"
+
+[[bin]]
+name = "loading"
+path = "src/loading.rs"

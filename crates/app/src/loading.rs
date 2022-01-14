@@ -1,6 +1,8 @@
-use byte_slice_cast::ToByteSlice;
 use graph::prelude::*;
+
+use byte_slice_cast::ToByteSlice;
 use log::info;
+
 use std::path::PathBuf;
 use std::time::Instant;
 
