@@ -1,4 +1,4 @@
-# graph_core
+# graph_builder
 
 A library that can be used as a building block for high-performant graph
 algorithms.
@@ -30,7 +30,7 @@ In an undirected graph there is no distinction between source and target
 node. A neighbor of node `u` is any node `v` for which either an edge `(u,
 v)` or `(v, u)` exists.
 
-## How to use graph?
+## How to build a graph
 
 The library provides a builder that can be used to construct a graph from a
 given list of edges.
@@ -39,7 +39,7 @@ For example, to create a directed graph that uses `usize` as node
 identifier, one can use the builder like so:
 
 ```rust
-use graph_core::prelude::*;
+use graph_builder::prelude::*;
 
 let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
@@ -59,7 +59,7 @@ To build an undirected graph using `u32` as node identifer, we only need to
 change the expected types:
 
 ```rust
-use graph_core::prelude::*;
+use graph_builder::prelude::*;
 
 let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
@@ -76,7 +76,7 @@ assert_eq!(graph.neighbors(1), &[0, 2, 3]);
 Edges can have attached values to represent weighted graphs:
 
 ```rust
-use graph_core::prelude::*;
+use graph_builder::prelude::*;
 
 let graph: UndirectedCsrGraph<u32, (), f32> = GraphBuilder::new()
     .edges_with_values(vec![(0, 1, 0.5), (0, 2, 0.7), (1, 2, 0.25), (1, 3, 1.0), (2, 3, 0.33)])
@@ -97,7 +97,7 @@ each line of a file contains an edge of the graph.
 ```rust
 use std::path::PathBuf;
 
-use graph_core::prelude::*;
+use graph_builder::prelude::*;
 
 let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.el"]
     .iter()
@@ -127,7 +127,7 @@ value type needs to implement [`crate::input::ParseValue`].
 ```rust
 use std::path::PathBuf;
 
-use graph_core::prelude::*;
+use graph_builder::prelude::*;
 
 let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.wel"]
     .iter()

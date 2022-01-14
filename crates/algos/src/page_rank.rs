@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use atomic_float::AtomicF64;
-use graph_core::SharedMut;
+use graph_builder::SharedMut;
 use log::info;
 use rayon::prelude::*;
 

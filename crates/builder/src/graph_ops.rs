@@ -62,7 +62,7 @@ pub trait ForEachNodeParallelOp<NI: Idx> {
     /// # Example
     ///
     /// ```
-    /// # use graph_core::prelude::*;
+    /// # use graph_builder::prelude::*;
     /// # use std::ops::Range;
     /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (0, 2), (1, 2)])
@@ -103,7 +103,7 @@ pub trait ForEachNodeParallelByPartitionOp<NI: Idx> {
     /// # Example
     ///
     /// ```
-    /// # use graph_core::prelude::*;
+    /// # use graph_builder::prelude::*;
     /// # use std::ops::Range;
     /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (0, 2), (1, 2)])
@@ -144,7 +144,7 @@ pub trait RelabelByDegreeOp<N, EV> {
     /// # Example
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let mut graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (1, 2), (1, 3), (3, 0)])
@@ -281,7 +281,7 @@ where
     /// # Example
     ///
     /// ```
-    /// # use graph_core::prelude::*;
+    /// # use graph_builder::prelude::*;
     /// # use std::ops::Range;
     /// let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (0, 2), (0, 3), (0, 3)])
@@ -318,7 +318,7 @@ where
     /// # Example
     ///
     /// ```
-    /// # use graph_core::prelude::*;
+    /// # use graph_builder::prelude::*;
     /// # use std::ops::Range;
     /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (0, 2), (2, 1), (2, 3)])
@@ -355,7 +355,7 @@ where
     /// # Example
     ///
     /// ```
-    /// # use graph_core::prelude::*;
+    /// # use graph_builder::prelude::*;
     /// # use std::ops::Range;
     /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
     ///     .edges(vec![(1, 0), (1, 2), (2, 0), (3, 2)])

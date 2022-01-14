@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
-use graph_core::prelude::{Direction, EdgeList};
+use graph_builder::prelude::*;
 
 mod common;
 

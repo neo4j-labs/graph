@@ -1,4 +1,4 @@
-use graph_core::prelude::Idx;
+use graph_builder::prelude::Idx;
 use rand::prelude::*;
 
 pub fn uniform_edge_list<NI, EV, F>(

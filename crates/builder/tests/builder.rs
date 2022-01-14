@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use graph_core::prelude::*;
+use graph_builder::prelude::*;
 
 #[test]
 fn should_compile_test() {

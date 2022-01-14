@@ -100,7 +100,7 @@ where
 /// Create a directed graph from a vec of edges:
 ///
 /// ```
-/// use graph_core::prelude::*;
+/// use graph_builder::prelude::*;
 ///
 /// let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
 ///     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
@@ -112,7 +112,7 @@ where
 /// Create an undirected graph from a vec of edges:
 ///
 /// ```
-/// use graph_core::prelude::*;
+/// use graph_builder::prelude::*;
 ///
 /// let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
 ///     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
@@ -147,7 +147,7 @@ impl GraphBuilder<Uninitialized> {
     /// Store the neighbors sorted:
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
     ///     .csr_layout(CsrLayout::Sorted)
@@ -160,7 +160,7 @@ impl GraphBuilder<Uninitialized> {
     /// Store the neighbors sorted and deduplicated:
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
     ///     .csr_layout(CsrLayout::Deduplicated)
@@ -180,7 +180,7 @@ impl GraphBuilder<Uninitialized> {
     /// # Example
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
     ///     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
@@ -208,7 +208,7 @@ impl GraphBuilder<Uninitialized> {
     /// # Example
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
     ///     .edges_with_values(vec![(0, 1, 0.1), (0, 2, 0.2), (1, 2, 0.3), (1, 3, 0.4), (2, 3, 0.5)])
@@ -245,7 +245,7 @@ impl GraphBuilder<Uninitialized> {
     /// # Example
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let g: UndirectedCsrGraph<usize> = GraphBuilder::new()
     ///     .gdl_str::<usize, _>("(a)-->(),(a)-->()")
@@ -261,7 +261,7 @@ impl GraphBuilder<Uninitialized> {
     /// The property key is not relevant.
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let g: UndirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
     ///     .gdl_str::<usize, _>("(a)-[{f: 0.42}]->(),(a)-[{f: 13.37}]->()")
@@ -299,7 +299,7 @@ impl GraphBuilder<Uninitialized> {
     /// # Example
     ///
     /// ```
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let gdl_graph = "(a)-->(),(a)-->()".parse::<::gdl::Graph>().unwrap();
     ///
@@ -339,7 +339,7 @@ impl GraphBuilder<Uninitialized> {
     /// ```
     /// use std::path::PathBuf;
     ///
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.el"]
     ///     .iter()
@@ -360,7 +360,7 @@ impl GraphBuilder<Uninitialized> {
     /// ```
     /// use std::path::PathBuf;
     ///
-    /// use graph_core::prelude::*;
+    /// use graph_builder::prelude::*;
     ///
     /// let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.graph"]
     ///     .iter()

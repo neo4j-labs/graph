@@ -1,12 +1,12 @@
 [package]
-name = "graph_core"
+name = "graph_builder"
 version = "0.1.12"
 authors = [
     "Martin Junghanns <github@s1ck.dev>",
     "Paul Horn <developer@knutwalker.de>",
 ]
 description = "A building block for high-performant graph algorithms."
-keywords = ["graph", "csr", "algorithms"]
+keywords = ["graph", "builder", "csr", "algorithms"]
 repository = "https://github.com/s1ck/graph"
 edition = "2021"
 license = "MIT"
