@@ -1,7 +1,7 @@
 # graph
 
 A library that provides a collection of high-performant graph algorithms.
-This crate builds on top of the [graph_builder](https://docs.rs/graph/latest/graph_builder/)
+This crate builds on top of the [graph_builder](https://docs.rs/graph_builder/latest/)
 crate, which can be used as a building block for custom graph algorithms.
 
 `graph_builder` provides implementations for directed and undirected graphs.
@@ -77,7 +77,7 @@ assert_eq!(graph.degree(1), 3);
 assert_eq!(graph.neighbors(1), &[0, 2, 3]);
 ```
 
-Check out the [graph_builder](https://docs.rs/graph/latest/graph_builder/) crate for
+Check out the [graph_builder](https://docs.rs/graph_builder/latest/) crate for
 for more examples on how to build graphs from various input formats.
 
 ## How to run algorithms
