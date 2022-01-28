@@ -158,7 +158,7 @@ fn walk_one_step<NI: Idx>(
 }
 
 fn is_neighbour<NI: Idx>(graph: &DirectedCsrGraph<NI>, node1: &NI, node2: &NI) -> bool {
-    graph.out_neighbors(*node1).contains(node2)
+    graph.out_neighbors(*node1).binary_search(node2).is_ok()
 }
 
 #[cfg(test)]
