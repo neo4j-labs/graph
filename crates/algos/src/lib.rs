@@ -144,6 +144,7 @@ pub mod afforest;
 pub mod dss;
 pub mod page_rank;
 pub mod prelude;
+pub mod random_walk;
 pub mod sssp;
 pub mod triangle_count;
 pub mod utils;
