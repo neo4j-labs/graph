@@ -5,12 +5,15 @@ use std::sync::{Arc, Mutex};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::IpcWriteOptions;
 use arrow::record_batch::RecordBatch;
+use arrow_flight::utils::flight_data_from_arrow_batch;
 use arrow_flight::SchemaAsIpc;
 use graph::prelude::*;
+use itertools::Itertools;
 
 use serde::{Deserialize, Serialize};
 
 use futures::Stream;
+use futures::StreamExt;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status, Streaming};
 
@@ -20,52 +23,33 @@ use arrow_flight::{
     HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 
-// #[derive(Clone)]
 pub struct FlightServiceImpl {
-    catalog: Mutex<HashMap<String, DirectedCsrGraph<usize>>>,
-    node_properties: Mutex<HashMap<PropertyId, Vec<f32>>>,
-}
-
-#[derive(Hash, Eq, PartialEq, Serialize, Deserialize, Debug, Clone)]
-struct PropertyId {
-    graph_name: String,
-    property_key: String,
-}
-
-impl PropertyId {
-    fn new(graph_name: String, property_key: String) -> Self {
-        Self {
-            graph_name,
-            property_key,
-        }
-    }
+    // Stores created graphs
+    catalog: Arc<Mutex<HashMap<String, DirectedCsrGraph<usize>>>>,
+    // Stores algorithm resuts
+    node_properties: Arc<Mutex<HashMap<PropertyId, Vec<f32>>>>,
 }
 
 impl FlightServiceImpl {
     pub fn new() -> Self {
         Self {
-            catalog: Mutex::new(HashMap::new()),
-            node_properties: Mutex::new(HashMap::new()),
+            catalog: Arc::new(Mutex::new(HashMap::new())),
+            node_properties: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
 
+type BoxedFlightStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + Sync + 'static>>;
+
 #[tonic::async_trait]
 impl FlightService for FlightServiceImpl {
-    type HandshakeStream =
-        Pin<Box<dyn Stream<Item = Result<HandshakeResponse, Status>> + Send + Sync + 'static>>;
-    type ListFlightsStream =
-        Pin<Box<dyn Stream<Item = Result<FlightInfo, Status>> + Send + Sync + 'static>>;
-    type DoGetStream =
-        Pin<Box<dyn Stream<Item = Result<FlightData, Status>> + Send + Sync + 'static>>;
-    type DoPutStream =
-        Pin<Box<dyn Stream<Item = Result<PutResult, Status>> + Send + Sync + 'static>>;
-    type DoActionStream =
-        Pin<Box<dyn Stream<Item = Result<arrow_flight::Result, Status>> + Send + Sync + 'static>>;
-    type ListActionsStream =
-        Pin<Box<dyn Stream<Item = Result<ActionType, Status>> + Send + Sync + 'static>>;
-    type DoExchangeStream =
-        Pin<Box<dyn Stream<Item = Result<FlightData, Status>> + Send + Sync + 'static>>;
+    type DoActionStream = BoxedFlightStream<arrow_flight::Result>;
+    type DoExchangeStream = BoxedFlightStream<FlightData>;
+    type DoGetStream = BoxedFlightStream<FlightData>;
+    type DoPutStream = BoxedFlightStream<PutResult>;
+    type HandshakeStream = BoxedFlightStream<HandshakeResponse>;
+    type ListActionsStream = BoxedFlightStream<ActionType>;
+    type ListFlightsStream = BoxedFlightStream<FlightInfo>;
 
     async fn handshake(
         &self,
@@ -99,32 +83,41 @@ impl FlightService for FlightServiceImpl {
         &self,
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, Status> {
-        let ticket = request.into_inner();
-        let property_id = serde_json::from_slice::<PropertyId>(ticket.ticket.as_slice()).unwrap();
+        let property_id = request.into_inner().try_into()?;
 
-        println!("{property_id:?}");
+        let ipc_write_options = IpcWriteOptions::default();
 
         let mut properties = self.node_properties.lock().unwrap();
         let data = properties.remove(&property_id).unwrap();
-        let data = arrow::array::Float32Array::from(data);
 
         let field = Field::new("page_rank", DataType::Float32, false);
         let schema = Schema::new(vec![field]);
         let schema = Arc::new(schema);
-        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(data)]).unwrap();
 
-        let (_, flight_data) =
-            arrow_flight::utils::flight_data_from_arrow_batch(&batch, &IpcWriteOptions::default());
+        let batches = data
+            .into_iter()
+            .chunks(10_000)
+            .into_iter()
+            .map(|chunk| {
+                let chunk = chunk.collect::<Vec<_>>();
+                let chunk = arrow::array::Float32Array::from(chunk);
+                let batch =
+                    RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(chunk)]).unwrap();
+                let (_, flight_data) = flight_data_from_arrow_batch(&batch, &ipc_write_options);
+                flight_data
+            })
+            .map(Ok)
+            .collect::<Vec<_>>();
 
-        let schema_ipc = SchemaAsIpc {
-            pair: (&schema, &IpcWriteOptions::default()),
-        };
-
+        let schema_ipc = SchemaAsIpc::new(&schema, &ipc_write_options);
         let schema_flight_data = FlightData::from(schema_ipc);
 
-        let s = futures::stream::iter(vec![Ok(schema_flight_data), Ok(flight_data)]);
+        let schema_stream = futures::stream::once(async move { Ok(schema_flight_data) });
+        let batches_stream = futures::stream::iter(batches);
 
-        Ok(Response::new(Box::pin(s)))
+        let result = schema_stream.chain(batches_stream);
+
+        Ok(Response::new(Box::pin(result)))
     }
 
     async fn do_put(
@@ -138,34 +131,34 @@ impl FlightService for FlightServiceImpl {
         &self,
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
-        let action = request.get_ref();
+        let action = request.into_inner();
 
         match action.r#type.as_ref() {
             "create" => {
-                let CreateAction { graph_name, path } =
-                    serde_json::from_slice::<CreateAction>(action.body.as_slice()).unwrap();
+                let CreateAction { graph_name, path } = action.try_into()?;
 
-                let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
-                    .csr_layout(CsrLayout::Sorted)
-                    .file_format(EdgeListInput::default())
-                    .path(path)
-                    .build()
-                    .unwrap();
-
-                let node_count = graph.node_count();
-                let edge_count = graph.edge_count();
-
-                self.catalog.lock().unwrap().insert(graph_name, graph);
+                let graph = tokio::task::spawn_blocking(move || {
+                    GraphBuilder::new()
+                        .csr_layout(CsrLayout::Sorted)
+                        .file_format(EdgeListInput::default())
+                        .path(path)
+                        .build::<DirectedCsrGraph<usize>>()
+                        .unwrap()
+                })
+                .await
+                .unwrap();
 
                 let result = CreateActionResult {
-                    node_count,
-                    edge_count,
+                    node_count: graph.node_count(),
+                    edge_count: graph.edge_count(),
                 };
+                self.catalog.lock().unwrap().insert(graph_name, graph);
 
-                let result = serde_json::to_vec(&result).unwrap();
+                let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+                let result = arrow_flight::Result { body: result };
 
                 Ok(Response::new(Box::pin(futures::stream::once(async {
-                    Ok(arrow_flight::Result { body: result })
+                    Ok(result)
                 }))))
             }
             "algo" => {
@@ -173,33 +166,40 @@ impl FlightService for FlightServiceImpl {
                     graph_name,
                     algo_name,
                     mutate_property,
-                } = serde_json::from_slice::<AlgorithmAction>(action.body.as_slice()).unwrap();
+                } = action.try_into()?;
 
-                let catalog = self.catalog.lock().unwrap();
-
-                let graph = catalog.get(graph_name.as_str()).unwrap();
+                let catalog = self.catalog.clone();
 
                 match algo_name {
                     Algo::PageRank => {
-                        let (ranks, iterations, error) =
-                            graph::page_rank::page_rank(graph, 20, 1E-4);
-                        let property_id = PropertyId::new(graph_name.clone(), mutate_property);
+                        let catalog_key = graph_name.clone();
+
+                        let (ranks, iterations, error) = tokio::task::spawn_blocking(move || {
+                            let catalog = catalog.lock().unwrap();
+                            let graph = catalog.get(catalog_key.as_str()).unwrap();
+                            graph::page_rank::page_rank(graph, 20, 1E-4)
+                        })
+                        .await
+                        .unwrap();
+
+                        let property_id = PropertyId::new(graph_name, mutate_property);
 
                         self.node_properties
                             .lock()
                             .unwrap()
                             .insert(property_id.clone(), ranks);
 
-                        let mut result = HashMap::new();
-                        result.insert(String::from("iterations"), Value::Integer(iterations));
-                        result.insert(String::from("error"), Value::Float(error));
+                        let result = HashMap::from([
+                            ("iterations".to_string(), Value::Integer(iterations)),
+                            ("error".to_string(), Value::Float(error)),
+                        ]);
 
                         let result = AlgorithmActionResult {
                             property_id,
                             result,
                         };
 
-                        let result = serde_json::to_vec(&result).unwrap();
+                        let result = serde_json::to_vec(&result).map_err(from_json_error)?;
 
                         Ok(Response::new(Box::pin(futures::stream::once(async {
                             Ok(arrow_flight::Result { body: result })
@@ -233,10 +233,41 @@ impl FlightService for FlightServiceImpl {
     }
 }
 
+#[derive(Hash, Eq, PartialEq, Serialize, Deserialize, Debug, Clone)]
+struct PropertyId {
+    graph_name: String,
+    property_key: String,
+}
+
+impl PropertyId {
+    fn new(graph_name: String, property_key: String) -> Self {
+        Self {
+            graph_name,
+            property_key,
+        }
+    }
+}
+
+impl TryFrom<Ticket> for PropertyId {
+    type Error = Status;
+
+    fn try_from(ticket: Ticket) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<PropertyId>(ticket.ticket.as_slice()).map_err(from_json_error)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct CreateAction {
     graph_name: String,
     path: String,
+}
+
+impl TryFrom<Action> for CreateAction {
+    type Error = Status;
+
+    fn try_from(action: Action) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<CreateAction>(action.body.as_slice()).map_err(from_json_error)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -257,6 +288,14 @@ struct AlgorithmAction {
     mutate_property: String,
 }
 
+impl TryFrom<Action> for AlgorithmAction {
+    type Error = Status;
+
+    fn try_from(action: Action) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<AlgorithmAction>(action.body.as_slice()).map_err(from_json_error)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct AlgorithmActionResult {
     property_id: PropertyId,
@@ -269,6 +308,10 @@ enum Value {
     Integer(usize),
     Boolean(bool),
     String(String),
+}
+
+fn from_json_error(error: serde_json::Error) -> Status {
+    Status::internal(format!("JsonError: {error:?}"))
 }
 
 #[tokio::main]
