@@ -79,7 +79,7 @@ impl FlightService for FlightServiceImpl {
             .map(Ok)
             .collect::<Vec<_>>();
 
-        let schema_ipc = SchemaAsIpc::new(&schema, &ipc_write_options);
+        let schema_ipc = SchemaAsIpc::new(schema, &ipc_write_options);
         let schema_flight_data = FlightData::from(schema_ipc);
 
         let schema_stream = futures::stream::once(async move { Ok(schema_flight_data) });
