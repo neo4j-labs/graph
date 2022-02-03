@@ -50,8 +50,10 @@ fn run<NI: Idx>(
         .path(path)
         .build()?;
 
+    let config = DeltaSteppingConfig::new(start_node, delta);
+
     for _ in 0..runs {
-        delta_stepping(&graph, start_node, delta);
+        delta_stepping(&graph, config);
     }
 
     Ok(())
@@ -68,7 +70,9 @@ fn validate_result<NI: Idx>(
         .path(path)
         .build()?;
 
-    let par_result = delta_stepping(&graph, start_node, delta);
+    let config = DeltaSteppingConfig::new(start_node, delta);
+
+    let par_result = delta_stepping(&graph, config);
 
     let reached_nodes: usize = par_result
         .par_iter()
