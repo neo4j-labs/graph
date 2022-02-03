@@ -15,12 +15,29 @@ const BIN_SIZE_THRESHOLD: usize = 1000;
 
 const BATCH_SIZE: usize = 64;
 
+#[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct DeltaSteppingConfig<NI> {
+    // The node for which to compute distances to all reachable nodes.
+    pub start_node: NI,
+    // Defines the "bucket width". A bucket maintains nodes with the
+    // same tentative distance to the start node.
+    pub delta: f32,
+}
+
+impl<NI: Idx> DeltaSteppingConfig<NI> {
+    pub fn new(start_node: NI, delta: f32) -> Self {
+        Self { start_node, delta }
+    }
+}
+
 pub fn delta_stepping<NI: Idx>(
     graph: &DirectedCsrGraph<NI, (), f32>,
-    start_node: NI,
-    delta: f32,
+    config: DeltaSteppingConfig<NI>,
 ) -> Vec<AtomicF32> {
     let start = Instant::now();
+
+    let DeltaSteppingConfig { start_node, delta } = config;
 
     let node_count = graph.node_count().index();
     let thread_count = rayon::current_num_threads();
@@ -268,7 +285,9 @@ mod tests {
             .build()
             .unwrap();
 
-        let actual: Vec<f32> = delta_stepping(&graph, 0, 3.0)
+        let config = DeltaSteppingConfig::new(0, 3.0);
+
+        let actual: Vec<f32> = delta_stepping(&graph, config)
             .into_iter()
             .map(|d| d.load(Ordering::Relaxed))
             .collect();

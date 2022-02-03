@@ -10,12 +10,50 @@ use std::time::Instant;
 
 const CHUNK_SIZE: usize = 16384;
 
+#[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct PageRankConfig {
+    // The maximum number of page rank iterations.
+    pub max_iterations: usize,
+    // If the sum of page rank deltas per iteration is
+    // below the tolerance value, the computation stop.
+    pub tolerance: f64,
+    // Imagining a random surfer clicking links, the
+    // damping factor defines the probability if the
+    // surfer will continue at any step.
+    pub damping_factor: f32,
+}
+
+impl Default for PageRankConfig {
+    fn default() -> Self {
+        Self {
+            max_iterations: 20,
+            tolerance: 1E-4,
+            damping_factor: 0.85,
+        }
+    }
+}
+
+impl PageRankConfig {
+    pub fn new(max_iterations: usize, tolerance: f64, damping_factor: f32) -> Self {
+        Self {
+            max_iterations,
+            tolerance,
+            damping_factor,
+        }
+    }
+}
+
 pub fn page_rank<NI: Idx>(
     graph: &DirectedCsrGraph<NI>,
-    max_iterations: usize,
-    tolerance: f64,
+    config: PageRankConfig,
 ) -> (Vec<f32>, usize, f64) {
-    let damping_factor = 0.85_f32;
+    let PageRankConfig {
+        max_iterations,
+        tolerance,
+        damping_factor,
+    } = config;
+
     let node_count = graph.node_count().index();
     let init_score = 1_f32 / node_count as f32;
     let base_score = (1.0_f32 - damping_factor) / node_count as f32;
@@ -127,7 +165,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let actual = page_rank(&graph, 20, 1E-4)
+        let actual = page_rank(&graph, PageRankConfig::default())
             .0
             .into_iter()
             .collect::<Vec<_>>();
