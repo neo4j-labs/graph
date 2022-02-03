@@ -163,7 +163,7 @@ impl FlightService for FlightServiceImpl {
                         let (ranks, iterations, error) = tokio::task::spawn_blocking(move || {
                             let catalog = catalog.lock().unwrap();
                             let graph = catalog.get(catalog_key.as_str()).unwrap();
-                            graph::page_rank::page_rank(graph, 20, 1E-4)
+                            graph::page_rank::page_rank(graph, PageRankConfig::default())
                         })
                         .await
                         .unwrap();
