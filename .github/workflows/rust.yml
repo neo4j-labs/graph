@@ -23,11 +23,16 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --features gdl
+          args: --no-default-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all-features
 
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    needs: check
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -38,7 +43,11 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --features gdl
+          args: --no-default-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -47,6 +56,7 @@ jobs:
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
+    needs: check
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -63,6 +73,7 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    needs: check
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -74,4 +85,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --features gdl -- -D warnings
+          args: --all-features -- -D warnings
