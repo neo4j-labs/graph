@@ -116,7 +116,7 @@ let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
     ])
     .build();
 
-let (ranks, iterations, _) = page_rank(&graph, 10, 1E-4);
+let (ranks, iterations, _) = page_rank(&graph, PageRankConfig::new(10, 1E-4, 0.85));
 
 assert_eq!(iterations, 10);
 

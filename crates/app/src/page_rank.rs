@@ -89,6 +89,8 @@ where
     Error: From<<Format::GraphInput as TryFrom<InputPath<Path>>>::Error>,
     Error: From<<DirectedCsrGraph<NI> as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
 {
+    let config = PageRankConfig::new(max_iterations, tolerance, 0.85);
+
     let graph: DirectedCsrGraph<NI> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(file_format)
@@ -97,7 +99,7 @@ where
 
     for run in 1..=runs {
         let start = Instant::now();
-        let (_, ran_iterations, error) = page_rank(&graph, max_iterations, tolerance);
+        let (_, ran_iterations, error) = page_rank(&graph, config);
         info!(
             "Run {} of {} finished in {:.6?} (ran_iterations = {}, error = {:.6})",
             run,
