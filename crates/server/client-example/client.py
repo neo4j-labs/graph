@@ -16,21 +16,28 @@ create_action = {
 }
 
 result = client.do_action(flight.Action("create", json.dumps(create_action).encode('utf-8')))
-obj = next(result).body.to_pybytes().decode()
-print("graph create result = " + str(obj))
+obj = json.loads(next(result).body.to_pybytes().decode())
+print("graph create result")
+print(json.dumps(obj, indent = 4))
 
-algo_action = {
+compute_action = {
     "graph_name": graph_name,
-    "algo_name": "PageRank",
+    "algorithm": {
+        "PageRank": {
+            "max_iterations": 20,
+            "tolerance": 0.0001,
+            "damping_factor": 0.85,
+        }
+    },
     "property_key": "page_rank"
 }
 
-result = client.do_action(flight.Action("algo", json.dumps(algo_action).encode('utf-8')))
-obj = next(result).body.to_pybytes().decode()
-print("page rank result = " + str(obj))
+result = client.do_action(flight.Action("compute", json.dumps(compute_action).encode('utf-8')))
+obj = json.loads(next(result).body.to_pybytes().decode())
+print("page rank result")
+print(json.dumps(obj, indent = 4))
 
-json_obj = json.loads(obj)
-ticket = json_obj['property_id']
+ticket = obj['property_id']
 
 reader = client.do_get(flight.Ticket(json.dumps(ticket).encode('utf-8')))
 scores = reader.read_all().to_pandas()

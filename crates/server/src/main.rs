@@ -147,23 +147,23 @@ impl FlightService for FlightServiceImpl {
                     Ok(result)
                 }))))
             }
-            GraphAction::Algo(config) => {
-                let AlgoConfig {
+            GraphAction::Compute(config) => {
+                let ComputeConfig {
                     graph_name,
-                    algo_name,
+                    algorithm: algo_name,
                     property_key: mutate_property,
                 } = config;
 
                 let catalog = self.graph_catalog.clone();
 
                 match algo_name {
-                    Algo::PageRank => {
+                    Algorithm::PageRank(config) => {
                         let catalog_key = graph_name.clone();
 
                         let (ranks, iterations, error) = tokio::task::spawn_blocking(move || {
                             let catalog = catalog.lock().unwrap();
                             let graph = catalog.get(catalog_key.as_str()).unwrap();
-                            graph::page_rank::page_rank(graph, PageRankConfig::default())
+                            graph::page_rank::page_rank(graph, config)
                         })
                         .await
                         .unwrap();
@@ -288,7 +288,7 @@ impl TryFrom<Ticket> for PropertyId {
 
 enum GraphAction {
     Create(CreateConfig),
-    Algo(AlgoConfig),
+    Compute(ComputeConfig),
 }
 
 impl TryFrom<Action> for GraphAction {
@@ -301,9 +301,9 @@ impl TryFrom<Action> for GraphAction {
                 let create_action = action.try_into()?;
                 Ok(GraphAction::Create(create_action))
             }
-            "algo" => {
-                let algo_action = action.try_into()?;
-                Ok(GraphAction::Algo(algo_action))
+            "compute" => {
+                let compute_action = action.try_into()?;
+                Ok(GraphAction::Compute(compute_action))
             }
             _ => Err(Status::invalid_argument(format!(
                 "Unknown action type: {action_type}"
@@ -340,22 +340,22 @@ struct CreateActionResult {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-enum Algo {
-    PageRank,
+enum Algorithm {
+    PageRank(PageRankConfig),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct AlgoConfig {
+struct ComputeConfig {
     graph_name: String,
-    algo_name: Algo,
+    algorithm: Algorithm,
     property_key: String,
 }
 
-impl TryFrom<Action> for AlgoConfig {
+impl TryFrom<Action> for ComputeConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<AlgoConfig>(action.body.as_slice()).map_err(from_json_error)
+        serde_json::from_slice::<ComputeConfig>(action.body.as_slice()).map_err(from_json_error)
     }
 }
 
