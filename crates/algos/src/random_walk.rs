@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use rand::prelude::*;
 use rayon::prelude::*;
 
@@ -10,27 +8,22 @@ pub struct RandomWalkConfig {
     walks_per_node: u32,
     walk_length: u32,
     normalized_return_probability: f32,
-    normalized_same_distance_prob: f32,
+    normalized_same_distance_probability: f32,
     normalized_in_out_probability: f32,
 }
 
 impl RandomWalkConfig {
-    fn new(
-        walks_per_node: u32,
-        walk_length: u32,
-        in_out_factor: f32,
-        return_factor: f32,
-    ) -> RandomWalkConfig {
+    fn new(walks_per_node: u32, walk_length: u32, in_out_factor: f32, return_factor: f32) -> Self {
         let max_probability = f32::max(f32::max(1.0 / return_factor, 1.0), 1.0 / in_out_factor);
         let normalized_return_probability = (1.0 / return_factor) / max_probability;
         let normalized_same_distance_probability = 1.0 / max_probability;
         let normalized_in_out_probability = (1.0 / in_out_factor) / max_probability;
 
-        RandomWalkConfig {
+        Self {
             walks_per_node,
             walk_length,
             normalized_return_probability,
-            normalized_same_distance_prob: normalized_same_distance_probability,
+            normalized_same_distance_probability,
             normalized_in_out_probability,
         }
     }
@@ -38,19 +31,17 @@ impl RandomWalkConfig {
 
 impl Default for RandomWalkConfig {
     fn default() -> Self {
-        RandomWalkConfig::new(10, 80, 1.0, 1.0)
+        Self::new(10, 80, 1.0, 1.0)
     }
 }
 
-pub fn second_order_random_walk<NI: Idx>(
-    graph: &DirectedCsrGraph<NI>,
-    config: &RandomWalkConfig,
-) -> Vec<Vec<NI>> {
-    let start = Instant::now();
-
+pub fn second_order_random_walk<'graph, NI: Idx>(
+    graph: &'graph DirectedCsrGraph<NI>,
+    config: &'graph RandomWalkConfig,
+) -> impl rayon::iter::ParallelIterator<Item = Vec<NI>> + 'graph {
     let node_count = graph.node_count().index();
 
-    let walks = (0..node_count)
+    (0..node_count)
         .into_par_iter()
         .filter_map(|node| {
             let id = NI::new(node);
@@ -61,11 +52,6 @@ pub fn second_order_random_walk<NI: Idx>(
             }
         })
         .flat_map_iter(|node| random_walks_for_node(&node, graph, config))
-        .collect();
-
-    println!("Computed {:?} random walks in {:?}", walks, start.elapsed());
-
-    walks
 }
 
 fn random_walks_for_node<NI: Idx>(
@@ -141,7 +127,7 @@ fn walk_one_step<NI: Idx>(
                         return Some(new_node);
                     }
                 } else if is_neighbour(graph, prev_node, &new_node) {
-                    if r < config.normalized_same_distance_prob {
+                    if r < config.normalized_same_distance_probability {
                         return Some(new_node);
                     }
                 } else if r < config.normalized_in_out_probability {
