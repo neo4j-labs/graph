@@ -3,7 +3,8 @@ use rayon::prelude::*;
 
 use crate::prelude::*;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RandomWalkConfig {
     walks_per_node: u32,
     walk_length: u32,
@@ -35,10 +36,10 @@ impl Default for RandomWalkConfig {
     }
 }
 
-pub fn second_order_random_walk<'graph, NI: Idx>(
+pub fn random_walks<'graph, NI: Idx>(
     graph: &'graph DirectedCsrGraph<NI>,
     config: &'graph RandomWalkConfig,
-) -> impl rayon::iter::ParallelIterator<Item = Vec<NI>> + 'graph {
+) -> impl ParallelIterator<Item = Vec<NI>> + 'graph {
     let node_count = graph.node_count().index();
 
     (0..node_count)
@@ -163,7 +164,7 @@ mod tests {
             .build()
             .unwrap();
 
-        second_order_random_walk(&graph, &RandomWalkConfig::default());
+        random_walks(&graph, &RandomWalkConfig::default());
     }
     //
     // #[test]
