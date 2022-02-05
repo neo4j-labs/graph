@@ -2,11 +2,13 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
+use arrow::datatypes::Int64Type;
 use arrow::{
     datatypes::{DataType, Field, Schema},
     ipc::writer::IpcWriteOptions,
     record_batch::RecordBatch,
 };
+use arrow_flight::utils::flight_data_to_arrow_batch;
 use arrow_flight::{
     flight_service_server::FlightService, flight_service_server::FlightServiceServer,
     utils::flight_data_from_arrow_batch, Action, ActionType, Criteria, Empty, FlightData,
@@ -88,6 +90,77 @@ impl FlightService for FlightServiceImpl {
         Ok(Response::new(Box::pin(schema_stream.chain(batches_stream))))
     }
 
+    async fn do_put(
+        &self,
+        request: Request<Streaming<FlightData>>,
+    ) -> Result<Response<Self::DoPutStream>, Status> {
+        let mut request = request.into_inner();
+
+        let schema_flight_data = request.next().await.unwrap().unwrap();
+        let graph_name = if let Some(descriptor) = &schema_flight_data.flight_descriptor {
+            descriptor.path.iter().cloned().collect::<String>()
+        } else {
+            "unnamed".to_string()
+        };
+
+        let schema = Arc::new(Schema::try_from(&schema_flight_data).unwrap());
+        println!("Reading graph from schema = {schema:?}");
+
+        // all the remaining stream messages should be dictionary and record batches
+        let mut edge_list = vec![];
+        let dictionaries_by_field = vec![None; schema.fields().len()];
+        while let Some(flight_data) = request.message().await? {
+            let batch =
+                flight_data_to_arrow_batch(&flight_data, schema.clone(), &dictionaries_by_field)
+                    .unwrap();
+
+            let source_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(0));
+            let target_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(1));
+
+            let mut batch = source_ids
+                .iter()
+                .zip(target_ids.iter())
+                .map(|(s, t)| (s.unwrap() as usize, t.unwrap() as usize))
+                .collect::<Vec<_>>();
+
+            edge_list.append(&mut batch);
+        }
+
+        println!("edge_list.len() = {}", edge_list.len());
+
+        let graph: DirectedCsrGraph<usize> = tokio::task::spawn_blocking(move || {
+            GraphBuilder::new()
+                .csr_layout(CsrLayout::Sorted)
+                .edges(edge_list)
+                .build()
+        })
+        .await
+        .unwrap();
+
+        println!(
+            "graph_name = {}, node_count = {}, edge_count = {}",
+            graph_name,
+            graph.node_count(),
+            graph.edge_count()
+        );
+
+        let result = CreateActionResult {
+            node_count: graph.node_count(),
+            edge_count: graph.edge_count(),
+        };
+
+        self.graph_catalog.lock().unwrap().insert(graph_name, graph);
+
+        let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+        let result = arrow_flight::PutResult {
+            app_metadata: result,
+        };
+
+        Ok(Response::new(Box::pin(futures::stream::once(async {
+            Ok(result)
+        }))))
+    }
+
     // TODO: return more info about possible actions
     async fn list_actions(
         &self,
@@ -111,7 +184,7 @@ impl FlightService for FlightServiceImpl {
 
         match action {
             GraphAction::Create(config) => {
-                let CreateConfig {
+                let CreateFromFileConfig {
                     graph_name,
                     file_format,
                     path,
@@ -225,13 +298,6 @@ impl FlightService for FlightServiceImpl {
         Err(Status::unimplemented("Not yet implemented"))
     }
 
-    async fn do_put(
-        &self,
-        _request: Request<Streaming<FlightData>>,
-    ) -> Result<Response<Self::DoPutStream>, Status> {
-        Err(Status::unimplemented("Not yet implemented"))
-    }
-
     async fn do_exchange(
         &self,
         _request: Request<Streaming<FlightData>>,
@@ -287,7 +353,7 @@ impl TryFrom<Ticket> for PropertyId {
 }
 
 enum GraphAction {
-    Create(CreateConfig),
+    Create(CreateFromFileConfig),
     Compute(ComputeConfig),
 }
 
@@ -319,17 +385,18 @@ enum FileFormat {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct CreateConfig {
+struct CreateFromFileConfig {
     graph_name: String,
     file_format: FileFormat,
     path: String,
 }
 
-impl TryFrom<Action> for CreateConfig {
+impl TryFrom<Action> for CreateFromFileConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<CreateConfig>(action.body.as_slice()).map_err(from_json_error)
+        serde_json::from_slice::<CreateFromFileConfig>(action.body.as_slice())
+            .map_err(from_json_error)
     }
 }
 
