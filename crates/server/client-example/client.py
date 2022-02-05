@@ -12,7 +12,8 @@ graph_path = sys.argv[3]
 create_action = {
     "graph_name": graph_name,
     "file_format": file_format,
-    "path": graph_path
+    "path": graph_path,
+    "csr_layout": "Deduplicated"
 }
 
 result = client.do_action(flight.Action("create", json.dumps(create_action).encode('utf-8')))
