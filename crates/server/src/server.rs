@@ -1,9 +1,9 @@
 use crate::actions::*;
 use crate::catalog::*;
 
-use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use arrow::datatypes::Int64Type;
 use arrow::error::ArrowError;
@@ -233,10 +233,18 @@ impl FlightService for FlightServiceImpl {
                         );
                         let catalog_key = graph_name.clone();
 
-                        let (ranks, iterations, error) = tokio::task::spawn_blocking(move || {
+                        let (ranks, result) = tokio::task::spawn_blocking(move || {
                             let catalog = catalog.lock().unwrap();
                             if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
-                                Ok(graph::page_rank::page_rank(graph, config))
+                                let start = Instant::now();
+                                let (ranks, iterations, error) =
+                                    graph::page_rank::page_rank(graph, config);
+                                let result = PageRankResult {
+                                    iterations: iterations as u64,
+                                    error,
+                                    compute_millis: start.elapsed().as_millis(),
+                                };
+                                Ok((ranks, result))
                             } else {
                                 error!("Attempted running page rank on undirected graph");
                                 Err(Status::invalid_argument(
@@ -256,15 +264,37 @@ impl FlightService for FlightServiceImpl {
                             .unwrap()
                             .insert(property_id.clone(), record_batches);
 
-                        let result = HashMap::from([
-                            ("iterations".to_string(), Value::Integer(iterations)),
-                            ("error".to_string(), Value::Float(error)),
-                        ]);
+                        let result = MutateResult::new(property_id, result);
 
-                        let result = AlgorithmActionResult {
-                            property_id,
-                            result,
-                        };
+                        let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+
+                        Ok(Response::new(Box::pin(futures::stream::once(async {
+                            Ok(arrow_flight::Result { body: result })
+                        }))))
+                    }
+                    Algorithm::TriangleCount => {
+                        info!("Computing global triangle count on graph '{graph_name}'");
+                        let graph_name = graph_name.clone();
+
+                        let result = tokio::task::spawn_blocking(move || {
+                            let catalog = catalog.lock().unwrap();
+                            if let GraphType::Undirected(graph) = catalog.get(graph_name).unwrap() {
+                                let start = Instant::now();
+                                let tc = graph::triangle_count::global_triangle_count(graph);
+                                let res = TriangleCountResult {
+                                    triangle_count: tc,
+                                    compute_millis: start.elapsed().as_millis(),
+                                };
+                                Ok(res)
+                            } else {
+                                error!("Attempted running triangle count on directed graph");
+                                Err(Status::invalid_argument(
+                                    "Triangle count requires an undirected graph",
+                                ))
+                            }
+                        })
+                        .await
+                        .unwrap()?;
 
                         let result = serde_json::to_vec(&result).map_err(from_json_error)?;
 

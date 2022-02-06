@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use arrow_flight::{flight_descriptor::DescriptorType, Action, FlightDescriptor};
 use serde::{Deserialize, Serialize};
 use tonic::Status;
@@ -33,13 +31,13 @@ impl TryFrom<Action> for FlightAction {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub enum FileFormat {
     EdgeList,
     Graph500,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[serde(remote = "CsrLayout")]
 pub enum CsrLayoutRef {
     Sorted,
@@ -47,7 +45,7 @@ pub enum CsrLayoutRef {
     Deduplicated,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub enum Orientation {
     Directed,
     Undirected,
@@ -59,7 +57,7 @@ impl Default for Orientation {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct CreateGraphFromFileConfig {
     pub graph_name: String,
     pub file_format: FileFormat,
@@ -80,7 +78,7 @@ impl TryFrom<Action> for CreateGraphFromFileConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct CreateGraphCommand {
     pub graph_name: String,
     pub edge_count: i64,
@@ -110,7 +108,7 @@ impl TryFrom<FlightDescriptor> for CreateGraphCommand {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct CreateActionResult {
     pub node_count: usize,
     pub edge_count: usize,
@@ -119,6 +117,7 @@ pub struct CreateActionResult {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Algorithm {
     PageRank(PageRankConfig),
+    TriangleCount,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -136,18 +135,32 @@ impl TryFrom<Action> for ComputeConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AlgorithmActionResult {
-    pub property_id: PropertyId,
-    pub result: HashMap<String, Value>,
+#[derive(Serialize, Debug)]
+pub struct PageRankResult {
+    pub iterations: u64,
+    pub error: f64,
+    pub compute_millis: u128,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Value {
-    Float(f64),
-    Integer(usize),
-    Boolean(bool),
-    String(String),
+#[derive(Serialize, Debug)]
+pub struct TriangleCountResult {
+    pub triangle_count: u64,
+    pub compute_millis: u128,
+}
+
+#[derive(Serialize, Debug)]
+pub struct MutateResult<T> {
+    property_id: PropertyId,
+    algo_result: T,
+}
+
+impl<T> MutateResult<T> {
+    pub fn new(property_id: PropertyId, algo_result: T) -> Self {
+        Self {
+            property_id,
+            algo_result,
+        }
+    }
 }
 
 pub fn from_json_error(error: serde_json::Error) -> Status {
