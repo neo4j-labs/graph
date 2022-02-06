@@ -87,6 +87,8 @@ pub struct CreateGraphCommand {
     #[serde(with = "CsrLayoutRef")]
     #[serde(default)]
     pub csr_layout: CsrLayout,
+    #[serde(default)]
+    pub orientation: Orientation,
 }
 
 impl TryFrom<FlightDescriptor> for CreateGraphCommand {

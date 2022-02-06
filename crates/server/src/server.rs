@@ -15,7 +15,7 @@ use arrow_flight::{
     PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use futures::{Stream, StreamExt};
-use graph::prelude::*;
+use log::error;
 use log::info;
 use tonic::{Request, Response, Status, Streaming};
 
@@ -102,6 +102,7 @@ impl FlightService for FlightServiceImpl {
             graph_name,
             edge_count,
             csr_layout,
+            orientation,
         } = if let Some(descriptor) = schema_flight_data.flight_descriptor.take() {
             let command = descriptor.try_into();
             info!("Received PUT request with command: {command:?}");
@@ -135,11 +136,8 @@ impl FlightService for FlightServiceImpl {
             edge_list.append(&mut batch);
         }
 
-        let graph: DirectedCsrGraph<usize> = tokio::task::spawn_blocking(move || {
-            GraphBuilder::new()
-                .csr_layout(csr_layout)
-                .edges(edge_list)
-                .build()
+        let graph = tokio::task::spawn_blocking(move || {
+            GraphType::from_edge_list(edge_list, orientation, csr_layout)
         })
         .await
         .unwrap();
@@ -155,10 +153,7 @@ impl FlightService for FlightServiceImpl {
             edge_count: graph.edge_count(),
         };
 
-        self.graph_catalog
-            .lock()
-            .unwrap()
-            .insert(graph_name, GraphType::Directed(graph));
+        self.graph_catalog.lock().unwrap().insert(graph_name, graph);
 
         let result = serde_json::to_vec(&result).map_err(from_json_error)?;
         let result = arrow_flight::PutResult {
@@ -200,34 +195,20 @@ impl FlightService for FlightServiceImpl {
                     file_format,
                     path,
                     csr_layout,
-                    orientation: _,
+                    orientation,
                 } = config;
 
                 let graph = tokio::task::spawn_blocking(move || {
-                    let builder = GraphBuilder::new().csr_layout(csr_layout);
-                    match file_format {
-                        FileFormat::EdgeList => builder
-                            .file_format(EdgeListInput::default())
-                            .path(path)
-                            .build::<DirectedCsrGraph<usize>>(),
-                        FileFormat::Graph500 => builder
-                            .file_format(Graph500Input::default())
-                            .path(path)
-                            .build::<DirectedCsrGraph<usize>>(),
-                    }
-                    .unwrap()
+                    GraphType::from_file(path, file_format, orientation, csr_layout)
                 })
                 .await
-                .unwrap();
+                .unwrap()?;
 
                 let result = CreateActionResult {
                     node_count: graph.node_count(),
                     edge_count: graph.edge_count(),
                 };
-                self.graph_catalog
-                    .lock()
-                    .unwrap()
-                    .insert(graph_name, GraphType::Directed(graph));
+                self.graph_catalog.lock().unwrap().insert(graph_name, graph);
 
                 let result = serde_json::to_vec(&result).map_err(from_json_error)?;
                 let result = arrow_flight::Result { body: result };
@@ -257,6 +238,7 @@ impl FlightService for FlightServiceImpl {
                             if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
                                 Ok(graph::page_rank::page_rank(graph, config))
                             } else {
+                                error!("Attempted running page rank on undirected graph");
                                 Err(Status::invalid_argument(
                                     "Page Rank requires a directed graph",
                                 ))

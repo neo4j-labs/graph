@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use arrow::{
     datatypes::{DataType, Field, Schema},
@@ -10,11 +10,87 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tonic::Status;
 
-use crate::actions::from_json_error;
+use crate::actions::{from_json_error, FileFormat, Orientation};
 
 pub enum GraphType {
     Directed(DirectedCsrGraph<usize>),
     Undirected(UndirectedCsrGraph<usize>),
+}
+
+impl GraphType {
+    pub fn from_edge_list(
+        edge_list: Vec<(usize, usize)>,
+        orientation: Orientation,
+        csr_layout: CsrLayout,
+    ) -> Self {
+        let builder = GraphBuilder::new().csr_layout(csr_layout).edges(edge_list);
+
+        match orientation {
+            Orientation::Directed => GraphType::Directed(builder.build()),
+            Orientation::Undirected => GraphType::Undirected(builder.build()),
+        }
+    }
+
+    pub fn from_file<P: AsRef<Path>>(
+        path: P,
+        format: FileFormat,
+        orientation: Orientation,
+        csr_layout: CsrLayout,
+    ) -> Result<Self, Status> {
+        let builder = GraphBuilder::new().csr_layout(csr_layout);
+        match (orientation, format) {
+            (Orientation::Directed, FileFormat::EdgeList) => {
+                let graph = builder
+                    .file_format(EdgeListInput::default())
+                    .path(path)
+                    .build()
+                    .map_err(from_graph_error)?;
+                Ok(GraphType::Directed(graph))
+            }
+            (Orientation::Undirected, FileFormat::EdgeList) => {
+                let graph = builder
+                    .file_format(EdgeListInput::default())
+                    .path(path)
+                    .build()
+                    .map_err(from_graph_error)?;
+                Ok(GraphType::Undirected(graph))
+            }
+            (Orientation::Directed, FileFormat::Graph500) => {
+                let graph = builder
+                    .file_format(Graph500Input::default())
+                    .path(path)
+                    .build()
+                    .map_err(from_graph_error)?;
+                Ok(GraphType::Directed(graph))
+            }
+            (Orientation::Undirected, FileFormat::Graph500) => {
+                let graph = builder
+                    .file_format(Graph500Input::default())
+                    .path(path)
+                    .build()
+                    .map_err(from_graph_error)?;
+                Ok(GraphType::Undirected(graph))
+            }
+        }
+    }
+
+    pub fn node_count(&self) -> usize {
+        match self {
+            GraphType::Directed(g) => g.node_count(),
+            GraphType::Undirected(g) => g.node_count(),
+        }
+    }
+
+    pub fn edge_count(&self) -> usize {
+        match self {
+            GraphType::Directed(g) => g.edge_count(),
+            GraphType::Undirected(g) => g.edge_count(),
+        }
+    }
+}
+
+fn from_graph_error(error: graph::prelude::Error) -> Status {
+    Status::internal(format!("GraphError: {error:?}"))
 }
 
 pub struct GraphCatalog {
