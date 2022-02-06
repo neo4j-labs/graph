@@ -1,4 +1,5 @@
 use crate::actions::*;
+use crate::catalog::*;
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -6,11 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use arrow::datatypes::Int64Type;
 use arrow::error::ArrowError;
-use arrow::{
-    datatypes::{DataType, Field, Schema},
-    ipc::writer::IpcWriteOptions,
-    record_batch::RecordBatch,
-};
+use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions};
 use arrow_flight::utils::flight_data_to_arrow_batch;
 use arrow_flight::{
     flight_service_server::FlightService, utils::flight_data_from_arrow_batch, Action, ActionType,
@@ -19,48 +16,24 @@ use arrow_flight::{
 };
 use futures::{Stream, StreamExt};
 use graph::prelude::*;
-use itertools::Itertools;
 use log::info;
-use serde::{Deserialize, Serialize};
 use tonic::{Request, Response, Status, Streaming};
 
-type GraphCatalog = Arc<Mutex<HashMap<String, DirectedCsrGraph<usize>>>>;
-type PropertyStore = Arc<Mutex<HashMap<PropertyId, (Arc<Schema>, Vec<RecordBatch>)>>>;
+// Used to chunk data into record batches
+pub const CHUNK_SIZE: usize = 10_000;
 
-#[derive(Hash, Eq, PartialEq, Serialize, Deserialize, Debug, Clone)]
-pub struct PropertyId {
-    pub graph_name: String,
-    pub property_key: String,
-}
-
-impl PropertyId {
-    fn new(graph_name: String, property_key: String) -> Self {
-        Self {
-            graph_name,
-            property_key,
-        }
-    }
-}
-
-impl TryFrom<Ticket> for PropertyId {
-    type Error = Status;
-
-    fn try_from(ticket: Ticket) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<PropertyId>(ticket.ticket.as_slice()).map_err(from_json_error)
-    }
-}
 pub struct FlightServiceImpl {
     // Stores created graphs
-    graph_catalog: GraphCatalog,
+    graph_catalog: Arc<Mutex<GraphCatalog>>,
     // Stores algorithm resuts
-    property_store: PropertyStore,
+    property_store: Arc<Mutex<PropertyStore>>,
 }
 
 impl FlightServiceImpl {
     pub fn new() -> Self {
         Self {
-            graph_catalog: Arc::new(Mutex::new(HashMap::new())),
-            property_store: Arc::new(Mutex::new(HashMap::new())),
+            graph_catalog: Arc::new(Mutex::new(GraphCatalog::new())),
+            property_store: Arc::new(Mutex::new(PropertyStore::new())),
         }
     }
 }
@@ -72,9 +45,6 @@ impl Default for FlightServiceImpl {
 }
 
 type BoxedFlightStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + Sync + 'static>>;
-
-// Used to chunk data into record batches
-const CHUNK_SIZE: usize = 10_000;
 
 #[tonic::async_trait]
 impl FlightService for FlightServiceImpl {
@@ -95,14 +65,13 @@ impl FlightService for FlightServiceImpl {
         info!("Received GET request for ticket: {property_id:?}");
 
         let property_store = self.property_store.lock().unwrap();
-        let (schema, record_batches) = property_store
-            .get(&property_id)
-            .ok_or_else(|| Status::not_found(format!("PropertyId not found: {property_id:?}")))?;
+        let property_entry = property_store.get(&property_id)?;
 
         let ipc_write_options = IpcWriteOptions::default();
         // Record batches are pre-computed and are immediately available.
         // Imho, there is no need to implement lazy batch computation.
-        let record_batches = record_batches
+        let record_batches = property_entry
+            .batches
             .iter()
             .map(|batch| flight_data_from_arrow_batch(batch, &ipc_write_options).1)
             .map(Ok)
@@ -113,7 +82,7 @@ impl FlightService for FlightServiceImpl {
             record_batches.len()
         );
 
-        let schema_ipc = SchemaAsIpc::new(schema, &ipc_write_options);
+        let schema_ipc = SchemaAsIpc::new(&property_entry.schema, &ipc_write_options);
         let schema_flight_data = FlightData::from(schema_ipc);
 
         let schema_stream = futures::stream::once(async move { Ok(schema_flight_data) });
@@ -146,11 +115,13 @@ impl FlightService for FlightServiceImpl {
 
         // all the remaining stream messages should be dictionary and record batches
         let mut edge_list = Vec::with_capacity(edge_count as usize);
-        let dictionaries_by_field = vec![None; schema.fields().len()];
         while let Some(flight_data) = request.message().await? {
-            let batch =
-                flight_data_to_arrow_batch(&flight_data, schema.clone(), &dictionaries_by_field)
-                    .unwrap();
+            let batch = flight_data_to_arrow_batch(
+                &flight_data,
+                schema.clone(),
+                &(vec![None; schema.fields().len()]),
+            )
+            .map_err(from_arrow_err)?;
 
             let source_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(0));
             let target_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(1));
@@ -184,7 +155,10 @@ impl FlightService for FlightServiceImpl {
             edge_count: graph.edge_count(),
         };
 
-        self.graph_catalog.lock().unwrap().insert(graph_name, graph);
+        self.graph_catalog
+            .lock()
+            .unwrap()
+            .insert(graph_name, GraphType::Directed(graph));
 
         let result = serde_json::to_vec(&result).map_err(from_json_error)?;
         let result = arrow_flight::PutResult {
@@ -226,6 +200,7 @@ impl FlightService for FlightServiceImpl {
                     file_format,
                     path,
                     csr_layout,
+                    orientation: _,
                 } = config;
 
                 let graph = tokio::task::spawn_blocking(move || {
@@ -249,7 +224,10 @@ impl FlightService for FlightServiceImpl {
                     node_count: graph.node_count(),
                     edge_count: graph.edge_count(),
                 };
-                self.graph_catalog.lock().unwrap().insert(graph_name, graph);
+                self.graph_catalog
+                    .lock()
+                    .unwrap()
+                    .insert(graph_name, GraphType::Directed(graph));
 
                 let result = serde_json::to_vec(&result).map_err(from_json_error)?;
                 let result = arrow_flight::Result { body: result };
@@ -276,14 +254,20 @@ impl FlightService for FlightServiceImpl {
 
                         let (ranks, iterations, error) = tokio::task::spawn_blocking(move || {
                             let catalog = catalog.lock().unwrap();
-                            let graph = catalog.get(catalog_key.as_str()).unwrap();
-                            graph::page_rank::page_rank(graph, config)
+                            if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
+                                Ok(graph::page_rank::page_rank(graph, config))
+                            } else {
+                                Err(Status::invalid_argument(
+                                    "Page Rank requires a directed graph",
+                                ))
+                            }
                         })
                         .await
-                        .unwrap();
+                        .unwrap()?;
 
                         let property_id = PropertyId::new(graph_name, property_key);
-                        let record_batches = to_f32_record_batches(ranks, "page_rank").await;
+                        let record_batches =
+                            crate::catalog::to_f32_record_batches(ranks, "page_rank").await;
 
                         self.property_store
                             .lock()
@@ -345,29 +329,6 @@ impl FlightService for FlightServiceImpl {
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
         Err(Status::unimplemented("Not yet implemented"))
     }
-}
-
-// TODO: macro for supported types
-async fn to_f32_record_batches(
-    data: Vec<f32>,
-    field_name: impl AsRef<str>,
-) -> (Arc<Schema>, Vec<RecordBatch>) {
-    let field = Field::new(field_name.as_ref(), DataType::Float32, false);
-    let schema = Schema::new(vec![field]);
-    let schema = Arc::new(schema);
-
-    let record_batches = data
-        .into_iter()
-        .chunks(CHUNK_SIZE)
-        .into_iter()
-        .map(|chunk| {
-            let chunk = chunk.collect::<Vec<_>>();
-            let chunk = arrow::array::Float32Array::from(chunk);
-            RecordBatch::try_new(schema.clone(), vec![Arc::new(chunk)]).unwrap()
-        })
-        .collect::<Vec<_>>();
-
-    (schema, record_batches)
 }
 
 fn from_arrow_err(e: ArrowError) -> Status {

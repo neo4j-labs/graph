@@ -1,4 +1,5 @@
 mod actions;
+mod catalog;
 mod server;
 
 use arrow_flight::flight_service_server::FlightServiceServer;

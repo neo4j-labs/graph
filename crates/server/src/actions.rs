@@ -4,7 +4,7 @@ use arrow_flight::{flight_descriptor::DescriptorType, Action, FlightDescriptor};
 use serde::{Deserialize, Serialize};
 use tonic::Status;
 
-use crate::server::PropertyId;
+use crate::catalog::PropertyId;
 use graph::prelude::*;
 
 pub enum FlightAction {
@@ -48,6 +48,18 @@ pub enum CsrLayoutRef {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum Orientation {
+    Directed,
+    Undirected,
+}
+
+impl Default for Orientation {
+    fn default() -> Self {
+        Self::Directed
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CreateGraphFromFileConfig {
     pub graph_name: String,
     pub file_format: FileFormat,
@@ -55,6 +67,8 @@ pub struct CreateGraphFromFileConfig {
     #[serde(with = "CsrLayoutRef")]
     #[serde(default)]
     pub csr_layout: CsrLayout,
+    #[serde(default)]
+    pub orientation: Orientation,
 }
 
 impl TryFrom<Action> for CreateGraphFromFileConfig {
