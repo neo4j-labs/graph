@@ -115,6 +115,7 @@ impl FlightService for FlightServiceImpl {
         info!("Reading graph from schema = {schema:?}");
 
         // all the remaining stream messages should be dictionary and record batches
+        let start = Instant::now();
         let mut edge_list = Vec::with_capacity(edge_count as usize);
         while let Some(flight_data) = request.message().await? {
             let batch = flight_data_to_arrow_batch(
@@ -142,16 +143,13 @@ impl FlightService for FlightServiceImpl {
         .await
         .unwrap();
 
-        info!(
-            "Created graph '{graph_name}' with {} nodes and {} edges",
+        let result = CreateActionResult::new(
             graph.node_count(),
-            graph.edge_count()
+            graph.edge_count(),
+            start.elapsed().as_millis(),
         );
 
-        let result = CreateActionResult {
-            node_count: graph.node_count(),
-            edge_count: graph.edge_count(),
-        };
+        info!("Created graph '{graph_name}': {result:?}");
 
         self.graph_catalog.lock().unwrap().insert(graph_name, graph);
 
@@ -198,16 +196,20 @@ impl FlightService for FlightServiceImpl {
                     orientation,
                 } = config;
 
+                let start = Instant::now();
                 let graph = tokio::task::spawn_blocking(move || {
                     GraphType::from_file(path, file_format, orientation, csr_layout)
                 })
                 .await
                 .unwrap()?;
 
-                let result = CreateActionResult {
-                    node_count: graph.node_count(),
-                    edge_count: graph.edge_count(),
-                };
+                let result = CreateActionResult::new(
+                    graph.node_count(),
+                    graph.edge_count(),
+                    start.elapsed().as_millis(),
+                );
+                info!("Created graph '{graph_name}': {result:?}");
+
                 self.graph_catalog.lock().unwrap().insert(graph_name, graph);
 
                 let result = serde_json::to_vec(&result).map_err(from_json_error)?;

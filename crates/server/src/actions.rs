@@ -110,8 +110,19 @@ impl TryFrom<FlightDescriptor> for CreateGraphCommand {
 
 #[derive(Serialize, Debug)]
 pub struct CreateActionResult {
-    pub node_count: usize,
-    pub edge_count: usize,
+    node_count: usize,
+    edge_count: usize,
+    create_millis: u128,
+}
+
+impl CreateActionResult {
+    pub fn new(node_count: usize, edge_count: usize, create_millis: u128) -> Self {
+        Self {
+            node_count,
+            edge_count,
+            create_millis,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
