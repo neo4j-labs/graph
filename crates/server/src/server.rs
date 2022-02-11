@@ -116,25 +116,20 @@ impl FlightService for FlightServiceImpl {
 
         // all the remaining stream messages should be dictionary and record batches
         let start = Instant::now();
+        let dicts = vec![None; schema.fields().len()];
         let mut edge_list = Vec::with_capacity(edge_count as usize);
         while let Some(flight_data) = request.message().await? {
-            let batch = flight_data_to_arrow_batch(
-                &flight_data,
-                schema.clone(),
-                &(vec![None; schema.fields().len()]),
-            )
-            .map_err(from_arrow_err)?;
+            let batch = flight_data_to_arrow_batch(&flight_data, schema.clone(), &dicts)
+                .map_err(from_arrow_err)?;
 
             let source_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(0));
             let target_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(1));
 
-            let mut batch = source_ids
+            source_ids
                 .iter()
                 .zip(target_ids.iter())
                 .map(|(s, t)| (s.unwrap() as usize, t.unwrap() as usize))
-                .collect::<Vec<_>>();
-
-            edge_list.append(&mut batch);
+                .for_each(|edge| edge_list.push(edge));
         }
 
         let graph = tokio::task::spawn_blocking(move || {
