@@ -2,7 +2,7 @@ use crate::actions::*;
 use crate::catalog::*;
 
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 use arrow::datatypes::Int64Type;
@@ -17,6 +17,7 @@ use arrow_flight::{
 use futures::{Stream, StreamExt};
 use log::error;
 use log::info;
+use parking_lot::RwLock;
 use tonic::{Request, Response, Status, Streaming};
 
 // Used to chunk data into record batches
@@ -24,16 +25,16 @@ pub const CHUNK_SIZE: usize = 10_000;
 
 pub struct FlightServiceImpl {
     // Stores created graphs
-    graph_catalog: Arc<Mutex<GraphCatalog>>,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
     // Stores algorithm resuts
-    property_store: Arc<Mutex<PropertyStore>>,
+    property_store: Arc<RwLock<PropertyStore>>,
 }
 
 impl FlightServiceImpl {
     pub fn new() -> Self {
         Self {
-            graph_catalog: Arc::new(Mutex::new(GraphCatalog::new())),
-            property_store: Arc::new(Mutex::new(PropertyStore::new())),
+            graph_catalog: Arc::new(RwLock::new(GraphCatalog::new())),
+            property_store: Arc::new(RwLock::new(PropertyStore::new())),
         }
     }
 }
@@ -64,7 +65,7 @@ impl FlightService for FlightServiceImpl {
 
         info!("Received GET request for ticket: {property_id:?}");
 
-        let property_store = self.property_store.lock().unwrap();
+        let property_store = self.property_store.read();
         let property_entry = property_store.get(&property_id)?;
 
         let ipc_write_options = IpcWriteOptions::default();
@@ -85,10 +86,9 @@ impl FlightService for FlightServiceImpl {
         let schema_ipc = SchemaAsIpc::new(&property_entry.schema, &ipc_write_options);
         let schema_flight_data = FlightData::from(schema_ipc);
 
-        let schema_stream = futures::stream::once(async move { Ok(schema_flight_data) });
-        let batches_stream = futures::stream::iter(record_batches);
+        let batches = std::iter::once(Ok(schema_flight_data)).chain(record_batches);
 
-        Ok(Response::new(Box::pin(schema_stream.chain(batches_stream))))
+        Ok(Response::new(Box::pin(futures::stream::iter(batches))))
     }
 
     async fn do_put(
@@ -151,7 +151,7 @@ impl FlightService for FlightServiceImpl {
 
         info!("Created graph '{graph_name}': {result:?}");
 
-        self.graph_catalog.lock().unwrap().insert(graph_name, graph);
+        self.graph_catalog.write().insert(graph_name, graph);
 
         let result = serde_json::to_vec(&result).map_err(from_json_error)?;
         let result = arrow_flight::PutResult {
@@ -210,7 +210,7 @@ impl FlightService for FlightServiceImpl {
                 );
                 info!("Created graph '{graph_name}': {result:?}");
 
-                self.graph_catalog.lock().unwrap().insert(graph_name, graph);
+                self.graph_catalog.write().insert(graph_name, graph);
 
                 let result = serde_json::to_vec(&result).map_err(from_json_error)?;
                 let result = arrow_flight::Result { body: result };
@@ -236,7 +236,7 @@ impl FlightService for FlightServiceImpl {
                         let catalog_key = graph_name.clone();
 
                         let (ranks, result) = tokio::task::spawn_blocking(move || {
-                            let catalog = catalog.lock().unwrap();
+                            let catalog = catalog.read();
                             if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
                                 let start = Instant::now();
                                 let (ranks, iterations, error) =
@@ -262,8 +262,7 @@ impl FlightService for FlightServiceImpl {
                             crate::catalog::to_f32_record_batches(ranks, "page_rank").await;
 
                         self.property_store
-                            .lock()
-                            .unwrap()
+                            .write()
                             .insert(property_id.clone(), record_batches);
 
                         let result = MutateResult::new(property_id, result);
@@ -279,7 +278,7 @@ impl FlightService for FlightServiceImpl {
                         let graph_name = graph_name.clone();
 
                         let result = tokio::task::spawn_blocking(move || {
-                            let catalog = catalog.lock().unwrap();
+                            let catalog = catalog.read();
                             if let GraphType::Undirected(graph) = catalog.get(graph_name).unwrap() {
                                 let start = Instant::now();
                                 let tc = graph::triangle_count::global_triangle_count(graph);
