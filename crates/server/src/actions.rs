@@ -8,10 +8,11 @@ use graph::prelude::*;
 pub enum FlightAction {
     Create(CreateGraphFromFileConfig),
     Compute(ComputeConfig),
+    Relabel(RelabelConfig),
 }
 
 impl FlightAction {
-    pub fn action_types() -> [ActionType; 2] {
+    pub fn action_types() -> [ActionType; 3] {
         [
             ActionType {
                 r#type: "create".into(),
@@ -20,6 +21,10 @@ impl FlightAction {
             ActionType {
                 r#type: "compute".into(),
                 description: "Compute a graph algorithm on an in-memory graph.".into(),
+            },
+            ActionType {
+                r#type: "relabel".into(),
+                description: "Relabel an in-memory graph".into(),
             },
         ]
     }
@@ -38,6 +43,10 @@ impl TryFrom<Action> for FlightAction {
             "compute" => {
                 let compute_action = action.try_into()?;
                 Ok(FlightAction::Compute(compute_action))
+            }
+            "relabel" => {
+                let relabel_action = action.try_into()?;
+                Ok(FlightAction::Relabel(relabel_action))
             }
             _ => Err(Status::invalid_argument(format!(
                 "Unknown action type: {action_type}"
@@ -138,6 +147,24 @@ impl CreateActionResult {
             create_millis,
         }
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RelabelConfig {
+    pub graph_name: String,
+}
+
+impl TryFrom<Action> for RelabelConfig {
+    type Error = Status;
+
+    fn try_from(action: Action) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<Self>(action.body.as_slice()).map_err(from_json_error)
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct RelabelActionResult {
+    pub relabel_millis: u128,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -110,6 +110,12 @@ impl GraphCatalog {
             .ok_or_else(|| Status::not_found("Graph with name '{graph_name}' not found"))
     }
 
+    pub fn get_mut<K: AsRef<str>>(&mut self, graph_name: K) -> Result<&mut GraphType, Status> {
+        self.graphs
+            .get_mut(graph_name.as_ref())
+            .ok_or_else(|| Status::not_found("Graph with name '{graph_name}' not found"))
+    }
+
     pub fn insert(&mut self, graph_name: String, graph: GraphType) {
         self.graphs.insert(graph_name, graph);
     }

@@ -67,6 +67,17 @@ obj = json.loads(next(result).body.to_pybytes().decode())
 print("graph create result")
 print(json.dumps(obj, indent = 4))
 
+# Relabel undirected graph on server
+
+relabel_action = {
+    "graph_name": graph_name,
+}
+
+result = client.do_action(flight.Action("relabel", json.dumps(relabel_action).encode('utf-8')))
+obj = json.loads(next(result).body.to_pybytes().decode())
+print("graph relabel result")
+print(json.dumps(obj, indent = 4))
+
 # Compute Global Triangle Count
 compute_action = {
     "graph_name": graph_name,

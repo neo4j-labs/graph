@@ -208,6 +208,36 @@ impl FlightService for FlightServiceImpl {
                     Ok(result)
                 }))))
             }
+            FlightAction::Relabel(config) => {
+                info!("Relabelling graph using config: {config:?}");
+                let RelabelConfig { graph_name } = config;
+                let catalog = self.graph_catalog.clone();
+
+                let result = tokio::task::spawn_blocking(move || {
+                    let mut catalog = catalog.write();
+                    let graph = catalog.get_mut(graph_name)?;
+                    if let GraphType::Undirected(graph) = graph {
+                        use graph::prelude::RelabelByDegreeOp;
+                        let start = Instant::now();
+                        graph.to_degree_ordered();
+                        Ok(RelabelActionResult {
+                            relabel_millis: start.elapsed().as_millis(),
+                        })
+                    } else {
+                        Err(Status::invalid_argument(
+                            "Relabelling directed graphs is not supported.",
+                        ))
+                    }
+                })
+                .await
+                .unwrap()?;
+
+                let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+
+                Ok(Response::new(Box::pin(futures::stream::once(async {
+                    Ok(arrow_flight::Result { body: result })
+                }))))
+            }
             FlightAction::Compute(config) => {
                 let ComputeConfig {
                     graph_name,
@@ -226,6 +256,7 @@ impl FlightService for FlightServiceImpl {
 
                         let (ranks, result) = tokio::task::spawn_blocking(move || {
                             let catalog = catalog.read();
+
                             if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
                                 let start = Instant::now();
                                 let (ranks, iterations, error) =
