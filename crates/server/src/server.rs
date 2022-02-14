@@ -46,6 +46,7 @@ impl Default for FlightServiceImpl {
 }
 
 type BoxedFlightStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + Sync + 'static>>;
+type FlightResult<T> = Result<T, Status>;
 
 #[tonic::async_trait]
 impl FlightService for FlightServiceImpl {
@@ -57,10 +58,7 @@ impl FlightService for FlightServiceImpl {
     type ListActionsStream = BoxedFlightStream<ActionType>;
     type ListFlightsStream = BoxedFlightStream<FlightInfo>;
 
-    async fn do_get(
-        &self,
-        request: Request<Ticket>,
-    ) -> Result<Response<Self::DoGetStream>, Status> {
+    async fn do_get(&self, request: Request<Ticket>) -> FlightResult<Response<Self::DoGetStream>> {
         let property_id = request.into_inner().try_into()?;
 
         info!("Received GET request for ticket: {property_id:?}");
@@ -94,7 +92,7 @@ impl FlightService for FlightServiceImpl {
     async fn do_put(
         &self,
         request: Request<Streaming<FlightData>>,
-    ) -> Result<Response<Self::DoPutStream>, Status> {
+    ) -> FlightResult<Response<Self::DoPutStream>> {
         let mut request = request.into_inner();
         let mut schema_flight_data = request.next().await.unwrap()?;
 
@@ -162,7 +160,7 @@ impl FlightService for FlightServiceImpl {
     async fn list_actions(
         &self,
         _request: Request<Empty>,
-    ) -> Result<Response<Self::ListActionsStream>, Status> {
+    ) -> FlightResult<Response<Self::ListActionsStream>> {
         let actions = futures::stream::iter(FlightAction::action_types().into_iter().map(Ok));
         Ok(Response::new(Box::pin(actions)))
     }
@@ -170,7 +168,7 @@ impl FlightService for FlightServiceImpl {
     async fn do_action(
         &self,
         request: Request<Action>,
-    ) -> Result<Response<Self::DoActionStream>, Status> {
+    ) -> FlightResult<Response<Self::DoActionStream>> {
         let action = request.into_inner();
 
         let action: FlightAction = action.try_into()?;
@@ -302,35 +300,35 @@ impl FlightService for FlightServiceImpl {
     async fn handshake(
         &self,
         _request: Request<Streaming<HandshakeRequest>>,
-    ) -> Result<Response<Self::HandshakeStream>, Status> {
+    ) -> FlightResult<Response<Self::HandshakeStream>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 
     async fn list_flights(
         &self,
         _request: Request<Criteria>,
-    ) -> Result<Response<Self::ListFlightsStream>, Status> {
+    ) -> FlightResult<Response<Self::ListFlightsStream>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 
     async fn get_flight_info(
         &self,
         _request: Request<FlightDescriptor>,
-    ) -> Result<Response<FlightInfo>, Status> {
+    ) -> FlightResult<Response<FlightInfo>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 
     async fn get_schema(
         &self,
         _request: Request<FlightDescriptor>,
-    ) -> Result<Response<SchemaResult>, Status> {
+    ) -> FlightResult<Response<SchemaResult>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 
     async fn do_exchange(
         &self,
         _request: Request<Streaming<FlightData>>,
-    ) -> Result<Response<Self::DoExchangeStream>, Status> {
+    ) -> FlightResult<Response<Self::DoExchangeStream>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 }
