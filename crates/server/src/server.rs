@@ -170,10 +170,8 @@ impl FlightService for FlightServiceImpl {
         request: Request<Action>,
     ) -> FlightResult<Response<Self::DoActionStream>> {
         let action = request.into_inner();
-
         let action: FlightAction = action.try_into()?;
-
-        match action {
+        let result = match action {
             FlightAction::Create(config) => {
                 info!("Creating graph using config: {config:?}");
 
@@ -201,12 +199,7 @@ impl FlightService for FlightServiceImpl {
 
                 self.graph_catalog.write().insert(graph_name, graph);
 
-                let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-                let result = arrow_flight::Result { body: result };
-
-                Ok(Response::new(Box::pin(futures::stream::once(async {
-                    Ok(result)
-                }))))
+                serde_json::to_vec(&result).map_err(from_json_error)?
             }
             FlightAction::Relabel(config) => {
                 info!("Relabelling graph using config: {config:?}");
@@ -232,11 +225,7 @@ impl FlightService for FlightServiceImpl {
                 .await
                 .unwrap()?;
 
-                let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-
-                Ok(Response::new(Box::pin(futures::stream::once(async {
-                    Ok(arrow_flight::Result { body: result })
-                }))))
+                serde_json::to_vec(&result).map_err(from_json_error)?
             }
             FlightAction::Compute(config) => {
                 let ComputeConfig {
@@ -287,11 +276,7 @@ impl FlightService for FlightServiceImpl {
 
                         let result = MutateResult::new(property_id, result);
 
-                        let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-
-                        Ok(Response::new(Box::pin(futures::stream::once(async {
-                            Ok(arrow_flight::Result { body: result })
-                        }))))
+                        serde_json::to_vec(&result).map_err(from_json_error)?
                     }
                     Algorithm::TriangleCount => {
                         info!("Computing global triangle count on graph '{graph_name}'");
@@ -317,15 +302,17 @@ impl FlightService for FlightServiceImpl {
                         .await
                         .unwrap()?;
 
-                        let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-
-                        Ok(Response::new(Box::pin(futures::stream::once(async {
-                            Ok(arrow_flight::Result { body: result })
-                        }))))
+                        serde_json::to_vec(&result).map_err(from_json_error)?
                     }
                 }
             }
-        }
+        };
+
+        let result = arrow_flight::Result { body: result };
+
+        Ok(Response::new(Box::pin(futures::stream::once(async {
+            Ok(result)
+        }))))
     }
 
     async fn handshake(
