@@ -125,11 +125,12 @@ impl FlightService for FlightServiceImpl {
             let source_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(0));
             let target_ids = arrow::array::as_primitive_array::<Int64Type>(batch.column(1));
 
-            source_ids
+            let batch = source_ids
                 .iter()
                 .zip(target_ids.iter())
-                .map(|(s, t)| (s.unwrap() as usize, t.unwrap() as usize))
-                .for_each(|edge| edge_list.push(edge));
+                .map(|(s, t)| (s.unwrap() as usize, t.unwrap() as usize));
+
+            edge_list.extend(batch);
         }
 
         let graph = tokio::task::spawn_blocking(move || {
