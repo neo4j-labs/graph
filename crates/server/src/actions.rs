@@ -1,4 +1,4 @@
-use arrow_flight::{flight_descriptor::DescriptorType, Action, FlightDescriptor};
+use arrow_flight::{flight_descriptor::DescriptorType, Action, ActionType, FlightDescriptor};
 use serde::{Deserialize, Serialize};
 use tonic::Status;
 
@@ -8,6 +8,21 @@ use graph::prelude::*;
 pub enum FlightAction {
     Create(CreateGraphFromFileConfig),
     Compute(ComputeConfig),
+}
+
+impl FlightAction {
+    pub fn action_types() -> [ActionType; 2] {
+        [
+            ActionType {
+                r#type: "create".into(),
+                description: "Create an in-memory graph.".into(),
+            },
+            ActionType {
+                r#type: "compute".into(),
+                description: "Compute a graph algorithm on an in-memory graph.".into(),
+            },
+        ]
+    }
 }
 
 impl TryFrom<Action> for FlightAction {

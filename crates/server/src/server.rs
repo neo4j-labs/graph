@@ -158,17 +158,12 @@ impl FlightService for FlightServiceImpl {
         }))))
     }
 
-    // TODO: return more info about possible actions
     async fn list_actions(
         &self,
         _request: Request<Empty>,
     ) -> Result<Response<Self::ListActionsStream>, Status> {
-        Ok(Response::new(Box::pin(futures::stream::once(async {
-            Ok(ActionType {
-                r#type: String::from("create"),
-                description: String::from("creates an in-memory graph"),
-            })
-        }))))
+        let actions = futures::stream::iter(FlightAction::action_types().into_iter().map(Ok));
+        Ok(Response::new(Box::pin(actions)))
     }
 
     async fn do_action(
