@@ -6,7 +6,7 @@ use std::{
     hash::Hash,
     io::{BufReader, Read, Write},
     iter::FromIterator,
-    mem::{transmute, MaybeUninit},
+    mem::MaybeUninit,
     path::PathBuf,
     sync::atomic::Ordering::Acquire,
     time::Instant,
@@ -211,8 +211,13 @@ where
         info!("Computed target array in {:?}", start.elapsed());
 
         let start = Instant::now();
+        let (ptr, len, cap) = offsets.into_raw_parts();
+
         // SAFETY: NI and NI::Atomic have the same memory layout
-        let mut offsets = unsafe { transmute::<_, Vec<NI>>(offsets) };
+        let mut offsets = unsafe {
+            let ptr = ptr as *mut _;
+            Vec::from_raw_parts(ptr, len, cap)
+        };
 
         // Each insert into the target array in the previous loops incremented
         // the offset for the corresponding node by one. As a consequence the
