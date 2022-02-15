@@ -15,6 +15,7 @@ use arrow_flight::{
     PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use futures::{Stream, StreamExt};
+use graph::page_rank::PageRankConfig;
 use log::error;
 use log::info;
 use parking_lot::RwLock;
@@ -171,61 +172,13 @@ impl FlightService for FlightServiceImpl {
     ) -> FlightResult<Response<Self::DoActionStream>> {
         let action = request.into_inner();
         let action: FlightAction = action.try_into()?;
+
         let result = match action {
             FlightAction::Create(config) => {
-                info!("Creating graph using config: {config:?}");
-
-                let CreateGraphFromFileConfig {
-                    graph_name,
-                    file_format,
-                    path,
-                    csr_layout,
-                    orientation,
-                } = config;
-
-                let start = Instant::now();
-                let graph = tokio::task::spawn_blocking(move || {
-                    GraphType::from_file(path, file_format, orientation, csr_layout)
-                })
-                .await
-                .unwrap()?;
-
-                let result = CreateActionResult::new(
-                    graph.node_count(),
-                    graph.edge_count(),
-                    start.elapsed().as_millis(),
-                );
-                info!("Created graph '{graph_name}': {result:?}");
-
-                self.graph_catalog.write().insert(graph_name, graph);
-
-                serde_json::to_vec(&result).map_err(from_json_error)?
+                create_graph(config, Arc::clone(&self.graph_catalog)).await?
             }
             FlightAction::Relabel(config) => {
-                info!("Relabelling graph using config: {config:?}");
-                let RelabelConfig { graph_name } = config;
-                let catalog = self.graph_catalog.clone();
-
-                let result = tokio::task::spawn_blocking(move || {
-                    let mut catalog = catalog.write();
-                    let graph = catalog.get_mut(graph_name)?;
-                    if let GraphType::Undirected(graph) = graph {
-                        use graph::prelude::RelabelByDegreeOp;
-                        let start = Instant::now();
-                        graph.to_degree_ordered();
-                        Ok(RelabelActionResult {
-                            relabel_millis: start.elapsed().as_millis(),
-                        })
-                    } else {
-                        Err(Status::invalid_argument(
-                            "Relabelling directed graphs is not supported.",
-                        ))
-                    }
-                })
-                .await
-                .unwrap()?;
-
-                serde_json::to_vec(&result).map_err(from_json_error)?
+                relabel_graph(config, Arc::clone(&self.graph_catalog)).await?
             }
             FlightAction::Compute(config) => {
                 let ComputeConfig {
@@ -234,81 +187,23 @@ impl FlightService for FlightServiceImpl {
                     property_key,
                 } = config;
 
-                let catalog = self.graph_catalog.clone();
-
                 match algorithm {
                     Algorithm::PageRank(config) => {
-                        info!(
-                            "Computing page rank on graph '{graph_name}' using config: {config:?}"
-                        );
-                        let catalog_key = graph_name.clone();
-
-                        let (ranks, result) = tokio::task::spawn_blocking(move || {
-                            let catalog = catalog.read();
-
-                            if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
-                                let start = Instant::now();
-                                let (ranks, iterations, error) =
-                                    graph::page_rank::page_rank(graph, config);
-                                let result = PageRankResult {
-                                    iterations: iterations as u64,
-                                    error,
-                                    compute_millis: start.elapsed().as_millis(),
-                                };
-                                Ok((ranks, result))
-                            } else {
-                                error!("Attempted running page rank on undirected graph");
-                                Err(Status::invalid_argument(
-                                    "Page Rank requires a directed graph",
-                                ))
-                            }
-                        })
-                        .await
-                        .unwrap()?;
-
-                        let property_id = PropertyId::new(graph_name, property_key);
-                        let record_batches =
-                            crate::catalog::to_f32_record_batches(ranks, "page_rank").await;
-
-                        self.property_store
-                            .write()
-                            .insert(property_id.clone(), record_batches);
-
-                        let result = MutateResult::new(property_id, result);
-
-                        serde_json::to_vec(&result).map_err(from_json_error)?
+                        compute_page_rank(
+                            config,
+                            Arc::clone(&self.graph_catalog),
+                            Arc::clone(&self.property_store),
+                            graph_name,
+                            property_key,
+                        )
+                        .await?
                     }
                     Algorithm::TriangleCount => {
-                        info!("Computing global triangle count on graph '{graph_name}'");
-                        let graph_name = graph_name.clone();
-
-                        let result = tokio::task::spawn_blocking(move || {
-                            let catalog = catalog.read();
-                            if let GraphType::Undirected(graph) = catalog.get(graph_name).unwrap() {
-                                let start = Instant::now();
-                                let tc = graph::triangle_count::global_triangle_count(graph);
-                                let res = TriangleCountResult {
-                                    triangle_count: tc,
-                                    compute_millis: start.elapsed().as_millis(),
-                                };
-                                Ok(res)
-                            } else {
-                                error!("Attempted running triangle count on directed graph");
-                                Err(Status::invalid_argument(
-                                    "Triangle count requires an undirected graph",
-                                ))
-                            }
-                        })
-                        .await
-                        .unwrap()?;
-
-                        serde_json::to_vec(&result).map_err(from_json_error)?
+                        compute_triangle_count(Arc::clone(&self.graph_catalog), graph_name).await?
                     }
                 }
             }
         };
-
-        let result = arrow_flight::Result { body: result };
 
         Ok(Response::new(Box::pin(futures::stream::once(async {
             Ok(result)
@@ -349,6 +244,147 @@ impl FlightService for FlightServiceImpl {
     ) -> FlightResult<Response<Self::DoExchangeStream>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
+}
+
+async fn create_graph(
+    config: CreateGraphFromFileConfig,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+) -> FlightResult<arrow_flight::Result> {
+    info!("Creating graph using config: {config:?}");
+
+    let CreateGraphFromFileConfig {
+        graph_name,
+        file_format,
+        path,
+        csr_layout,
+        orientation,
+    } = config;
+
+    let start = Instant::now();
+    let graph = tokio::task::spawn_blocking(move || {
+        GraphType::from_file(path, file_format, orientation, csr_layout)
+    })
+    .await
+    .unwrap()?;
+
+    let result = CreateActionResult::new(
+        graph.node_count(),
+        graph.edge_count(),
+        start.elapsed().as_millis(),
+    );
+    info!("Created graph '{graph_name}': {result:?}");
+
+    graph_catalog.write().insert(graph_name, graph);
+
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
+}
+
+async fn relabel_graph(
+    config: RelabelConfig,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+) -> FlightResult<arrow_flight::Result> {
+    info!("Relabelling graph using config: {config:?}");
+    let RelabelConfig { graph_name } = config;
+
+    let result = tokio::task::spawn_blocking(move || {
+        let mut catalog = graph_catalog.write();
+        let graph = catalog.get_mut(graph_name)?;
+        if let GraphType::Undirected(graph) = graph {
+            use graph::prelude::RelabelByDegreeOp;
+            let start = Instant::now();
+            graph.to_degree_ordered();
+            Ok(RelabelActionResult {
+                relabel_millis: start.elapsed().as_millis(),
+            })
+        } else {
+            Err(Status::invalid_argument(
+                "Relabelling directed graphs is not supported.",
+            ))
+        }
+    })
+    .await
+    .unwrap()?;
+
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
+}
+
+async fn compute_page_rank(
+    config: PageRankConfig,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+    property_store: Arc<RwLock<PropertyStore>>,
+    graph_name: String,
+    property_key: String,
+) -> FlightResult<arrow_flight::Result> {
+    info!("Computing page rank on graph '{graph_name}' using config: {config:?}");
+
+    let catalog_key = graph_name.clone();
+
+    let (ranks, result) = tokio::task::spawn_blocking(move || {
+        let catalog = graph_catalog.read();
+
+        if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
+            let start = Instant::now();
+            let (ranks, iterations, error) = graph::page_rank::page_rank(graph, config);
+            let result = PageRankResult {
+                iterations: iterations as u64,
+                error,
+                compute_millis: start.elapsed().as_millis(),
+            };
+            Ok((ranks, result))
+        } else {
+            error!("Attempted running page rank on undirected graph");
+            Err(Status::invalid_argument(
+                "Page Rank requires a directed graph",
+            ))
+        }
+    })
+    .await
+    .unwrap()?;
+
+    let property_id = PropertyId::new(graph_name, property_key);
+    let record_batches = crate::catalog::to_f32_record_batches(ranks, "page_rank").await;
+
+    property_store
+        .write()
+        .insert(property_id.clone(), record_batches);
+
+    let result = MutateResult::new(property_id, result);
+
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
+}
+
+async fn compute_triangle_count(
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+    graph_name: String,
+) -> FlightResult<arrow_flight::Result> {
+    info!("Computing global triangle count on graph '{graph_name}'");
+    let graph_name = graph_name.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let catalog = graph_catalog.read();
+        if let GraphType::Undirected(graph) = catalog.get(graph_name).unwrap() {
+            let start = Instant::now();
+            let tc = graph::triangle_count::global_triangle_count(graph);
+            let res = TriangleCountResult {
+                triangle_count: tc,
+                compute_millis: start.elapsed().as_millis(),
+            };
+            Ok(res)
+        } else {
+            error!("Attempted running triangle count on directed graph");
+            Err(Status::invalid_argument(
+                "Triangle count requires an undirected graph",
+            ))
+        }
+    })
+    .await
+    .unwrap()?;
+
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
 }
 
 fn from_arrow_err(e: ArrowError) -> Status {
