@@ -7,11 +7,7 @@ mod server;
 use std::net::IpAddr;
 
 use arrow_flight::flight_service_server::FlightServiceServer;
-use clap::AppSettings::ArgRequiredElseHelp;
-use clap::{
-    AppSettings::{DeriveDisplayOrder, DisableHelpSubcommand, InferLongArgs},
-    Parser,
-};
+use clap::Parser;
 use log::info;
 use tonic::transport::Server;
 
@@ -34,18 +30,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[clap(
     version,
     about = "Graph Arrow Server",
-    global_setting = ArgRequiredElseHelp,
-    global_setting = DeriveDisplayOrder,
-    global_setting = DisableHelpSubcommand,
-    global_setting = InferLongArgs,
+    arg_required_else_help = true,
+    disable_help_subcommand = true,
+    infer_long_args = true
 )]
 struct CliOpts {
     /// Host address
-    #[clap(default_value = "::1")]
+    #[clap(default_value = "::1", display_order = 0)]
     host: IpAddr,
 
     /// Port
-    #[clap(default_value_t = 50051)]
+    #[clap(default_value_t = 50051, display_order = 1)]
     port: u16,
 }
 
