@@ -20,6 +20,7 @@ pub struct DisjointSetStruct<NI: Idx>(Box<[NI::Atomic]>);
 unsafe impl<NI: Idx> Sync for DisjointSetStruct<NI> {}
 unsafe impl<NI: Idx> Send for DisjointSetStruct<NI> {}
 
+#[allow(clippy::len_without_is_empty)]
 impl<NI: Idx> DisjointSetStruct<NI> {
     /// Creates a new disjoint-set struct of `size` elements.
     ///
@@ -84,9 +85,7 @@ impl<NI: Idx> DisjointSetStruct<NI> {
             // is the smaller value, we need to swap ids so we update
             // only the value for id2, not id1.
             if id1 < id2 {
-                let tmp = id2;
-                id2 = id1;
-                id1 = tmp;
+                std::mem::swap(&mut id1, &mut id2);
             }
 
             let old_entry = id1;
