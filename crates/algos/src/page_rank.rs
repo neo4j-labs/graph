@@ -10,7 +10,7 @@ use std::time::Instant;
 
 const CHUNK_SIZE: usize = 16384;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PageRankConfig {
     // The maximum number of page rank iterations.
