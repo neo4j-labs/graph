@@ -144,6 +144,7 @@ impl<NI: Idx> DisjointSetStruct<NI> {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::sync::Barrier;
 
     use super::*;
 
@@ -164,27 +165,31 @@ mod tests {
 
     #[test]
     fn test_union_parallel() {
+        let barrier = Arc::new(Barrier::new(2));
         let dss = Arc::new(DisjointSetStruct::new(1000));
 
-        let dss1 = dss.clone();
-        let dss2 = dss.clone();
-
-        let t1 = std::thread::spawn(move || {
+        fn workload(barrier: &Barrier, dss: &DisjointSetStruct<u64>) {
+            barrier.wait();
             for i in 0..500 {
-                dss1.union(i, i + 1);
+                dss.union(i, i + 1);
             }
+            // We wait again after the first cluster to increase the chance of concurrent updates
+            barrier.wait();
             for i in 501..999 {
-                dss1.union(i, i + 1);
+                dss.union(i, i + 1);
             }
+        }
+
+        let t1 = std::thread::spawn({
+            let barrier = Arc::clone(&barrier);
+            let dss = Arc::clone(&dss);
+            move || workload(&barrier, &dss)
         });
 
-        let t2 = std::thread::spawn(move || {
-            for i in 0..500 {
-                dss2.union(i, i + 1);
-            }
-            for i in 501..999 {
-                dss2.union(i, i + 1);
-            }
+        let t2 = std::thread::spawn({
+            let barrier = Arc::clone(&barrier);
+            let dss = Arc::clone(&dss);
+            move || workload(&barrier, &dss)
         });
 
         t1.join().unwrap();
