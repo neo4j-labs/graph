@@ -137,6 +137,7 @@
 //! assert_eq!(ranks, expected);
 //! ```
 
+pub mod dss;
 pub mod page_rank;
 pub mod prelude;
 pub mod sssp;
