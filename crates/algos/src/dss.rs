@@ -122,7 +122,7 @@ impl<NI: Idx> DisjointSetStruct<NI> {
             // that at least one of the contenting threads will
             // succeed. That's enough for the path-halving to work
             // and there is no need to retry in case of a CAS failure.
-            self.update_parent(id, parent, grand_parent).unwrap();
+            let _ = self.update_parent(id, parent, grand_parent);
             id = parent;
             parent = grand_parent;
         }
@@ -132,12 +132,12 @@ impl<NI: Idx> DisjointSetStruct<NI> {
 
     #[inline]
     fn parent(&self, i: NI) -> NI {
-        self.0[i.index()].load(Ordering::Acquire)
+        self.0[i.index()].load(Ordering::SeqCst)
     }
 
     #[inline]
     fn update_parent(&self, id: NI, current: NI, new: NI) -> Result<NI, NI> {
-        self.0[id.index()].compare_exchange_weak(current, new, Ordering::Release, Ordering::Relaxed)
+        self.0[id.index()].compare_exchange_weak(current, new, Ordering::SeqCst, Ordering::Relaxed)
     }
 }
 
