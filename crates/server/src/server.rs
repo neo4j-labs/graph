@@ -16,6 +16,7 @@ use arrow_flight::{
 };
 use futures::{Stream, StreamExt};
 use graph::page_rank::PageRankConfig;
+use graph::prelude::DeltaSteppingConfig;
 use log::error;
 use log::info;
 use parking_lot::RwLock;
@@ -200,6 +201,16 @@ impl FlightService for FlightServiceImpl {
                     }
                     Algorithm::TriangleCount => {
                         compute_triangle_count(Arc::clone(&self.graph_catalog), graph_name).await?
+                    }
+                    Algorithm::Sssp(config) => {
+                        compute_sssp(
+                            config,
+                            Arc::clone(&self.graph_catalog),
+                            Arc::clone(&self.property_store),
+                            graph_name,
+                            property_key,
+                        )
+                        .await?
                     }
                 }
             }
@@ -387,6 +398,58 @@ async fn compute_triangle_count(
     Ok(arrow_flight::Result { body: result })
 }
 
+async fn compute_sssp(
+    config: DeltaSteppingConfig<usize>,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+    property_store: Arc<RwLock<PropertyStore>>,
+    graph_name: String,
+    property_key: String,
+) -> FlightResult<arrow_flight::Result> {
+    info!("Computing sssp on graph '{graph_name}' using config: {config:?}");
+
+    let catalog_key = graph_name.clone();
+
+    let (distances, result) = tokio::task::spawn_blocking(move || {
+        let catalog = graph_catalog.read();
+
+        if let GraphType::DirectedWeighted(graph) = catalog.get(catalog_key).unwrap() {
+            let start = Instant::now();
+            let distances = graph::sssp::delta_stepping(graph, config);
+            let result = SsspResult {
+                compute_millis: start.elapsed().as_millis(),
+            };
+
+            let (ptr, len, cap) = distances.into_raw_parts();
+            // Safety: AtomicF32 and f32 have the same memory layout
+            // which makes the conversion safe.
+            let distances = unsafe {
+                let ptr = ptr as *mut _;
+                Vec::from_raw_parts(ptr, len, cap)
+            };
+
+            Ok((distances, result))
+        } else {
+            error!("Attempted running sssp on undirected graph");
+            Err(Status::invalid_argument(
+                "Sssp requires a directed, weighted graph",
+            ))
+        }
+    })
+    .await
+    .unwrap()?;
+
+    let property_id = PropertyId::new(graph_name, property_key);
+    let record_batches = crate::catalog::to_f32_record_batches(distances, "distance").await;
+
+    property_store
+        .write()
+        .insert(property_id.clone(), record_batches);
+
+    let result = MutateResult::new(property_id, result);
+
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
+}
 fn from_arrow_err(e: ArrowError) -> Status {
     Status::internal(format!("ArrowError: {:?}", e))
 }

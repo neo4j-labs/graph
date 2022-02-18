@@ -15,7 +15,7 @@ const BIN_SIZE_THRESHOLD: usize = 1000;
 
 const BATCH_SIZE: usize = 64;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DeltaSteppingConfig<NI> {
     // The node for which to compute distances to all reachable nodes.

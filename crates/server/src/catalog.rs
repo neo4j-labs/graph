@@ -15,6 +15,8 @@ use crate::actions::{from_json_error, FileFormat, Orientation};
 pub enum GraphType {
     Directed(DirectedCsrGraph<usize>),
     Undirected(UndirectedCsrGraph<usize>),
+    DirectedWeighted(DirectedCsrGraph<usize, (), f32>),
+    UndirectedWeighted(UndirectedCsrGraph<usize, (), f32>),
 }
 
 impl GraphType {
@@ -28,6 +30,22 @@ impl GraphType {
         match orientation {
             Orientation::Directed => GraphType::Directed(builder.build()),
             Orientation::Undirected => GraphType::Undirected(builder.build()),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_edge_list_with_weights(
+        edge_list: Vec<(usize, usize, f32)>,
+        orientation: Orientation,
+        csr_layout: CsrLayout,
+    ) -> Self {
+        let builder = GraphBuilder::new()
+            .csr_layout(csr_layout)
+            .edges_with_values(edge_list);
+
+        match orientation {
+            Orientation::Directed => GraphType::DirectedWeighted(builder.build()),
+            Orientation::Undirected => GraphType::UndirectedWeighted(builder.build()),
         }
     }
 
@@ -55,6 +73,22 @@ impl GraphType {
                     .map_err(from_graph_error)?;
                 Ok(GraphType::Undirected(graph))
             }
+            (Orientation::Directed, FileFormat::EdgeListWeighted) => {
+                let graph = builder
+                    .file_format(EdgeListInput::default())
+                    .path(path)
+                    .build()
+                    .map_err(from_graph_error)?;
+                Ok(GraphType::DirectedWeighted(graph))
+            }
+            (Orientation::Undirected, FileFormat::EdgeListWeighted) => {
+                let graph = builder
+                    .file_format(EdgeListInput::default())
+                    .path(path)
+                    .build()
+                    .map_err(from_graph_error)?;
+                Ok(GraphType::UndirectedWeighted(graph))
+            }
             (Orientation::Directed, FileFormat::Graph500) => {
                 let graph = builder
                     .file_format(Graph500Input::default())
@@ -78,6 +112,8 @@ impl GraphType {
         match self {
             GraphType::Directed(g) => g.node_count(),
             GraphType::Undirected(g) => g.node_count(),
+            GraphType::DirectedWeighted(g) => g.node_count(),
+            GraphType::UndirectedWeighted(g) => g.node_count(),
         }
     }
 
@@ -85,6 +121,8 @@ impl GraphType {
         match self {
             GraphType::Directed(g) => g.edge_count(),
             GraphType::Undirected(g) => g.edge_count(),
+            GraphType::DirectedWeighted(g) => g.edge_count(),
+            GraphType::UndirectedWeighted(g) => g.edge_count(),
         }
     }
 }

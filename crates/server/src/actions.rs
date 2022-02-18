@@ -58,6 +58,7 @@ impl TryFrom<Action> for FlightAction {
 #[derive(Deserialize, Debug)]
 pub enum FileFormat {
     EdgeList,
+    EdgeListWeighted,
     Graph500,
 }
 
@@ -171,6 +172,7 @@ pub struct RelabelActionResult {
 pub enum Algorithm {
     PageRank(PageRankConfig),
     TriangleCount,
+    Sssp(DeltaSteppingConfig<usize>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -198,6 +200,11 @@ pub struct PageRankResult {
 #[derive(Serialize, Debug)]
 pub struct TriangleCountResult {
     pub triangle_count: u64,
+    pub compute_millis: u128,
+}
+
+#[derive(Serialize, Debug)]
+pub struct SsspResult {
     pub compute_millis: u128,
 }
 

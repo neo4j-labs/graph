@@ -1,3 +1,5 @@
+#![feature(vec_into_raw_parts)]
+
 mod actions;
 mod catalog;
 mod server;
