@@ -42,6 +42,22 @@ pub trait AtomicIdx: Send + Sync {
 
     fn get_and_increment(&self, order: Ordering) -> Self::Inner;
 
+    fn compare_exchange(
+        &self,
+        current: Self::Inner,
+        new: Self::Inner,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<Self::Inner, Self::Inner>;
+
+    fn compare_exchange_weak(
+        &self,
+        current: Self::Inner,
+        new: Self::Inner,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<Self::Inner, Self::Inner>;
+
     fn zero() -> Self;
 
     fn into_inner(self) -> Self::Inner;
@@ -97,6 +113,28 @@ macro_rules! impl_idx {
             #[inline]
             fn get_and_increment(&self, order: Ordering) -> Self::Inner {
                 self.fetch_add(1, order)
+            }
+
+            #[inline]
+            fn compare_exchange(
+                &self,
+                current: $TYPE,
+                new: $TYPE,
+                success: Ordering,
+                failure: Ordering,
+            ) -> Result<Self::Inner, Self::Inner> {
+                self.compare_exchange(current, new, success, failure)
+            }
+
+            #[inline]
+            fn compare_exchange_weak(
+                &self,
+                current: $TYPE,
+                new: $TYPE,
+                success: Ordering,
+                failure: Ordering,
+            ) -> Result<Self::Inner, Self::Inner> {
+                self.compare_exchange_weak(current, new, success, failure)
             }
 
             #[inline]
