@@ -1,3 +1,4 @@
+use log::info;
 use std::{
     collections::HashMap,
     hash::Hash,
@@ -119,9 +120,9 @@ fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: Arc<DisjointSetSt
                 let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
                 for u in start..end {
-                    let upper_bound = usize::min(graph.out_degree(u).index(), NEIGHBOR_ROUNDS);
+                    let limit = usize::min(graph.out_degree(u).index(), NEIGHBOR_ROUNDS);
 
-                    for v in &graph.out_neighbors(u)[..upper_bound] {
+                    for v in &graph.out_neighbors(u)[..limit] {
                         dss.union(u, *v);
                     }
                 }
@@ -142,10 +143,15 @@ fn find_largest_component<NI: Idx + Hash>(dss: Arc<DisjointSetStruct<NI>>) -> NI
         *count += 1;
     }
 
-    let (most_frequent, _) = sample_counts
+    let (most_frequent, size) = sample_counts
         .iter()
         .max_by(|(_, v1), (_, v2)| v1.cmp(v2))
         .unwrap();
+
+    info!(
+        "Largest intermediate component {most_frequent:?} containing approx {} nodes",
+        *size as f32 / SAMPLING_SIZE as f32 * 100.0
+    );
 
     *most_frequent
 }
