@@ -61,6 +61,30 @@ pub fn wcc_manual_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetSt
     Arc::try_unwrap(dss).ok().unwrap()
 }
 
+pub fn wcc_std_threads<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
+    let next_chunk = NI::zero().atomic();
+    let dss = Arc::new(DisjointSetStruct::new(graph.node_count().index()));
+
+    easy_parallel::Parallel::new()
+        .each(0..num_cpus::get(), |_| {
+            let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
+            if start >= graph.node_count() {
+                return;
+            }
+
+            let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
+
+            for u in start..end {
+                for v in graph.out_neighbors(u) {
+                    dss.union(u, *v);
+                }
+            }
+        })
+        .run();
+
+    Arc::try_unwrap(dss).ok().unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
