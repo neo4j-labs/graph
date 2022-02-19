@@ -163,6 +163,30 @@ mod tests {
     }
 
     #[test]
+    fn test_union_with_path_halving() {
+        let dss = DisjointSetStruct::new(10);
+
+        dss.union(4, 3);
+        dss.union(3, 2);
+        dss.union(2, 1);
+        dss.union(1, 0);
+
+        dss.union(9, 8);
+        dss.union(8, 7);
+        dss.union(7, 6);
+        dss.union(6, 5);
+
+        assert_eq!(dss.find(4), 0);
+        assert_eq!(dss.find(9), 5);
+
+        dss.union(5, 4);
+
+        for i in 0..dss.len() {
+            assert_eq!(dss.find(i), 0);
+        }
+    }
+
+    #[test]
     fn test_union_parallel() {
         let barrier = Arc::new(Barrier::new(2));
         let dss = Arc::new(DisjointSetStruct::new(1000));
