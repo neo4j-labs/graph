@@ -131,12 +131,17 @@ impl<NI: Idx> DisjointSetStruct<NI> {
 
     #[inline]
     fn parent(&self, i: NI) -> NI {
-        self.0[i.index()].load(Ordering::SeqCst)
+        unsafe { self.0.get_unchecked(i.index()) }.load(Ordering::SeqCst)
     }
 
     #[inline]
     fn update_parent(&self, id: NI, current: NI, new: NI) -> Result<NI, NI> {
-        self.0[id.index()].compare_exchange_weak(current, new, Ordering::SeqCst, Ordering::Relaxed)
+        unsafe { self.0.get_unchecked(id.index()) }.compare_exchange_weak(
+            current,
+            new,
+            Ordering::SeqCst,
+            Ordering::Relaxed,
+        )
     }
 }
 
