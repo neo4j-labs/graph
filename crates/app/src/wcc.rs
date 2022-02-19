@@ -2,6 +2,8 @@ use graph::prelude::*;
 
 use log::info;
 
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::path::Path as StdPath;
 use std::str::FromStr;
 use std::time::Instant;
@@ -53,7 +55,7 @@ fn run<NI, Format, Path>(
     runs: usize,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    NI: Idx,
+    NI: Idx + Hash,
     Path: AsRef<StdPath>,
     Format: InputCapabilities<NI>,
     Format::GraphInput: TryFrom<InputPath<Path>>,
@@ -69,13 +71,20 @@ where
 
     for run in 1..=runs {
         let start = Instant::now();
-        let _dss = wcc(&graph);
+        let dss = wcc(&graph);
         info!(
             "Run {} of {} finished in {:.6?}",
             run,
             runs,
             start.elapsed(),
         );
+        let mut components = HashMap::new();
+        for node in 0..graph.node_count().index() {
+            let component = dss.find(NI::new(node));
+            let count = components.entry(component).or_insert(0);
+            *count += 1;
+        }
+        info!("Found {} components.", components.len());
     }
 
     Ok(())
