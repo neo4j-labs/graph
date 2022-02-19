@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     hash::Hash,
     sync::{atomic::Ordering, Arc},
+    time::Instant,
 };
 
 use crate::{dss::DisjointSetStruct, prelude::*};
@@ -112,9 +113,20 @@ pub fn wcc_std_threads<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStru
 pub fn wcc<NI: Idx + Hash>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let dss = Arc::new(DisjointSetStruct::new(graph.node_count().index()));
 
+    let start = Instant::now();
     sample_subgraph(graph, Arc::clone(&dss));
+    info!("Sampling took {} ms", start.elapsed().as_millis());
+
+    let start = Instant::now();
     let largest_component = find_largest_component(Arc::clone(&dss));
+    info!(
+        "Find skip component took {} ms",
+        start.elapsed().as_millis()
+    );
+
+    let start = Instant::now();
     link_remaining(graph, Arc::clone(&dss), largest_component);
+    info!("Link remaining took {} ms", start.elapsed().as_millis());
 
     Arc::try_unwrap(dss).ok().unwrap()
 }
@@ -154,8 +166,8 @@ fn find_largest_component<NI: Idx + Hash>(dss: Arc<DisjointSetStruct<NI>>) -> NI
         .unwrap();
 
     info!(
-        "Largest intermediate component {most_frequent:?} containing approx {} nodes",
-        *size as f32 / SAMPLING_SIZE as f32 * 100.0
+        "Largest intermediate component {most_frequent:?} containing approx. {}% of the graph.",
+        (*size as f32 / SAMPLING_SIZE as f32 * 100.0) as usize
     );
 
     *most_frequent
