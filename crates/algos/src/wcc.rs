@@ -121,28 +121,19 @@ pub fn wcc<NI: Idx + Hash>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
 fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: Arc<DisjointSetStruct<NI>>) {
-    let next_chunk = NI::zero().atomic();
+    (0..graph.node_count().index())
+        .into_par_iter()
+        .chunks(CHUNK_SIZE)
+        .for_each(|chunk| {
+            for u in chunk {
+                let u = NI::new(u);
+                let limit = usize::min(graph.out_degree(u).index(), NEIGHBOR_ROUNDS);
 
-    rayon::scope(|s| {
-        for _ in 0..rayon::current_num_threads() {
-            s.spawn(|_| loop {
-                let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
-                if start >= graph.node_count() {
-                    break;
+                for v in &graph.out_neighbors(u)[..limit] {
+                    dss.union(u, *v);
                 }
-
-                let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
-
-                for u in start..end {
-                    let limit = usize::min(graph.out_degree(u).index(), NEIGHBOR_ROUNDS);
-
-                    for v in &graph.out_neighbors(u)[..limit] {
-                        dss.union(u, *v);
-                    }
-                }
-            })
-        }
-    })
+            }
+        });
 }
 
 // Find the largest component after running wcc on the sampled graph.
@@ -176,36 +167,27 @@ fn link_remaining<NI: Idx>(
     dss: Arc<DisjointSetStruct<NI>>,
     skip_component: NI,
 ) {
-    let next_chunk = NI::zero().atomic();
-
-    rayon::scope(|s| {
-        for _ in 0..rayon::current_num_threads() {
-            s.spawn(|_| loop {
-                let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
-                if start >= graph.node_count() {
-                    break;
+    (0..graph.node_count().index())
+        .into_par_iter()
+        .chunks(CHUNK_SIZE)
+        .for_each(|chunk| {
+            for u in chunk {
+                let u = NI::new(u);
+                if dss.find(u) == skip_component {
+                    continue;
                 }
 
-                let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
-
-                for u in start..end {
-                    if dss.find(u) == skip_component {
-                        continue;
-                    }
-
-                    if graph.out_degree(u).index() > NEIGHBOR_ROUNDS {
-                        for v in &graph.out_neighbors(u)[NEIGHBOR_ROUNDS..] {
-                            dss.union(u, *v);
-                        }
-                    }
-
-                    for v in graph.in_neighbors(u) {
+                if graph.out_degree(u).index() > NEIGHBOR_ROUNDS {
+                    for v in &graph.out_neighbors(u)[NEIGHBOR_ROUNDS..] {
                         dss.union(u, *v);
                     }
                 }
-            })
-        }
-    })
+
+                for v in graph.in_neighbors(u) {
+                    dss.union(u, *v);
+                }
+            }
+        });
 }
 
 #[cfg(test)]
