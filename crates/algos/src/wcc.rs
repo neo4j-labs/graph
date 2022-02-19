@@ -1,10 +1,5 @@
 use log::info;
-use std::{
-    collections::HashMap,
-    hash::Hash,
-    sync::{atomic::Ordering, Arc},
-    time::Instant,
-};
+use std::{collections::HashMap, hash::Hash, sync::atomic::Ordering, time::Instant};
 
 use crate::{dss::DisjointSetStruct, prelude::*};
 use rayon::prelude::*;
@@ -18,18 +13,18 @@ const SAMPLING_SIZE: usize = 1024;
 
 pub fn wcc_par_iter<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let node_count = graph.node_count().index();
-    let dss = Arc::new(DisjointSetStruct::new(node_count));
+    let dss = DisjointSetStruct::new(node_count);
 
     (0..node_count).into_par_iter().map(NI::new).for_each(|u| {
         graph.out_neighbors(u).iter().for_each(|v| dss.union(u, *v));
     });
 
-    Arc::try_unwrap(dss).ok().unwrap()
+    dss
 }
 
 pub fn wcc_rayon_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let node_count = graph.node_count().index();
-    let dss = Arc::new(DisjointSetStruct::new(node_count));
+    let dss = DisjointSetStruct::new(node_count);
 
     (0..node_count)
         .into_par_iter()
@@ -41,12 +36,12 @@ pub fn wcc_rayon_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStr
             }
         });
 
-    Arc::try_unwrap(dss).ok().unwrap()
+    dss
 }
 
 pub fn wcc_manual_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let node_count = graph.node_count().index();
-    let dss = Arc::new(DisjointSetStruct::new(node_count));
+    let dss = DisjointSetStruct::new(node_count);
 
     let next_chunk = NI::zero().atomic();
 
@@ -60,7 +55,6 @@ pub fn wcc_manual_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetSt
 
                 let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
-                // info!("Running from {start:?} to {end:?}");
                 for u in start..end {
                     for v in graph.out_neighbors(u) {
                         dss.union(u, *v);
@@ -70,7 +64,7 @@ pub fn wcc_manual_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetSt
         }
     });
 
-    Arc::try_unwrap(dss).ok().unwrap()
+    dss
 }
 
 pub fn wcc_single_thread<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
@@ -88,7 +82,7 @@ pub fn wcc_single_thread<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetSt
 
 pub fn wcc_std_threads<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let next_chunk = NI::zero().atomic();
-    let dss = Arc::new(DisjointSetStruct::new(graph.node_count().index()));
+    let dss = DisjointSetStruct::new(graph.node_count().index());
 
     easy_parallel::Parallel::new()
         .each(0..num_cpus::get(), |_| loop {
@@ -107,32 +101,32 @@ pub fn wcc_std_threads<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStru
         })
         .run();
 
-    Arc::try_unwrap(dss).ok().unwrap()
+    dss
 }
 
 pub fn wcc<NI: Idx + Hash>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
-    let dss = Arc::new(DisjointSetStruct::new(graph.node_count().index()));
+    let dss = DisjointSetStruct::new(graph.node_count().index());
 
     let start = Instant::now();
-    sample_subgraph(graph, Arc::clone(&dss));
+    sample_subgraph(graph, &dss);
     info!("Sampling took {} ms", start.elapsed().as_millis());
 
     let start = Instant::now();
-    let largest_component = find_largest_component(Arc::clone(&dss));
+    let largest_component = find_largest_component(&dss);
     info!(
         "Find skip component took {} ms",
         start.elapsed().as_millis()
     );
 
     let start = Instant::now();
-    link_remaining(graph, Arc::clone(&dss), largest_component);
+    link_remaining(graph, &dss, largest_component);
     info!("Link remaining took {} ms", start.elapsed().as_millis());
 
-    Arc::try_unwrap(dss).ok().unwrap()
+    dss
 }
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
-fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: Arc<DisjointSetStruct<NI>>) {
+fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: &DisjointSetStruct<NI>) {
     (0..graph.node_count().index())
         .into_par_iter()
         .chunks(CHUNK_SIZE)
@@ -149,7 +143,7 @@ fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: Arc<DisjointSetSt
 }
 
 // Find the largest component after running wcc on the sampled graph.
-fn find_largest_component<NI: Idx + Hash>(dss: Arc<DisjointSetStruct<NI>>) -> NI {
+fn find_largest_component<NI: Idx + Hash>(dss: &DisjointSetStruct<NI>) -> NI {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let mut sample_counts = HashMap::<NI, usize>::new();
@@ -176,7 +170,7 @@ fn find_largest_component<NI: Idx + Hash>(dss: Arc<DisjointSetStruct<NI>>) -> NI
 // Process the remaining edges while skipping nodes that are in the largest component.
 fn link_remaining<NI: Idx>(
     graph: &DirectedCsrGraph<NI>,
-    dss: Arc<DisjointSetStruct<NI>>,
+    dss: &DisjointSetStruct<NI>,
     skip_component: NI,
 ) {
     (0..graph.node_count().index())
