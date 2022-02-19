@@ -51,14 +51,15 @@ pub fn wcc_manual_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetSt
 
     rayon::scope(|s| {
         for _ in 0..rayon::current_num_threads() {
-            s.spawn(|_| {
+            s.spawn(|_| loop {
                 let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
                 if start >= graph.node_count() {
-                    return;
+                    break;
                 }
 
                 let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
+                // info!("Running from {start:?} to {end:?}");
                 for u in start..end {
                     for v in graph.out_neighbors(u) {
                         dss.union(u, *v);
@@ -71,15 +72,28 @@ pub fn wcc_manual_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetSt
     Arc::try_unwrap(dss).ok().unwrap()
 }
 
+pub fn wcc_single_thread<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
+    let dss = DisjointSetStruct::new(graph.node_count().index());
+
+    for u in 0..graph.node_count().index() {
+        let u = NI::new(u);
+        for v in graph.out_neighbors(u) {
+            dss.union(u, *v);
+        }
+    }
+
+    dss
+}
+
 pub fn wcc_std_threads<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let next_chunk = NI::zero().atomic();
     let dss = Arc::new(DisjointSetStruct::new(graph.node_count().index()));
 
     easy_parallel::Parallel::new()
-        .each(0..num_cpus::get(), |_| {
+        .each(0..num_cpus::get(), |_| loop {
             let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
             if start >= graph.node_count() {
-                return;
+                break;
             }
 
             let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
@@ -111,10 +125,10 @@ fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: Arc<DisjointSetSt
 
     rayon::scope(|s| {
         for _ in 0..rayon::current_num_threads() {
-            s.spawn(|_| {
+            s.spawn(|_| loop {
                 let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
                 if start >= graph.node_count() {
-                    return;
+                    break;
                 }
 
                 let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
@@ -166,10 +180,10 @@ fn link_remaining<NI: Idx>(
 
     rayon::scope(|s| {
         for _ in 0..rayon::current_num_threads() {
-            s.spawn(|_| {
+            s.spawn(|_| loop {
                 let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
                 if start >= graph.node_count() {
-                    return;
+                    break;
                 }
 
                 let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
