@@ -147,8 +147,8 @@ where
     NI: Idx,
 {
     let neighbor_rounds = config.neighbor_rounds;
-    for r in 1..=neighbor_rounds {
-        info!("Neighbor round {r} of {neighbor_rounds}");
+    for r in 0..neighbor_rounds {
+        info!("Neighbor round {} of {neighbor_rounds}", r + 1);
 
         let start = Instant::now();
         (0..graph.node_count().index())
