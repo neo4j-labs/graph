@@ -81,12 +81,16 @@ pub trait UnionFind<NI> {
     fn compress(&self);
 }
 
+pub trait Components<NI> {
+    fn component(&self, node: NI) -> NI;
+}
+
 /// Computes Wcc by iterating all relationships in parallel and
 /// linking source and target nodes using a disjoint set struct.
 pub fn wcc_baseline<NI: Idx>(
     graph: &DirectedCsrGraph<NI>,
     config: WccConfig,
-) -> DisjointSetStruct<NI> {
+) -> impl Components<NI> {
     let node_count = graph.node_count().index();
     let dss = DisjointSetStruct::new(node_count);
 
@@ -109,7 +113,7 @@ pub fn wcc_baseline<NI: Idx>(
 pub fn wcc_afforest<NI: Idx + Hash>(
     graph: &DirectedCsrGraph<NI>,
     config: WccConfig,
-) -> Afforest<NI> {
+) -> impl Components<NI> {
     let start = Instant::now();
     let comp = Afforest::new(graph.node_count().index());
     info!("Afforest creation took {:?}", start.elapsed());
@@ -125,7 +129,7 @@ pub fn wcc_afforest<NI: Idx + Hash>(
 pub fn wcc_afforest_dss<NI: Idx + Hash>(
     graph: &DirectedCsrGraph<NI>,
     config: WccConfig,
-) -> DisjointSetStruct<NI> {
+) -> impl Components<NI> {
     let start = Instant::now();
     let dss = DisjointSetStruct::new(graph.node_count().index());
     info!("DSS creation took {:?}", start.elapsed());
@@ -290,11 +294,11 @@ mod tests {
         let graph: DirectedCsrGraph<usize> =
             GraphBuilder::new().edges(vec![(0, 1), (2, 3)]).build();
 
-        let dss = wcc_afforest_dss(&graph, WccConfig::default());
+        let res = wcc_afforest_dss(&graph, WccConfig::default());
 
-        assert_eq!(dss.find(0), dss.find(1));
-        assert_eq!(dss.find(2), dss.find(3));
-        assert_ne!(dss.find(1), dss.find(2));
+        assert_eq!(res.component(0), res.component(1));
+        assert_eq!(res.component(2), res.component(3));
+        assert_ne!(res.component(1), res.component(2));
     }
 
     #[test]
@@ -302,10 +306,10 @@ mod tests {
         let graph: DirectedCsrGraph<usize> =
             GraphBuilder::new().edges(vec![(0, 1), (2, 3)]).build();
 
-        let dss = wcc_afforest(&graph, WccConfig::default());
+        let res = wcc_afforest(&graph, WccConfig::default());
 
-        assert_eq!(dss.find(0), dss.find(1));
-        assert_eq!(dss.find(2), dss.find(3));
-        assert_ne!(dss.find(1), dss.find(2));
+        assert_eq!(res.component(0), res.component(1));
+        assert_eq!(res.component(2), res.component(3));
+        assert_ne!(res.component(1), res.component(2));
     }
 }

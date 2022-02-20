@@ -157,6 +157,12 @@ impl<NI: Idx> DisjointSetStruct<NI> {
     }
 }
 
+impl<NI: Idx> Components<NI> for DisjointSetStruct<NI> {
+    fn component(&self, node: NI) -> NI {
+        self.find(node)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

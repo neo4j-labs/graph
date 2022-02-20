@@ -99,6 +99,12 @@ impl<NI: Idx> Afforest<NI> {
     }
 }
 
+impl<NI: Idx> Components<NI> for Afforest<NI> {
+    fn component(&self, node: NI) -> NI {
+        self.find(node)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::prelude::*;
