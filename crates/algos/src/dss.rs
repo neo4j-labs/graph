@@ -22,47 +22,7 @@ pub struct DisjointSetStruct<NI: Idx>(Box<[NI::Atomic]>);
 unsafe impl<NI: Idx> Sync for DisjointSetStruct<NI> {}
 unsafe impl<NI: Idx> Send for DisjointSetStruct<NI> {}
 
-#[allow(clippy::len_without_is_empty)]
-impl<NI: Idx> DisjointSetStruct<NI> {
-    /// Creates a new disjoint-set struct of `size` elements.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use graph::dss::DisjointSetStruct;
-    ///
-    /// let dss = DisjointSetStruct::new(3);
-    /// dss.union(0, 1);
-    /// let set0 = dss.find(0);
-    /// let set1 = dss.find(1);
-    /// assert_eq!(set0, set1);
-    /// ```
-    pub fn new(size: usize) -> Self {
-        let mut v = Vec::with_capacity(size);
-
-        (0..size)
-            .into_par_iter()
-            .map(|i| NI::new(i).atomic())
-            .collect_into_vec(&mut v);
-
-        Self(v.into_boxed_slice())
-    }
-
-    /// Returns the number of elements in the dss, also referred to
-    /// as its 'length'.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use graph::dss::DisjointSetStruct;
-    ///
-    /// let dss = DisjointSetStruct::<usize>::new(3);
-    /// assert_eq!(dss.len(), 3);
-    /// ```
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
+impl<NI: Idx> UnionFind<NI> for DisjointSetStruct<NI> {
     /// Joins the set of `id1` with the set of `id2`.
     ///
     /// # Examples
@@ -75,7 +35,7 @@ impl<NI: Idx> DisjointSetStruct<NI> {
     /// assert_eq!(dss.find(2), 2);
     /// assert_eq!(dss.find(4), 2);
     /// ```
-    pub fn union(&self, mut id1: NI, mut id2: NI) {
+    fn union(&self, mut id1: NI, mut id2: NI) {
         loop {
             id1 = self.find(id1);
             id2 = self.find(id2);
@@ -113,7 +73,7 @@ impl<NI: Idx> DisjointSetStruct<NI> {
     /// dss.union(4, 2);
     /// assert_eq!(dss.find(4), 2);
     /// ```
-    pub fn find(&self, mut id: NI) -> NI {
+    fn find(&self, mut id: NI) -> NI {
         let mut parent = self.parent(id);
 
         while id != parent {
@@ -131,6 +91,47 @@ impl<NI: Idx> DisjointSetStruct<NI> {
         }
 
         id
+    }
+
+    /// Returns the number of elements in the dss, also referred to
+    /// as its 'length'.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use graph::dss::DisjointSetStruct;
+    ///
+    /// let dss = DisjointSetStruct::<usize>::new(3);
+    /// assert_eq!(dss.len(), 3);
+    /// ```
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<NI: Idx> DisjointSetStruct<NI> {
+    /// Creates a new disjoint-set struct of `size` elements.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use graph::dss::DisjointSetStruct;
+    ///
+    /// let dss = DisjointSetStruct::new(3);
+    /// dss.union(0, 1);
+    /// let set0 = dss.find(0);
+    /// let set1 = dss.find(1);
+    /// assert_eq!(set0, set1);
+    /// ```
+    pub fn new(size: usize) -> Self {
+        let mut v = Vec::with_capacity(size);
+
+        (0..size)
+            .into_par_iter()
+            .map(|i| NI::new(i).atomic())
+            .collect_into_vec(&mut v);
+
+        Self(v.into_boxed_slice())
     }
 
     #[inline]

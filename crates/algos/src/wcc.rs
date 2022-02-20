@@ -35,6 +35,17 @@ impl WccConfig {
     }
 }
 
+#[allow(clippy::len_without_is_empty)]
+pub trait UnionFind<NI> {
+    /// Joins the set of `id1` with the set of `id2`.
+    fn union(&self, u: NI, v: NI);
+    /// Find the set of `id`.
+    fn find(&self, u: NI) -> NI;
+    /// Returns the number of elements in the union find,
+    /// also referred to as its 'length'.
+    fn len(&self) -> usize;
+}
+
 pub fn wcc_baseline<NI: Idx>(
     graph: &DirectedCsrGraph<NI>,
     config: WccConfig,
@@ -79,11 +90,11 @@ pub fn wcc_afforest_dss<NI: Idx + Hash>(
 }
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
-fn sample_subgraph<NI: Idx>(
-    graph: &DirectedCsrGraph<NI>,
-    dss: &DisjointSetStruct<NI>,
-    config: WccConfig,
-) {
+fn sample_subgraph<NI, UF>(graph: &DirectedCsrGraph<NI>, uf: &UF, config: WccConfig)
+where
+    NI: Idx,
+    UF: UnionFind<NI> + Send + Sync,
+{
     (0..graph.node_count().index())
         .into_par_iter()
         .chunks(config.chunk_size)
@@ -93,20 +104,24 @@ fn sample_subgraph<NI: Idx>(
                 let limit = usize::min(graph.out_degree(u).index(), config.neighbor_rounds);
 
                 for v in &graph.out_neighbors(u)[..limit] {
-                    dss.union(u, *v);
+                    uf.union(u, *v);
                 }
             }
         });
 }
 
 // Find the largest component after running wcc on the sampled graph.
-fn find_largest_component<NI: Idx + Hash>(dss: &DisjointSetStruct<NI>, config: WccConfig) -> NI {
+fn find_largest_component<NI, UF>(uf: &UF, config: WccConfig) -> NI
+where
+    NI: Idx + Hash,
+    UF: UnionFind<NI> + Send + Sync,
+{
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let mut sample_counts = HashMap::<NI, usize>::new();
 
     for _ in 0..config.sampling_size {
-        let component = dss.find(NI::new(rng.gen_range(0..dss.len())));
+        let component = uf.find(NI::new(rng.gen_range(0..uf.len())));
         let count = sample_counts.entry(component).or_insert(0);
         *count += 1;
     }
@@ -125,30 +140,33 @@ fn find_largest_component<NI: Idx + Hash>(dss: &DisjointSetStruct<NI>, config: W
 }
 
 // Process the remaining edges while skipping nodes that are in the largest component.
-fn link_remaining<NI: Idx>(
+fn link_remaining<NI, UF>(
     graph: &DirectedCsrGraph<NI>,
-    dss: &DisjointSetStruct<NI>,
+    uf: &UF,
     skip_component: NI,
     config: WccConfig,
-) {
+) where
+    NI: Idx,
+    UF: UnionFind<NI> + Send + Sync,
+{
     (0..graph.node_count().index())
         .into_par_iter()
         .chunks(config.chunk_size)
         .for_each(|chunk| {
             for u in chunk {
                 let u = NI::new(u);
-                if dss.find(u) == skip_component {
+                if uf.find(u) == skip_component {
                     continue;
                 }
 
                 if graph.out_degree(u).index() > config.neighbor_rounds {
                     for v in &graph.out_neighbors(u)[config.neighbor_rounds..] {
-                        dss.union(u, *v);
+                        uf.union(u, *v);
                     }
                 }
 
                 for v in graph.in_neighbors(u) {
-                    dss.union(u, *v);
+                    uf.union(u, *v);
                 }
             }
         });
