@@ -4,7 +4,6 @@
 #![feature(step_trait)]
 #![feature(new_uninit)]
 #![feature(doc_cfg)]
-#![feature(vec_into_raw_parts)]
 #![allow(dead_code)]
 
 //! A library that can be used as a building block for high-performant graph
