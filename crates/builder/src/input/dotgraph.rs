@@ -1,6 +1,6 @@
 use std::{
-    convert::TryFrom, fs::File, hash::Hash, io::Read, marker::PhantomData, path::Path,
-    sync::atomic::Ordering::Acquire,
+    convert::TryFrom, fs::File, hash::Hash, io::Read, marker::PhantomData, mem::ManuallyDrop,
+    path::Path, sync::atomic::Ordering::Acquire,
 };
 
 use fxhash::FxHashMap;
@@ -124,7 +124,9 @@ where
             total += Label::new(*self.label_frequencies.get(&label).unwrap_or(&0));
         }
 
-        let (ptr, len, cap) = offsets.into_raw_parts();
+        let mut offsets = ManuallyDrop::new(offsets);
+        let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
+
         // SAFETY: Label and Label::Atomic have the same memory layout
         let offsets = unsafe {
             let ptr = ptr as *mut Label::Atomic;
@@ -155,10 +157,12 @@ where
             nodes.set_len(node_count.index());
         }
 
-        let (ptr, len, cap) = offsets.into_raw_parts();
+        let mut offsets = ManuallyDrop::new(offsets);
+        let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
+
         // SAFETY: Label and Label::Atomic have the same memory layout
         let offsets = unsafe {
-            let ptr = ptr as _;
+            let ptr = ptr as *mut _;
             Vec::from_raw_parts(ptr, len, cap)
         };
 

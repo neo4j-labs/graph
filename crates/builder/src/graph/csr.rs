@@ -6,7 +6,7 @@ use std::{
     hash::Hash,
     io::{BufReader, Read, Write},
     iter::FromIterator,
-    mem::MaybeUninit,
+    mem::{ManuallyDrop, MaybeUninit},
     path::PathBuf,
     sync::atomic::Ordering::Acquire,
     time::Instant,
@@ -211,7 +211,8 @@ where
         info!("Computed target array in {:?}", start.elapsed());
 
         let start = Instant::now();
-        let (ptr, len, cap) = offsets.into_raw_parts();
+        let mut offsets = ManuallyDrop::new(offsets);
+        let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
 
         // SAFETY: NI and NI::Atomic have the same memory layout
         let mut offsets = unsafe {
