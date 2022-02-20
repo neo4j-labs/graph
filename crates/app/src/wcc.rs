@@ -2,7 +2,6 @@ use graph::prelude::*;
 
 use log::info;
 
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::Path as StdPath;
 use std::str::FromStr;
@@ -83,23 +82,32 @@ where
         .path(path)
         .build()?;
 
-    for run in 1..=runs {
+    let mut durations = vec![];
+
+    let warmup_runs = 5;
+
+    for run in 1..=(warmup_runs + runs) {
         let start = Instant::now();
-        let dss = wcc_afforest_dss(&graph, config);
+        let _ = wcc_afforest_dss(&graph, config);
+        let took = start.elapsed();
+        durations.push(took);
+
         info!(
-            "Run {} of {} finished in {:.6?}",
+            "{}Run {} of {} finished in {:.6?}",
+            if run <= warmup_runs { "Warmup " } else { "" },
             run,
-            runs,
-            start.elapsed(),
+            warmup_runs + runs,
+            took,
         );
-        let mut components = HashMap::new();
-        for node in 0..graph.node_count().index() {
-            let component = dss.find(NI::new(node));
-            let count = components.entry(component).or_insert(0);
-            *count += 1;
-        }
-        info!("Found {} components.", components.len());
     }
+
+    let total = durations
+        .into_iter()
+        .skip(warmup_runs)
+        .reduce(|a, b| a + b)
+        .unwrap_or_default();
+
+    info!("Average runtime: {:?}", total / runs as u32);
 
     Ok(())
 }
