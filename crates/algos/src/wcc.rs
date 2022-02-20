@@ -74,22 +74,49 @@ pub fn wcc_afforest_dss<NI: Idx + Hash>(
     config: WccConfig,
 ) -> DisjointSetStruct<NI> {
     let start = Instant::now();
-    let dss = DisjointSetStruct::new(graph.node_count().index());
-    info!("DSS creation took {:?}", start.elapsed());
+    let comp = DisjointSetStruct::new(graph.node_count().index());
+    info!("Components creation took {:?}", start.elapsed());
 
     let start = Instant::now();
-    sample_subgraph(graph, &dss, config);
+    sample_subgraph(graph, &comp, config);
     info!("Link subgraph took {:?}", start.elapsed());
 
     let start = Instant::now();
-    let largest_component = find_largest_component(&dss, config);
+    let largest_component = find_largest_component(&comp, config);
     info!("Get component took {:?}", start.elapsed());
 
     let start = Instant::now();
-    link_remaining(graph, &dss, largest_component, config);
+    link_remaining(graph, &comp, largest_component, config);
     info!("Link remaining took {:?}", start.elapsed());
 
-    dss
+    comp
+}
+
+pub fn wcc_afforest<NI: Idx + Hash>(
+    graph: &DirectedCsrGraph<NI>,
+    config: WccConfig,
+) -> Afforest<NI> {
+    let start = Instant::now();
+    let comp = Afforest::new(graph.node_count().index());
+    info!("Components creation took {:?}", start.elapsed());
+
+    let start = Instant::now();
+    sample_subgraph_afforest(graph, &comp, config);
+    info!("Link subgraph took {:?}", start.elapsed());
+
+    let start = Instant::now();
+    let largest_component = find_largest_component(&comp, config);
+    info!("Get component took {:?}", start.elapsed());
+
+    let start = Instant::now();
+    link_remaining(graph, &comp, largest_component, config);
+    info!("Link remaining took {:?}", start.elapsed());
+
+    let start = Instant::now();
+    comp.compress();
+    info!("Final compress took {:?}", start.elapsed());
+
+    comp
 }
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
@@ -111,6 +138,42 @@ where
                 }
             }
         });
+}
+
+// Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
+// In contrast to `sample_subgraph`, the method calls `compress` for each neighbor round.
+fn sample_subgraph_afforest<NI>(graph: &DirectedCsrGraph<NI>, af: &Afforest<NI>, config: WccConfig)
+where
+    NI: Idx,
+{
+    let neighbor_rounds = config.neighbor_rounds;
+    for r in 1..=neighbor_rounds {
+        info!("Neighbor round {r} of {neighbor_rounds}");
+
+        let start = Instant::now();
+        (0..graph.node_count().index())
+            .into_par_iter()
+            .chunks(config.chunk_size)
+            .for_each(|chunk| {
+                for u in chunk {
+                    let u = NI::new(u);
+                    if r < graph.out_degree(u).index() {
+                        for v in &graph.out_neighbors(u)[r..r + 1] {
+                            af.union(u, *v);
+                        }
+                    }
+                }
+            });
+
+        info!(
+            "Neighbor round {r} of {neighbor_rounds} took {:?}",
+            start.elapsed()
+        );
+
+        let start = Instant::now();
+        af.compress();
+        info!("Compress took {:?}", start.elapsed());
+    }
 }
 
 // Find the largest component after running wcc on the sampled graph.
@@ -180,11 +243,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn two_components() {
+    fn two_components_afforest_dss() {
         let graph: DirectedCsrGraph<usize> =
             GraphBuilder::new().edges(vec![(0, 1), (2, 3)]).build();
 
         let dss = wcc_afforest_dss(&graph, WccConfig::default());
+
+        assert_eq!(dss.find(0), dss.find(1));
+        assert_eq!(dss.find(2), dss.find(3));
+        assert_ne!(dss.find(1), dss.find(2));
+    }
+
+    #[test]
+    fn two_components_afforest() {
+        let graph: DirectedCsrGraph<usize> =
+            GraphBuilder::new().edges(vec![(0, 1), (2, 3)]).build();
+
+        let dss = wcc_afforest(&graph, WccConfig::default());
 
         assert_eq!(dss.find(0), dss.find(1));
         assert_eq!(dss.find(2), dss.find(3));
