@@ -1,3 +1,32 @@
+//! Weakly Connected Components (WCC) algorithm.
+//!
+//! The algorithm finds all weakly connected components of a graph
+//! and assigns each node to its corresponding component. Weakly
+//! connected means that all nodes that belong to the same component
+//! are connected via an undirected path.
+//!
+//! The implementation is based on the Afforest paper [1] which
+//! introduced the idea of using a sampled subgraph to identify
+//! an intermediate largest community. Nodes within that community
+//! do not need to be considered when linking the remaining edges.
+//! The idea is motivated by power law graphs, which usually have
+//! a very large component.
+//!
+//! The module contains three functions to compute wcc:
+//!
+//! - `wcc_baseline` computes components by linking all connected
+//!   nodes using a disjoint set struct [2]
+//! - `wcc_afforest` implements the algorithm presented in [1]
+//! - `wcc_afforest_dss` implements the algorithm presented in [1]
+//!   but uses a disjoint set struct [2] to represent components
+//!
+//! [1] Michael Sutton, Tal Ben-Nun, Amnon Barak:
+//! "Optimizing Parallel Graph Connectivity Computation via Subgraph Sampling",
+//! Symposium on Parallel and Distributed Processing, IPDPS 2018
+//! [2] Richard J. Anderson , Heather Woll:
+//! "Wait-free Parallel Algorithms for the Union-Find Problem",
+//! In Proc. 23rd ACM Symposium on Theory of Computing, 1994
+
 use log::info;
 use std::{collections::HashMap, hash::Hash, time::Instant};
 
@@ -52,6 +81,8 @@ pub trait UnionFind<NI> {
     fn compress(&self);
 }
 
+/// Computes Wcc by iterating all relationships in parallel and
+/// linking source and target nodes using a disjoint set struct.
 pub fn wcc_baseline<NI: Idx>(
     graph: &DirectedCsrGraph<NI>,
     config: WccConfig,
@@ -72,19 +103,9 @@ pub fn wcc_baseline<NI: Idx>(
     dss
 }
 
-pub fn wcc_afforest_dss<NI: Idx + Hash>(
-    graph: &DirectedCsrGraph<NI>,
-    config: WccConfig,
-) -> DisjointSetStruct<NI> {
-    let start = Instant::now();
-    let dss = DisjointSetStruct::new(graph.node_count().index());
-    info!("DSS creation took {:?}", start.elapsed());
-
-    wcc(graph, &dss, config);
-
-    dss
-}
-
+/// Computes Wcc using the Afforest algorithm backed by a disjoint
+/// set struct. The disjoint set struct performans path compression
+/// while searching the set id for a given node.
 pub fn wcc_afforest<NI: Idx + Hash>(
     graph: &DirectedCsrGraph<NI>,
     config: WccConfig,
@@ -96,6 +117,22 @@ pub fn wcc_afforest<NI: Idx + Hash>(
     wcc(graph, &comp, config);
 
     comp
+}
+
+/// Computes Wcc using the Afforest algorithm as described in the original
+/// paper (see module description). The backing union find structure can
+/// achieve better cache locality compared to the disjoint set struct variant.
+pub fn wcc_afforest_dss<NI: Idx + Hash>(
+    graph: &DirectedCsrGraph<NI>,
+    config: WccConfig,
+) -> DisjointSetStruct<NI> {
+    let start = Instant::now();
+    let dss = DisjointSetStruct::new(graph.node_count().index());
+    info!("DSS creation took {:?}", start.elapsed());
+
+    wcc(graph, &dss, config);
+
+    dss
 }
 
 fn wcc<NI, UF>(graph: &DirectedCsrGraph<NI>, comp: &UF, config: WccConfig)
