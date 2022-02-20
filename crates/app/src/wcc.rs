@@ -71,7 +71,7 @@ where
 
     for run in 1..=runs {
         let start = Instant::now();
-        let dss = wcc(&graph);
+        let dss = wcc_afforest_dss(&graph);
         info!(
             "Run {} of {} finished in {:.6?}",
             run,

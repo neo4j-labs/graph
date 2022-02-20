@@ -1,5 +1,5 @@
 use log::info;
-use std::{collections::HashMap, hash::Hash, sync::atomic::Ordering, time::Instant};
+use std::{collections::HashMap, hash::Hash, time::Instant};
 
 use crate::{dss::DisjointSetStruct, prelude::*};
 use rayon::prelude::*;
@@ -11,18 +11,7 @@ const NEIGHBOR_ROUNDS: usize = 2;
 // The number of samples from the DSS to find the largest component.
 const SAMPLING_SIZE: usize = 1024;
 
-pub fn wcc_par_iter<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
-    let node_count = graph.node_count().index();
-    let dss = DisjointSetStruct::new(node_count);
-
-    (0..node_count).into_par_iter().map(NI::new).for_each(|u| {
-        graph.out_neighbors(u).iter().for_each(|v| dss.union(u, *v));
-    });
-
-    dss
-}
-
-pub fn wcc_rayon_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
+pub fn wcc_baseline<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let node_count = graph.node_count().index();
     let dss = DisjointSetStruct::new(node_count);
 
@@ -39,87 +28,22 @@ pub fn wcc_rayon_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStr
     dss
 }
 
-pub fn wcc_manual_chunks<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
-    let node_count = graph.node_count().index();
-    let dss = DisjointSetStruct::new(node_count);
-
-    let next_chunk = NI::zero().atomic();
-
-    rayon::scope(|s| {
-        for _ in 0..rayon::current_num_threads() {
-            s.spawn(|_| loop {
-                let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
-                if start >= graph.node_count() {
-                    break;
-                }
-
-                let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
-
-                for u in start..end {
-                    for v in graph.out_neighbors(u) {
-                        dss.union(u, *v);
-                    }
-                }
-            });
-        }
-    });
-
-    dss
-}
-
-pub fn wcc_single_thread<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
-    let dss = DisjointSetStruct::new(graph.node_count().index());
-
-    for u in 0..graph.node_count().index() {
-        let u = NI::new(u);
-        for v in graph.out_neighbors(u) {
-            dss.union(u, *v);
-        }
-    }
-
-    dss
-}
-
-pub fn wcc_std_threads<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
-    let next_chunk = NI::zero().atomic();
-    let dss = DisjointSetStruct::new(graph.node_count().index());
-
-    easy_parallel::Parallel::new()
-        .each(0..num_cpus::get(), |_| loop {
-            let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
-            if start >= graph.node_count() {
-                break;
-            }
-
-            let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
-
-            for u in start..end {
-                for v in graph.out_neighbors(u) {
-                    dss.union(u, *v);
-                }
-            }
-        })
-        .run();
-
-    dss
-}
-
-pub fn wcc<NI: Idx + Hash>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
+pub fn wcc_afforest_dss<NI: Idx + Hash>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
     let start = Instant::now();
     let dss = DisjointSetStruct::new(graph.node_count().index());
-    info!("DSS creation took {} ms.", start.elapsed().as_millis());
+    info!("DSS creation took {:?}", start.elapsed());
 
     let start = Instant::now();
     sample_subgraph(graph, &dss);
-    info!("Link subgraph took {} ms.", start.elapsed().as_millis());
+    info!("Link subgraph took {:?}", start.elapsed());
 
     let start = Instant::now();
     let largest_component = find_largest_component(&dss);
-    info!("Get component took {} ms.", start.elapsed().as_millis());
+    info!("Get component took {:?}", start.elapsed());
 
     let start = Instant::now();
     link_remaining(graph, &dss, largest_component);
-    info!("Link remaining took {} ms.", start.elapsed().as_millis());
+    info!("Link remaining took {:?}", start.elapsed());
 
     dss
 }
@@ -204,7 +128,7 @@ mod tests {
         let graph: DirectedCsrGraph<usize> =
             GraphBuilder::new().edges(vec![(0, 1), (2, 3)]).build();
 
-        let dss = wcc(&graph);
+        let dss = wcc_afforest_dss(&graph);
 
         assert_eq!(dss.find(0), dss.find(1));
         assert_eq!(dss.find(2), dss.find(3));
