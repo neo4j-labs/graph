@@ -98,7 +98,7 @@ pub fn wcc_afforest<NI: Idx + Hash>(
     comp
 }
 
-fn wcc<'uf, NI, UF>(graph: &DirectedCsrGraph<NI>, comp: &'uf UF, config: WccConfig)
+fn wcc<NI, UF>(graph: &DirectedCsrGraph<NI>, comp: &UF, config: WccConfig)
 where
     NI: Idx + Hash,
     UF: UnionFind<NI> + Send + Sync,
