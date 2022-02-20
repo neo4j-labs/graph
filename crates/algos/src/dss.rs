@@ -28,7 +28,7 @@ impl<NI: Idx> UnionFind<NI> for DisjointSetStruct<NI> {
     /// # Examples
     ///
     /// ```
-    /// use graph::dss::DisjointSetStruct;
+    /// use graph::prelude::*;
     ///
     /// let dss = DisjointSetStruct::new(10);
     /// dss.union(2, 4);
@@ -66,7 +66,7 @@ impl<NI: Idx> UnionFind<NI> for DisjointSetStruct<NI> {
     /// # Examples
     ///
     /// ```
-    /// use graph::dss::DisjointSetStruct;
+    /// use graph::prelude::*;
     ///
     /// let dss = DisjointSetStruct::new(10);
     /// assert_eq!(dss.find(4), 4);
@@ -99,7 +99,7 @@ impl<NI: Idx> UnionFind<NI> for DisjointSetStruct<NI> {
     /// # Examples
     ///
     /// ```
-    /// use graph::dss::DisjointSetStruct;
+    /// use graph::prelude::*;
     ///
     /// let dss = DisjointSetStruct::<usize>::new(3);
     /// assert_eq!(dss.len(), 3);
@@ -115,7 +115,7 @@ impl<NI: Idx> DisjointSetStruct<NI> {
     /// # Examples
     ///
     /// ```
-    /// use graph::dss::DisjointSetStruct;
+    /// use graph::prelude::*;
     ///
     /// let dss = DisjointSetStruct::new(3);
     /// dss.union(0, 1);

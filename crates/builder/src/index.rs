@@ -38,6 +38,8 @@ pub trait AtomicIdx: Send + Sync {
 
     fn load(&self, order: Ordering) -> Self::Inner;
 
+    fn store(&self, val: Self::Inner, order: Ordering);
+
     fn fetch_add(&self, val: Self::Inner, order: Ordering) -> Self::Inner;
 
     fn get_and_increment(&self, order: Ordering) -> Self::Inner;
@@ -103,6 +105,11 @@ macro_rules! impl_idx {
             #[inline]
             fn load(&self, order: Ordering) -> Self::Inner {
                 self.load(order)
+            }
+
+            #[inline]
+            fn store(&self, val: $TYPE, order: Ordering) {
+                self.store(val, order);
             }
 
             #[inline]

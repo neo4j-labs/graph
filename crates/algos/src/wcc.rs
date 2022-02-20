@@ -1,8 +1,11 @@
 use log::info;
 use std::{collections::HashMap, hash::Hash, time::Instant};
 
-use crate::{dss::DisjointSetStruct, prelude::*};
+use crate::prelude::*;
 use rayon::prelude::*;
+
+pub use crate::afforest::Afforest;
+pub use crate::dss::DisjointSetStruct;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
