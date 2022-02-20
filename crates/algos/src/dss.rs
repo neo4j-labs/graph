@@ -107,6 +107,13 @@ impl<NI: Idx> UnionFind<NI> for DisjointSetStruct<NI> {
     fn len(&self) -> usize {
         self.0.len()
     }
+
+    /// Compresses the DSS so that each id stores its root set id.
+    fn compress(&self) {
+        (0..self.len()).into_par_iter().map(NI::new).for_each(|id| {
+            self.find(id);
+        });
+    }
 }
 
 impl<NI: Idx> DisjointSetStruct<NI> {

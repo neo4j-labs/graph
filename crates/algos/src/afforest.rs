@@ -45,6 +45,15 @@ impl<NI: Idx> UnionFind<NI> for Afforest<NI> {
     fn len(&self) -> usize {
         self.0.len()
     }
+
+    // Corresponds to the `compress` method described in [1].
+    fn compress(&self) {
+        (0..self.len()).into_par_iter().map(NI::new).for_each(|n| {
+            while self.parent(n) != self.parent(self.parent(n)) {
+                self.0[n.index()].store(self.parent(self.parent(n)), Ordering::SeqCst)
+            }
+        });
+    }
 }
 
 impl<NI: Idx> Afforest<NI> {
@@ -72,15 +81,6 @@ impl<NI: Idx> Afforest<NI> {
             .collect_into_vec(&mut v);
 
         Self(v.into_boxed_slice())
-    }
-
-    // Corresponds to the `compress` method described in [1].
-    pub fn compress(&self) {
-        (0..self.len()).into_par_iter().map(NI::new).for_each(|n| {
-            while self.parent(n) != self.parent(self.parent(n)) {
-                self.0[n.index()].store(self.parent(self.parent(n)), Ordering::SeqCst)
-            }
-        });
     }
 
     #[inline]

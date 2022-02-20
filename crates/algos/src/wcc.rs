@@ -47,6 +47,9 @@ pub trait UnionFind<NI> {
     /// Returns the number of elements in the union find,
     /// also referred to as its 'length'.
     fn len(&self) -> usize;
+    /// Compress the data if possible.
+    /// After that operation each index stores the final set id.
+    fn compress(&self);
 }
 
 pub fn wcc_baseline<NI: Idx>(
@@ -74,22 +77,12 @@ pub fn wcc_afforest_dss<NI: Idx + Hash>(
     config: WccConfig,
 ) -> DisjointSetStruct<NI> {
     let start = Instant::now();
-    let comp = DisjointSetStruct::new(graph.node_count().index());
-    info!("Components creation took {:?}", start.elapsed());
+    let dss = DisjointSetStruct::new(graph.node_count().index());
+    info!("DSS creation took {:?}", start.elapsed());
 
-    let start = Instant::now();
-    sample_subgraph(graph, &comp, config);
-    info!("Link subgraph took {:?}", start.elapsed());
+    wcc(graph, &dss, config);
 
-    let start = Instant::now();
-    let largest_component = find_largest_component(&comp, config);
-    info!("Get component took {:?}", start.elapsed());
-
-    let start = Instant::now();
-    link_remaining(graph, &comp, largest_component, config);
-    info!("Link remaining took {:?}", start.elapsed());
-
-    comp
+    dss
 }
 
 pub fn wcc_afforest<NI: Idx + Hash>(
@@ -98,10 +91,20 @@ pub fn wcc_afforest<NI: Idx + Hash>(
 ) -> Afforest<NI> {
     let start = Instant::now();
     let comp = Afforest::new(graph.node_count().index());
-    info!("Components creation took {:?}", start.elapsed());
+    info!("Afforest creation took {:?}", start.elapsed());
 
+    wcc(graph, &comp, config);
+
+    comp
+}
+
+fn wcc<'uf, NI, UF>(graph: &DirectedCsrGraph<NI>, comp: &'uf UF, config: WccConfig)
+where
+    NI: Idx + Hash,
+    UF: UnionFind<NI> + Send + Sync,
+{
     let start = Instant::now();
-    sample_subgraph(graph, &comp, config);
+    sample_subgraph(graph, comp, config);
     info!("Link subgraph took {:?}", start.elapsed());
 
     let start = Instant::now();
@@ -109,18 +112,16 @@ pub fn wcc_afforest<NI: Idx + Hash>(
     info!("Sample compress took {:?}", start.elapsed());
 
     let start = Instant::now();
-    let largest_component = find_largest_component(&comp, config);
+    let largest_component = find_largest_component(comp, config);
     info!("Get component took {:?}", start.elapsed());
 
     let start = Instant::now();
-    link_remaining(graph, &comp, largest_component, config);
+    link_remaining(graph, comp, largest_component, config);
     info!("Link remaining took {:?}", start.elapsed());
 
     let start = Instant::now();
     comp.compress();
     info!("Final compress took {:?}", start.elapsed());
-
-    comp
 }
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
