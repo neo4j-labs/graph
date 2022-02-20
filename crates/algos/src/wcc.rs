@@ -5,7 +5,7 @@ use crate::{dss::DisjointSetStruct, prelude::*};
 use rayon::prelude::*;
 
 // Number of nodes to be processed in batch by a single thread.
-const CHUNK_SIZE: usize = 64;
+const CHUNK_SIZE: usize = 16384;
 // The number of relationships of each node to sample during subgraph sampling.
 const NEIGHBOR_ROUNDS: usize = 2;
 // The number of samples from the DSS to find the largest component.
