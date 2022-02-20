@@ -4,20 +4,47 @@ use std::{collections::HashMap, hash::Hash, time::Instant};
 use crate::{dss::DisjointSetStruct, prelude::*};
 use rayon::prelude::*;
 
-// Number of nodes to be processed in batch by a single thread.
-const CHUNK_SIZE: usize = 16384;
-// The number of relationships of each node to sample during subgraph sampling.
-const NEIGHBOR_ROUNDS: usize = 2;
-// The number of samples from the DSS to find the largest component.
-const SAMPLING_SIZE: usize = 1024;
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct WccConfig {
+    // Number of nodes to be processed in batch by a single thread.
+    pub chunk_size: usize,
+    // Number of relationships of each node to sample during subgraph linking.
+    pub neighbor_rounds: usize,
+    // Number of samples to draw from the DSS to find the largest component.
+    pub sampling_size: usize,
+}
 
-pub fn wcc_baseline<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
+impl Default for WccConfig {
+    fn default() -> Self {
+        Self {
+            chunk_size: 16384,
+            neighbor_rounds: 2,
+            sampling_size: 1024,
+        }
+    }
+}
+
+impl WccConfig {
+    pub fn new(chunk_size: usize, neighbor_rounds: usize, sampling_size: usize) -> Self {
+        Self {
+            chunk_size,
+            neighbor_rounds,
+            sampling_size,
+        }
+    }
+}
+
+pub fn wcc_baseline<NI: Idx>(
+    graph: &DirectedCsrGraph<NI>,
+    config: WccConfig,
+) -> DisjointSetStruct<NI> {
     let node_count = graph.node_count().index();
     let dss = DisjointSetStruct::new(node_count);
 
     (0..node_count)
         .into_par_iter()
-        .chunks(CHUNK_SIZE)
+        .chunks(config.chunk_size)
         .for_each(|chunk| {
             for u in chunk {
                 let u = NI::new(u);
@@ -28,35 +55,42 @@ pub fn wcc_baseline<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<
     dss
 }
 
-pub fn wcc_afforest_dss<NI: Idx + Hash>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
+pub fn wcc_afforest_dss<NI: Idx + Hash>(
+    graph: &DirectedCsrGraph<NI>,
+    config: WccConfig,
+) -> DisjointSetStruct<NI> {
     let start = Instant::now();
     let dss = DisjointSetStruct::new(graph.node_count().index());
     info!("DSS creation took {:?}", start.elapsed());
 
     let start = Instant::now();
-    sample_subgraph(graph, &dss);
+    sample_subgraph(graph, &dss, config);
     info!("Link subgraph took {:?}", start.elapsed());
 
     let start = Instant::now();
-    let largest_component = find_largest_component(&dss);
+    let largest_component = find_largest_component(&dss, config);
     info!("Get component took {:?}", start.elapsed());
 
     let start = Instant::now();
-    link_remaining(graph, &dss, largest_component);
+    link_remaining(graph, &dss, largest_component, config);
     info!("Link remaining took {:?}", start.elapsed());
 
     dss
 }
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
-fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: &DisjointSetStruct<NI>) {
+fn sample_subgraph<NI: Idx>(
+    graph: &DirectedCsrGraph<NI>,
+    dss: &DisjointSetStruct<NI>,
+    config: WccConfig,
+) {
     (0..graph.node_count().index())
         .into_par_iter()
-        .chunks(CHUNK_SIZE)
+        .chunks(config.chunk_size)
         .for_each(|chunk| {
             for u in chunk {
                 let u = NI::new(u);
-                let limit = usize::min(graph.out_degree(u).index(), NEIGHBOR_ROUNDS);
+                let limit = usize::min(graph.out_degree(u).index(), config.neighbor_rounds);
 
                 for v in &graph.out_neighbors(u)[..limit] {
                     dss.union(u, *v);
@@ -66,12 +100,12 @@ fn sample_subgraph<NI: Idx>(graph: &DirectedCsrGraph<NI>, dss: &DisjointSetStruc
 }
 
 // Find the largest component after running wcc on the sampled graph.
-fn find_largest_component<NI: Idx + Hash>(dss: &DisjointSetStruct<NI>) -> NI {
+fn find_largest_component<NI: Idx + Hash>(dss: &DisjointSetStruct<NI>, config: WccConfig) -> NI {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let mut sample_counts = HashMap::<NI, usize>::new();
 
-    for _ in 0..SAMPLING_SIZE {
+    for _ in 0..config.sampling_size {
         let component = dss.find(NI::new(rng.gen_range(0..dss.len())));
         let count = sample_counts.entry(component).or_insert(0);
         *count += 1;
@@ -84,7 +118,7 @@ fn find_largest_component<NI: Idx + Hash>(dss: &DisjointSetStruct<NI>) -> NI {
 
     info!(
         "Largest intermediate component {most_frequent:?} containing approx. {}% of the graph.",
-        (*size as f32 / SAMPLING_SIZE as f32 * 100.0) as usize
+        (*size as f32 / config.sampling_size as f32 * 100.0) as usize
     );
 
     *most_frequent
@@ -95,10 +129,11 @@ fn link_remaining<NI: Idx>(
     graph: &DirectedCsrGraph<NI>,
     dss: &DisjointSetStruct<NI>,
     skip_component: NI,
+    config: WccConfig,
 ) {
     (0..graph.node_count().index())
         .into_par_iter()
-        .chunks(CHUNK_SIZE)
+        .chunks(config.chunk_size)
         .for_each(|chunk| {
             for u in chunk {
                 let u = NI::new(u);
@@ -106,8 +141,8 @@ fn link_remaining<NI: Idx>(
                     continue;
                 }
 
-                if graph.out_degree(u).index() > NEIGHBOR_ROUNDS {
-                    for v in &graph.out_neighbors(u)[NEIGHBOR_ROUNDS..] {
+                if graph.out_degree(u).index() > config.neighbor_rounds {
+                    for v in &graph.out_neighbors(u)[config.neighbor_rounds..] {
                         dss.union(u, *v);
                     }
                 }
@@ -128,7 +163,7 @@ mod tests {
         let graph: DirectedCsrGraph<usize> =
             GraphBuilder::new().edges(vec![(0, 1), (2, 3)]).build();
 
-        let dss = wcc_afforest_dss(&graph);
+        let dss = wcc_afforest_dss(&graph, WccConfig::default());
 
         assert_eq!(dss.find(0), dss.find(1));
         assert_eq!(dss.find(2), dss.find(3));
