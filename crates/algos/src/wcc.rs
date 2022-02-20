@@ -105,22 +105,21 @@ pub fn wcc_std_threads<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStru
 }
 
 pub fn wcc<NI: Idx + Hash>(graph: &DirectedCsrGraph<NI>) -> DisjointSetStruct<NI> {
+    let start = Instant::now();
     let dss = DisjointSetStruct::new(graph.node_count().index());
+    info!("DSS creation took {} ms.", start.elapsed().as_millis());
 
     let start = Instant::now();
     sample_subgraph(graph, &dss);
-    info!("Sampling took {} ms", start.elapsed().as_millis());
+    info!("Link subgraph took {} ms.", start.elapsed().as_millis());
 
     let start = Instant::now();
     let largest_component = find_largest_component(&dss);
-    info!(
-        "Find skip component took {} ms",
-        start.elapsed().as_millis()
-    );
+    info!("Get component took {} ms.", start.elapsed().as_millis());
 
     let start = Instant::now();
     link_remaining(graph, &dss, largest_component);
-    info!("Link remaining took {} ms", start.elapsed().as_millis());
+    info!("Link remaining took {} ms.", start.elapsed().as_millis());
 
     dss
 }

@@ -1,5 +1,7 @@
 use std::sync::atomic::Ordering;
 
+use rayon::prelude::*;
+
 use crate::prelude::*;
 
 /// A thread-safe Disjoint Set Struct implementation, that
@@ -36,12 +38,14 @@ impl<NI: Idx> DisjointSetStruct<NI> {
     /// assert_eq!(set0, set1);
     /// ```
     pub fn new(size: usize) -> Self {
-        Self(
-            (0..size)
-                .map(|i| NI::new(i).atomic())
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
-        )
+        let mut v = Vec::with_capacity(size);
+
+        (0..size)
+            .into_par_iter()
+            .map(|i| NI::new(i).atomic())
+            .collect_into_vec(&mut v);
+
+        Self(v.into_boxed_slice())
     }
 
     /// Returns the number of elements in the dss, also referred to
