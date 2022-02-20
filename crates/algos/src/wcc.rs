@@ -101,8 +101,12 @@ pub fn wcc_afforest<NI: Idx + Hash>(
     info!("Components creation took {:?}", start.elapsed());
 
     let start = Instant::now();
-    sample_subgraph_afforest(graph, &comp, config);
+    sample_subgraph(graph, &comp, config);
     info!("Link subgraph took {:?}", start.elapsed());
+
+    let start = Instant::now();
+    comp.compress();
+    info!("Sample compress took {:?}", start.elapsed());
 
     let start = Instant::now();
     let largest_component = find_largest_component(&comp, config);
@@ -142,6 +146,7 @@ where
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
 // In contrast to `sample_subgraph`, the method calls `compress` for each neighbor round.
+#[allow(dead_code)]
 fn sample_subgraph_afforest<NI>(graph: &DirectedCsrGraph<NI>, af: &Afforest<NI>, config: WccConfig)
 where
     NI: Idx,
