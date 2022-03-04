@@ -141,19 +141,12 @@ impl<NI: Idx> DisjointSetStruct<NI> {
         Self(v.into_boxed_slice())
     }
 
-    #[inline]
     fn parent(&self, i: NI) -> NI {
-        unsafe { self.0.get_unchecked(i.index()) }.load(Ordering::SeqCst)
+        self.0[i.index()].load(Ordering::SeqCst)
     }
 
-    #[inline]
     fn update_parent(&self, id: NI, current: NI, new: NI) -> Result<NI, NI> {
-        unsafe { self.0.get_unchecked(id.index()) }.compare_exchange_weak(
-            current,
-            new,
-            Ordering::SeqCst,
-            Ordering::Relaxed,
-        )
+        self.0[id.index()].compare_exchange_weak(current, new, Ordering::SeqCst, Ordering::Relaxed)
     }
 }
 
