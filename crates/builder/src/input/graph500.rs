@@ -6,8 +6,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use memmap2::Mmap;
-
 use crate::prelude::*;
 
 #[derive(Default)]
@@ -30,7 +28,7 @@ where
 
     fn try_from(path: InputPath<P>) -> Result<Self, Self::Error> {
         let file = File::open(path.0.as_ref())?;
-        let mmap = unsafe { Mmap::map(&file)? };
+        let mmap = unsafe { memmap2::MmapOptions::new().populate().map(&file)? };
         Graph500::try_from(mmap.as_ref())
     }
 }
