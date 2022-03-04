@@ -46,10 +46,8 @@ where
 
         let edge_size = std::mem::size_of::<PackedEdge>();
         let cpu_count = num_cpus::get_physical();
-        let chunk_size = usize::max(
-            1,
-            (map.len() / cpu_count) + (edge_size - 1) & !(edge_size - 1),
-        );
+        let chunk_size =
+            (usize::max(1, map.len() / cpu_count) + (edge_size - 1)) / edge_size * edge_size;
 
         info!("edge_size = {edge_size}, cpu_count = {cpu_count}, chunk_size = {chunk_size}");
 
@@ -62,6 +60,7 @@ where
                 s.spawn(move |_| {
                     let end = usize::min(start + chunk_size, map.len());
                     let slice = &map[start..end];
+                    assert_eq!(slice.len() % edge_size, 0);
                     let local_edge_count = slice.len() / edge_size;
 
                     let slice = slice.as_ptr();
