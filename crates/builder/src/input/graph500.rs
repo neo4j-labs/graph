@@ -5,9 +5,16 @@ use memmap2::Mmap;
 
 use crate::prelude::*;
 
-#[derive(Default)]
 pub struct Graph500Input<NI> {
     _phantom: PhantomData<NI>,
+}
+
+impl<NI> Default for Graph500Input<NI> {
+    fn default() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<NI: Idx> InputCapabilities<NI> for Graph500Input<NI> {
