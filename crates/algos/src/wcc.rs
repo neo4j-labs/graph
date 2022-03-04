@@ -27,8 +27,9 @@
 //! "Wait-free Parallel Algorithms for the Union-Find Problem",
 //! In Proc. 23rd ACM Symposium on Theory of Computing, 1994
 
+use ahash::AHashMap;
 use log::info;
-use std::{collections::HashMap, hash::Hash, time::Instant};
+use std::{hash::Hash, time::Instant};
 
 use crate::prelude::*;
 use rayon::prelude::*;
@@ -231,7 +232,7 @@ where
 {
     use nanorand::{Rng, WyRand};
     let mut rng = WyRand::new();
-    let mut sample_counts = HashMap::<NI, usize>::new();
+    let mut sample_counts = AHashMap::<NI, usize>::new();
 
     for _ in 0..config.sampling_size {
         let component = uf.find(NI::new(rng.generate_range(0..uf.len())));
