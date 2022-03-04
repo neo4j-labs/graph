@@ -1,3 +1,4 @@
+#![warn(unused_crate_dependencies)]
 //! A library that provides a collection of high-performant graph algorithms.
 //! This crate builds on top of the [graph_builder](https://docs.rs/graph_builder/latest/)
 //! crate, which can be used as a building block for custom graph algorithms.
@@ -137,7 +138,10 @@
 //! assert_eq!(ranks, expected);
 //! ```
 
+pub mod afforest;
+pub mod dss;
 pub mod page_rank;
 pub mod prelude;
 pub mod sssp;
 pub mod triangle_count;
+pub mod wcc;

@@ -42,3 +42,7 @@ path = "src/serialize.rs"
 [[bin]]
 name = "loading"
 path = "src/loading.rs"
+
+[[bin]]
+name = "wcc"
+path = "src/wcc.rs"

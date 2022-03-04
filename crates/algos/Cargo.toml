@@ -14,11 +14,12 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ahash = "0.7.6"
 atomic_float = "0.1.0"
-float-ord = "0.3.2"
 graph_builder = { path = "../builder", version = "^0.1.0" }
 log = "0.4.14"
 num-format = "0.4.0"
+nanorand = "0.6.1"
 rayon = "1.5.1"
 serde = { version = "1.0", features = ["derive"], optional = true }
 

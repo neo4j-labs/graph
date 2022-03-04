@@ -38,9 +38,27 @@ pub trait AtomicIdx: Send + Sync {
 
     fn load(&self, order: Ordering) -> Self::Inner;
 
+    fn store(&self, val: Self::Inner, order: Ordering);
+
     fn fetch_add(&self, val: Self::Inner, order: Ordering) -> Self::Inner;
 
     fn get_and_increment(&self, order: Ordering) -> Self::Inner;
+
+    fn compare_exchange(
+        &self,
+        current: Self::Inner,
+        new: Self::Inner,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<Self::Inner, Self::Inner>;
+
+    fn compare_exchange_weak(
+        &self,
+        current: Self::Inner,
+        new: Self::Inner,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<Self::Inner, Self::Inner>;
 
     fn zero() -> Self;
 
@@ -90,6 +108,11 @@ macro_rules! impl_idx {
             }
 
             #[inline]
+            fn store(&self, val: $TYPE, order: Ordering) {
+                self.store(val, order);
+            }
+
+            #[inline]
             fn fetch_add(&self, val: $TYPE, order: Ordering) -> Self::Inner {
                 self.fetch_add(val, order)
             }
@@ -97,6 +120,28 @@ macro_rules! impl_idx {
             #[inline]
             fn get_and_increment(&self, order: Ordering) -> Self::Inner {
                 self.fetch_add(1, order)
+            }
+
+            #[inline]
+            fn compare_exchange(
+                &self,
+                current: $TYPE,
+                new: $TYPE,
+                success: Ordering,
+                failure: Ordering,
+            ) -> Result<Self::Inner, Self::Inner> {
+                self.compare_exchange(current, new, success, failure)
+            }
+
+            #[inline]
+            fn compare_exchange_weak(
+                &self,
+                current: $TYPE,
+                new: $TYPE,
+                success: Ordering,
+                failure: Ordering,
+            ) -> Result<Self::Inner, Self::Inner> {
+                self.compare_exchange_weak(current, new, success, failure)
             }
 
             #[inline]
