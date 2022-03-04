@@ -229,12 +229,12 @@ where
     NI: Idx + Hash,
     UF: UnionFind<NI> + Send + Sync,
 {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
+    use nanorand::{Rng, WyRand};
+    let mut rng = WyRand::new();
     let mut sample_counts = HashMap::<NI, usize>::new();
 
     for _ in 0..config.sampling_size {
-        let component = uf.find(NI::new(rng.gen_range(0..uf.len())));
+        let component = uf.find(NI::new(rng.generate_range(0..uf.len())));
         let count = sample_counts.entry(component).or_insert(0);
         *count += 1;
     }
