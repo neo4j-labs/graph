@@ -51,11 +51,14 @@ impl<NI: Idx, EV> InputCapabilities<NI> for EdgeListInput<NI, EV> {
 }
 
 #[derive(Debug)]
-pub struct EdgeList<NI: Idx, EV>(Box<[(NI, NI, EV)]>, Option<NI>);
+pub struct EdgeList<NI: Idx, EV> {
+    list: Box<[(NI, NI, EV)]>,
+    max_node_id: Option<NI>,
+}
 
 impl<NI: Idx, EV> AsRef<[(NI, NI, EV)]> for EdgeList<NI, EV> {
     fn as_ref(&self) -> &[(NI, NI, EV)] {
-        &self.0
+        &self.list
     }
 }
 
@@ -63,28 +66,34 @@ impl<NI: Idx, EV> Deref for EdgeList<NI, EV> {
     type Target = [(NI, NI, EV)];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.list
     }
 }
 
 impl<NI: Idx, EV> DerefMut for EdgeList<NI, EV> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.list
     }
 }
 
 impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
     pub fn new(edges: Vec<(NI, NI, EV)>) -> Self {
-        Self(edges.into_boxed_slice(), None)
+        Self {
+            list: edges.into_boxed_slice(),
+            max_node_id: None,
+        }
     }
 
     pub fn with_max_node_id(edges: Vec<(NI, NI, EV)>, max_node_id: NI) -> Self {
-        Self(edges.into_boxed_slice(), Some(max_node_id))
+        Self {
+            list: edges.into_boxed_slice(),
+            max_node_id: Some(max_node_id),
+        }
     }
 
     pub fn max_node_id(&self) -> NI {
-        match self.1 {
-            Some(max_node_id) => max_node_id,
+        match self.max_node_id {
+            Some(id) => id,
             None => self
                 .par_iter()
                 .map(|(s, t, _)| NI::max(*s, *t))
@@ -263,7 +272,7 @@ mod tests {
 
         assert_eq!(4, edge_list.max_node_id());
 
-        let edge_list = edge_list.0.into_vec();
+        let edge_list = edge_list.list.into_vec();
 
         assert_eq!(expected, edge_list)
     }
@@ -287,7 +296,7 @@ mod tests {
 
         assert_eq!(4, edge_list.max_node_id());
 
-        let edge_list = edge_list.0.into_vec();
+        let edge_list = edge_list.list.into_vec();
 
         assert_eq!(expected, edge_list)
     }
