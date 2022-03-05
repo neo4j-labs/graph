@@ -1,9 +1,8 @@
 use log::info;
 use std::{fs::File, marker::PhantomData, path::Path};
 
-use memmap2::Mmap;
-
 use crate::prelude::*;
+use rayon::prelude::*;
 
 pub struct Graph500Input<NI> {
     _phantom: PhantomData<NI>,
@@ -23,19 +22,30 @@ impl<NI: Idx> InputCapabilities<NI> for Graph500Input<NI> {
 
 pub struct Graph500<NI: Idx>(pub EdgeList<NI, ()>);
 
-impl<NI: Idx, P> TryFrom<InputPath<P>> for Graph500<NI>
+impl<NI, P> TryFrom<InputPath<P>> for Graph500<NI>
 where
     P: AsRef<Path>,
+    NI: Idx,
 {
     type Error = Error;
 
     fn try_from(path: InputPath<P>) -> Result<Self, Self::Error> {
+        let file = File::open(path.0.as_ref())?;
+        let mmap = unsafe { memmap2::MmapOptions::new().populate().map(&file)? };
+        Graph500::try_from(mmap.as_ref())
+    }
+}
+
+impl<NI> TryFrom<&[u8]> for Graph500<NI>
+where
+    NI: Idx,
+{
+    type Error = Error;
+
+    fn try_from(map: &[u8]) -> Result<Self, Self::Error> {
         let start = std::time::Instant::now();
 
-        let file = File::open(path.0.as_ref())?;
-        let map = unsafe { Mmap::map(&file)? };
         let file_size = map.len();
-
         let edge_count = map.len() / std::mem::size_of::<PackedEdge>();
 
         let map = map.as_ptr();
@@ -43,18 +53,21 @@ where
 
         let edges = unsafe { std::slice::from_raw_parts(map as *const PackedEdge, edge_count) };
 
-        let edges = edges
-            .iter()
-            .map(|edge| {
-                Ok((
-                    NI::new(usize::try_from(edge.source())?),
-                    NI::new(usize::try_from(edge.target())?),
-                    (),
-                ))
-            })
-            .collect::<Result<Vec<_>, std::num::TryFromIntError>>()?;
+        let mut all_edges = Vec::with_capacity(edge_count);
 
-        let edges = EdgeList::new(edges);
+        edges
+            .par_iter()
+            .map(|edge| {
+                let source =
+                    usize::try_from(edge.source()).expect("Could not read source id as usize");
+                let target =
+                    usize::try_from(edge.target()).expect("Could not read target id as usize");
+
+                (NI::new(source), NI::new(target), ())
+            })
+            .collect_into_vec(&mut all_edges);
+
+        let edges = EdgeList::new(all_edges);
 
         let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
 
