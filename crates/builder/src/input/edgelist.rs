@@ -1,14 +1,9 @@
 use log::info;
-use std::{
-    convert::TryFrom,
-    fs::File,
-    marker::PhantomData,
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{convert::TryFrom, fs::File, marker::PhantomData, path::Path, sync::Arc};
 
 use crate::index::{AtomicIdx, Idx};
 
+use parking_lot::Mutex;
 use rayon::prelude::*;
 use std::sync::atomic::Ordering::AcqRel;
 
@@ -212,13 +207,13 @@ where
                         edges.push((source, target, value));
                     }
 
-                    let mut all_edges = all_edges.lock().unwrap();
+                    let mut all_edges = all_edges.lock();
                     all_edges.append(&mut edges);
                 });
             }
         });
 
-        let edges = Arc::try_unwrap(all_edges).unwrap().into_inner().unwrap();
+        let edges = Arc::try_unwrap(all_edges).unwrap().into_inner();
 
         let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
 
