@@ -10,10 +10,7 @@ use std::{
 use crate::index::{AtomicIdx, Idx};
 
 use rayon::prelude::*;
-use std::{
-    ops::{Deref, DerefMut},
-    sync::atomic::Ordering::AcqRel,
-};
+use std::sync::atomic::Ordering::AcqRel;
 
 use crate::{input::Direction, Error};
 
@@ -51,37 +48,45 @@ impl<NI: Idx, EV> InputCapabilities<NI> for EdgeListInput<NI, EV> {
 }
 
 #[derive(Debug)]
-pub struct EdgeList<NI: Idx, EV>(Box<[(NI, NI, EV)]>);
-
-impl<NI: Idx, EV> AsRef<[(NI, NI, EV)]> for EdgeList<NI, EV> {
-    fn as_ref(&self) -> &[(NI, NI, EV)] {
-        &self.0
-    }
+pub struct EdgeList<NI: Idx, EV> {
+    list: Box<[(NI, NI, EV)]>,
+    max_node_id: Option<NI>,
 }
 
-impl<NI: Idx, EV> Deref for EdgeList<NI, EV> {
-    type Target = [(NI, NI, EV)];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl<NI: Idx, EV> EdgeList<NI, EV> {
+    pub(crate) fn edges(&self) -> &[(NI, NI, EV)] {
+        &self.list
     }
-}
 
-impl<NI: Idx, EV> DerefMut for EdgeList<NI, EV> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+    pub(crate) fn len(&self) -> usize {
+        self.list.len()
     }
 }
 
 impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
     pub fn new(edges: Vec<(NI, NI, EV)>) -> Self {
-        Self(edges.into_boxed_slice())
+        Self {
+            list: edges.into_boxed_slice(),
+            max_node_id: None,
+        }
+    }
+
+    pub fn with_max_node_id(edges: Vec<(NI, NI, EV)>, max_node_id: NI) -> Self {
+        Self {
+            list: edges.into_boxed_slice(),
+            max_node_id: Some(max_node_id),
+        }
     }
 
     pub fn max_node_id(&self) -> NI {
-        self.par_iter()
-            .map(|(s, t, _)| NI::max(*s, *t))
-            .reduce(NI::zero, NI::max)
+        match self.max_node_id {
+            Some(id) => id,
+            None => self
+                .edges()
+                .par_iter()
+                .map(|(s, t, _)| NI::max(*s, *t))
+                .reduce(NI::zero, NI::max),
+        }
     }
 
     pub fn degrees(&self, node_count: NI, direction: Direction) -> Vec<NI::Atomic> {
@@ -89,13 +94,13 @@ impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
         degrees.resize_with(node_count.index(), NI::Atomic::zero);
 
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
-            self.par_iter().for_each(|(s, _, _)| {
+            self.edges().par_iter().for_each(|(s, _, _)| {
                 degrees[s.index()].get_and_increment(AcqRel);
             });
         }
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
-            self.par_iter().for_each(|(_, t, _)| {
+            self.edges().par_iter().for_each(|(_, t, _)| {
                 degrees[t.index()].get_and_increment(AcqRel);
             });
         }
@@ -255,7 +260,7 @@ mod tests {
 
         assert_eq!(4, edge_list.max_node_id());
 
-        let edge_list = edge_list.0.into_vec();
+        let edge_list = edge_list.list.into_vec();
 
         assert_eq!(expected, edge_list)
     }
@@ -279,7 +284,7 @@ mod tests {
 
         assert_eq!(4, edge_list.max_node_id());
 
-        let edge_list = edge_list.0.into_vec();
+        let edge_list = edge_list.list.into_vec();
 
         assert_eq!(expected, edge_list)
     }

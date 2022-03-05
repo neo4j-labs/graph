@@ -47,6 +47,7 @@ where
 
         let file_size = map.len();
         let edge_count = map.len() / std::mem::size_of::<PackedEdge>();
+        let node_count = edge_count / 16;
 
         let map = map.as_ptr();
         assert_eq!(map as usize % std::mem::align_of::<PackedEdge>(), 0);
@@ -67,13 +68,13 @@ where
             })
             .collect_into_vec(&mut all_edges);
 
-        let edges = EdgeList::new(all_edges);
+        let edges = EdgeList::with_max_node_id(all_edges, NI::new(node_count - 1));
 
         let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
 
         info!(
             "Read {} edges in {:.2}s ({:.2} MB/s)",
-            edges.len(),
+            edge_count,
             elapsed,
             ((file_size as f64) / elapsed) / (1024.0 * 1024.0)
         );

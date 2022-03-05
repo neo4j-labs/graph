@@ -184,7 +184,7 @@ where
         // only write once into each position and every thread that might run
         // will write into different positions.
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
-            edge_list.par_iter().for_each(|(s, t, v)| {
+            edge_list.edges().par_iter().for_each(|(s, t, v)| {
                 let offset = offsets[s.index()].get_and_increment(Acquire);
 
                 unsafe {
@@ -194,7 +194,7 @@ where
         }
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
-            edge_list.par_iter().for_each(|(s, t, v)| {
+            edge_list.edges().par_iter().for_each(|(s, t, v)| {
                 let offset = offsets[t.index()].get_and_increment(Acquire);
                 unsafe {
                     targets_ptr.add(offset.index()).write(Target::new(*s, *v));
