@@ -57,6 +57,10 @@ impl<NI: Idx, EV> EdgeList<NI, EV> {
     pub(crate) fn edges(&self) -> &[(NI, NI, EV)] {
         &self.list
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.list.len()
+    }
 }
 
 impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
