@@ -9,5 +9,6 @@ name = "unladen_swallow"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.15.1", features = ["extension-module"] }
 graph = { version = "0.1.15", path = "../algos" }
+pyo3 = { version = "0.16.0", features = ["extension-module"] }
+pyo3-log = "0.6.0"

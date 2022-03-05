@@ -13,6 +13,7 @@ use pyo3::{
     types::{PyList, PySlice, PySliceIndices},
     PyErrArguments,
 };
+use pyo3_log::{Caching, Logger};
 
 type GResult<T> = std::result::Result<T, GError>;
 
@@ -238,7 +239,11 @@ fn page_rank(py: Python<'_>, path: PathBuf) -> PyResult<Py<PageRankResult>> {
 
 /// Python API for the graph crate
 #[pymodule]
-fn unladen_swallow(_py: Python, m: &PyModule) -> PyResult<()> {
+fn unladen_swallow(py: Python, m: &PyModule) -> PyResult<()> {
+    Logger::new(py, Caching::LoggersAndLevels)?
+        .install()
+        .unwrap();
+
     m.add_class::<PageRankResult>()?;
     m.add_function(wrap_pyfunction!(page_rank, m)?)?;
     Ok(())
