@@ -51,7 +51,7 @@ impl<NI: Idx, EV> InputCapabilities<NI> for EdgeListInput<NI, EV> {
 }
 
 #[derive(Debug)]
-pub struct EdgeList<NI: Idx, EV>(Box<[(NI, NI, EV)]>);
+pub struct EdgeList<NI: Idx, EV>(Box<[(NI, NI, EV)]>, Option<NI>);
 
 impl<NI: Idx, EV> AsRef<[(NI, NI, EV)]> for EdgeList<NI, EV> {
     fn as_ref(&self) -> &[(NI, NI, EV)] {
@@ -75,13 +75,21 @@ impl<NI: Idx, EV> DerefMut for EdgeList<NI, EV> {
 
 impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
     pub fn new(edges: Vec<(NI, NI, EV)>) -> Self {
-        Self(edges.into_boxed_slice())
+        Self(edges.into_boxed_slice(), None)
+    }
+
+    pub fn with_max_node_id(edges: Vec<(NI, NI, EV)>, max_node_id: NI) -> Self {
+        Self(edges.into_boxed_slice(), Some(max_node_id))
     }
 
     pub fn max_node_id(&self) -> NI {
-        self.par_iter()
-            .map(|(s, t, _)| NI::max(*s, *t))
-            .reduce(NI::zero, NI::max)
+        match self.1 {
+            Some(max_node_id) => max_node_id,
+            None => self
+                .par_iter()
+                .map(|(s, t, _)| NI::max(*s, *t))
+                .reduce(NI::zero, NI::max),
+        }
     }
 
     pub fn degrees(&self, node_count: NI, direction: Direction) -> Vec<NI::Atomic> {
