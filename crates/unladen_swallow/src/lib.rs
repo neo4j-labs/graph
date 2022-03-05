@@ -228,10 +228,12 @@ impl From<GraphError> for PyErr {
 
 /// Runs Page Rank on a Graph 500 graph
 #[pyfunction]
-fn page_rank(path: PathBuf) -> PyResult<Py<PageRankResult>> {
-    let (graph, took) = load_graph500::<u32>(path).map_err(GraphError)?;
-    let res = run_page_rank(&graph, took);
-    Python::with_gil(|py| Py::new(py, res))
+fn page_rank(py: Python<'_>, path: PathBuf) -> PyResult<Py<PageRankResult>> {
+    let pr = py.allow_threads(move || -> PyResult<PageRankResult> {
+        let (graph, took) = load_graph500::<u32>(path).map_err(GraphError)?;
+        Ok(run_page_rank(&graph, took))
+    })?;
+    Py::new(py, pr)
 }
 
 /// Python API for the graph crate
