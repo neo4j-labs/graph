@@ -1,12 +1,8 @@
 use log::info;
-use std::{
-    fs::File,
-    marker::PhantomData,
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{fs::File, marker::PhantomData, path::Path};
 
 use crate::prelude::*;
+use rayon::prelude::*;
 
 #[derive(Default)]
 pub struct Graph500Input<NI> {
@@ -43,55 +39,28 @@ where
         let start = std::time::Instant::now();
 
         let file_size = map.len();
+        let edge_count = map.len() / std::mem::size_of::<PackedEdge>();
 
-        let edge_size = std::mem::size_of::<PackedEdge>();
-        let cpu_count = num_cpus::get_physical();
-        let chunk_size =
-            (usize::max(1, map.len() / cpu_count) + (edge_size - 1)) / edge_size * edge_size;
+        let map = map.as_ptr();
+        assert_eq!(map as usize % std::mem::align_of::<PackedEdge>(), 0);
 
-        info!("edge_size = {edge_size}, cpu_count = {cpu_count}, chunk_size = {chunk_size}");
+        let edges = unsafe { std::slice::from_raw_parts(map as *const PackedEdge, edge_count) };
 
-        let edges = Arc::new(Mutex::new(Vec::new()));
+        let mut all_edges = Vec::with_capacity(edge_count);
 
-        rayon::scope(|s| {
-            for start in (0..map.len()).step_by(chunk_size) {
-                let all_edges = Arc::clone(&edges);
+        edges
+            .par_iter()
+            .map(|edge| {
+                let source =
+                    usize::try_from(edge.source()).expect("Could not read source id as usize");
+                let target =
+                    usize::try_from(edge.target()).expect("Could not read target id as usize");
 
-                s.spawn(move |_| {
-                    let end = usize::min(start + chunk_size, map.len());
-                    let slice = &map[start..end];
-                    assert_eq!(slice.len() % edge_size, 0);
-                    let local_edge_count = slice.len() / edge_size;
+                (NI::new(source), NI::new(target), ())
+            })
+            .collect_into_vec(&mut all_edges);
 
-                    let slice = slice.as_ptr();
-
-                    assert_eq!(slice as usize % std::mem::align_of::<PackedEdge>(), 0);
-
-                    let local_edges = unsafe {
-                        std::slice::from_raw_parts(slice as *const PackedEdge, local_edge_count)
-                    };
-
-                    let mut local_edges = local_edges
-                        .iter()
-                        .map(|edge| {
-                            Ok((
-                                NI::new(usize::try_from(edge.source())?),
-                                NI::new(usize::try_from(edge.target())?),
-                                (),
-                            ))
-                        })
-                        .collect::<Result<Vec<_>, std::num::TryFromIntError>>()
-                        .unwrap();
-
-                    let mut all_edges = all_edges.lock().unwrap();
-                    all_edges.append(&mut local_edges);
-                })
-            }
-        });
-
-        let edges = Arc::try_unwrap(edges).unwrap().into_inner().unwrap();
-
-        let edges = EdgeList::new(edges);
+        let edges = EdgeList::new(all_edges);
 
         let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
 
@@ -105,49 +74,6 @@ where
         Ok(Self(edges))
     }
 }
-
-// impl<NI> TryFrom<&[u8]> for Graph500<NI>
-// where
-//     NI: Idx,
-// {
-//     type Error = Error;
-
-//     fn try_from(map: &[u8]) -> Result<Self, Self::Error> {
-//         let start = std::time::Instant::now();
-
-//         let file_size = map.len();
-//         let edge_count = map.len() / std::mem::size_of::<PackedEdge>();
-
-//         let map = map.as_ptr();
-//         assert_eq!(map as usize % std::mem::align_of::<PackedEdge>(), 0);
-
-//         let edges = unsafe { std::slice::from_raw_parts(map as *const PackedEdge, edge_count) };
-
-//         let edges = edges
-//             .iter()
-//             .map(|edge| {
-//                 Ok((
-//                     NI::new(usize::try_from(edge.source())?),
-//                     NI::new(usize::try_from(edge.target())?),
-//                     (),
-//                 ))
-//             })
-//             .collect::<Result<Vec<_>, std::num::TryFromIntError>>()?;
-
-//         let edges = EdgeList::new(edges);
-
-//         let elapsed = start.elapsed().as_millis() as f64 / 1000_f64;
-
-//         info!(
-//             "Read {} edges in {:.2}s ({:.2} MB/s)",
-//             edges.len(),
-//             elapsed,
-//             ((file_size as f64) / elapsed) / (1024.0 * 1024.0)
-//         );
-
-//         Ok(Self(edges))
-//     }
-// }
 
 // see https://github.com/graph500/graph500/blob/f89d643ce4aaae9a823d310c6ab2dd10e3d2982c/generator/graph_generator.h#L29-L33
 #[derive(Default, Copy, Clone, Debug)]
