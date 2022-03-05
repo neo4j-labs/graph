@@ -74,7 +74,7 @@ where
 
         info!(
             "Read {} edges in {:.2}s ({:.2} MB/s)",
-            edges.len(),
+            edge_count,
             elapsed,
             ((file_size as f64) / elapsed) / (1024.0 * 1024.0)
         );
