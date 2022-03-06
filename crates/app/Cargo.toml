@@ -29,10 +29,6 @@ name = "app"
 path = "src/app.rs"
 
 [[bin]]
-name = "sssp"
-path = "src/sssp.rs"
-
-[[bin]]
 name = "serialize"
 path = "src/serialize.rs"
 

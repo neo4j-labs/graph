@@ -172,7 +172,7 @@ pub struct RelabelActionResult {
 pub enum Algorithm {
     PageRank(PageRankConfig),
     TriangleCount,
-    Sssp(DeltaSteppingConfig<usize>),
+    Sssp(DeltaSteppingConfig),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

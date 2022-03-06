@@ -6,6 +6,7 @@ use clap::AppSettings::DeriveDisplayOrder;
 use kommandozeile::*;
 
 mod page_rank;
+mod sssp;
 mod triangle_count;
 mod wcc;
 
@@ -17,7 +18,7 @@ fn main() -> Result<()> {
 
     match args.algorithm {
         Algorithm::PageRank { config } => page_rank::page_rank(args.args, config)?,
-        Algorithm::Sssp => todo!(),
+        Algorithm::Sssp { config } => sssp::sssp(args.args, config)?,
         Algorithm::TriangleCount { relabel } => triangle_count::triangle_count(args.args, relabel)?,
         Algorithm::Wcc { config } => wcc::wcc(args.args, config)?,
     }
@@ -71,7 +72,10 @@ enum Algorithm {
         #[clap(flatten)]
         config: PageRankConfig,
     },
-    Sssp,
+    Sssp {
+        #[clap(flatten)]
+        config: DeltaSteppingConfig,
+    },
     TriangleCount {
         #[clap(long)]
         relabel: bool,

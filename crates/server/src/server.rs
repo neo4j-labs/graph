@@ -399,7 +399,7 @@ async fn compute_triangle_count(
 }
 
 async fn compute_sssp(
-    config: DeltaSteppingConfig<usize>,
+    config: DeltaSteppingConfig,
     graph_catalog: Arc<RwLock<GraphCatalog>>,
     property_store: Arc<RwLock<PropertyStore>>,
     graph_name: String,
