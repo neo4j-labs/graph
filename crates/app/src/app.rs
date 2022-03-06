@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     let filter_string = args.verbose.verbosity().as_filter_for_all();
     std::env::set_var("RUST_LOG", filter_string);
     env_logger::init();
-    
+
     match args.algorithm {
         Algorithm::PageRank { config } => page_rank::page_rank(args.args, config)?,
         Algorithm::Sssp => todo!(),
@@ -27,14 +27,13 @@ fn main() -> Result<()> {
 
 #[derive(Debug, clap::Parser)]
 #[clap(
-    author, 
-    version, 
-    about, 
-    propagate_version = true, 
+    author,
+    version,
+    about,
+    propagate_version = true,
     global_setting = DeriveDisplayOrder
 )]
 struct Args {
-    
     #[clap(flatten)]
     args: CommonArgs,
 
