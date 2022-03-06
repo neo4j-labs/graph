@@ -11,10 +11,17 @@ except IndexError:
     sys.exit(1)
 
 # install logging
-FORMAT = "%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s"
-logging.basicConfig(format=FORMAT)
+logging.basicConfig(format="%(message)s")
 logging.getLogger().setLevel(logging.INFO)
 
+# load graph
+g = unladen_swallow.Graph.load(FILE, unladen_swallow.Layout.Sorted)
+print(f"{g!r}")
+
 # run page rank
-pr = unladen_swallow.page_rank(FILE)
+pr = g.page_rank(max_iteration=20, tolerance=1e-4, damping_factor=0.85)
 print(f"{pr!r}")
+
+for node_id, score in enumerate(pr):
+    if score > 0.00042:
+        print(f"{node_id} score: {score}")

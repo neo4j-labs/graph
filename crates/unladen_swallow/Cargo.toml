@@ -1,7 +1,7 @@
 [package]
 name = "unladen_swallow"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
@@ -10,5 +10,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 graph = { version = "0.1.15", path = "../algos" }
-pyo3 = { version = "0.16.0", features = ["extension-module"] }
 pyo3-log = "0.6.0"
+
+[dependencies.pyo3]
+version = "0.16.0"
+features = ["extension-module", "macros"]
+default-features = false
