@@ -23,8 +23,8 @@ pub struct DeltaSteppingConfig {
     #[cfg_attr(feature = "clap", clap(long))]
     pub start_node: usize,
 
-    // Defines the "bucket width". A bucket maintains nodes with the
-    // same tentative distance to the start node.
+    /// Defines the "bucket width". A bucket maintains nodes with the
+    /// same tentative distance to the start node.
     #[cfg_attr(feature = "clap", clap(long))]
     pub delta: f32,
 }
