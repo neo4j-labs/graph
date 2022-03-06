@@ -27,7 +27,3 @@ rayon = "1.5.1"
 [[bin]]
 name = "app"
 path = "src/app.rs"
-
-[[bin]]
-name = "serialize"
-path = "src/serialize.rs"

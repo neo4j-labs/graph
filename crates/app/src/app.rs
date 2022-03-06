@@ -7,6 +7,7 @@ use kommandozeile::*;
 
 mod loading;
 mod page_rank;
+mod serialize;
 mod sssp;
 mod triangle_count;
 mod wcc;
@@ -26,6 +27,9 @@ fn main() -> Result<()> {
             undirected,
             weighted,
         } => loading::loading(args.args, undirected, weighted)?,
+        Algorithm::Serialize { output, undirected } => {
+            serialize::serialize(args.args, undirected, output)?
+        }
     }
 
     Ok(())
@@ -97,5 +101,13 @@ enum Algorithm {
         /// Load the graph as weighted.
         #[clap(long)]
         weighted: bool,
+    },
+    Serialize {
+        /// Path to serialize graph to.
+        #[clap(short, long, parse(from_os_str))]
+        output: PathBuf,
+        /// Load the graph as undirected.
+        #[clap(long)]
+        undirected: bool,
     },
 }
