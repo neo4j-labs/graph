@@ -39,12 +39,18 @@ pub use crate::dss::DisjointSetStruct;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "clap", derive(clap::Args))]
 pub struct WccConfig {
-    // Number of nodes to be processed in batch by a single thread.
+    /// Number of nodes to be processed in batch by a single thread.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::default().chunk_size))]
     pub chunk_size: usize,
-    // Number of relationships of each node to sample during subgraph linking.
+
+    /// Number of relationships of each node to sample during subgraph linking.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::default().neighbor_rounds))]
     pub neighbor_rounds: usize,
-    // Number of samples to draw from the DSS to find the largest component.
+
+    /// Number of samples to draw from the DSS to find the largest component.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::default().sampling_size))]
     pub sampling_size: usize,
 }
 
