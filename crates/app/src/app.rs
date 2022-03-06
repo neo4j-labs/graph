@@ -5,6 +5,7 @@ use graph::prelude::*;
 use clap::AppSettings::DeriveDisplayOrder;
 use kommandozeile::*;
 
+mod page_rank;
 mod wcc;
 
 fn main() -> Result<()> {
@@ -12,9 +13,9 @@ fn main() -> Result<()> {
     let filter_string = args.verbose.verbosity().as_filter_for_all();
     std::env::set_var("RUST_LOG", filter_string);
     env_logger::init();
-
+    
     match args.algorithm {
-        Algorithm::PageRank {  } => todo!(),
+        Algorithm::PageRank { config } => page_rank::page_rank(args.args, config)?,
         Algorithm::Sssp => todo!(),
         Algorithm::TriangleCount => todo!(),
         Algorithm::Wcc { config } => wcc::wcc(args.args, config)?,
@@ -32,7 +33,7 @@ fn main() -> Result<()> {
     global_setting = DeriveDisplayOrder
 )]
 struct Args {
-
+    
     #[clap(flatten)]
     args: CommonArgs,
 
@@ -66,7 +67,10 @@ enum FileFormat {
 
 #[derive(clap::Subcommand, Debug)]
 enum Algorithm {
-    PageRank {},
+    PageRank {
+        #[clap(flatten)]
+        config: PageRankConfig,
+    },
     Sssp,
     TriangleCount,
 

@@ -29,10 +29,6 @@ name = "app"
 path = "src/app.rs"
 
 [[bin]]
-name = "page_rank"
-path = "src/page_rank.rs"
-
-[[bin]]
 name = "triangle_count"
 path = "src/triangle_count.rs"
 
