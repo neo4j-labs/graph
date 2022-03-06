@@ -9,14 +9,15 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-    let cli::AppArgs {
+use super::*;
+
+pub(crate) fn serialize(args: CommonArgs, undirected: bool, output: PathBuf) -> Result<()> {
+    let CommonArgs {
         path,
+        format: _,
+        runs: _,
         use_32_bit,
-        undirected,
-        output,
-    } = cli::create()?;
+    } = args;
 
     info!(
         "Reading graph ({} bit) from: {:?}",
@@ -39,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run<G, NI>(path: PathBuf, output: PathBuf) -> Result<(), Error>
+fn run<G, NI>(path: PathBuf, output: PathBuf) -> Result<()>
 where
     NI: Idx + ToByteSlice,
     G: Graph<NI>
@@ -65,7 +66,7 @@ where
     Ok(())
 }
 
-fn load_from_edge_list<G, NI>(path: PathBuf) -> Result<G, Error>
+fn load_from_edge_list<G, NI>(path: PathBuf) -> Result<G>
 where
     NI: Idx + ToByteSlice,
     G: Graph<NI> + From<(EdgeList<NI, ()>, CsrLayout)>,
@@ -80,7 +81,7 @@ where
     Ok(in_graph)
 }
 
-fn serialize_into_binary<G, NI>(graph: &G, output: &Path) -> Result<(), Error>
+fn serialize_into_binary<G, NI>(graph: &G, output: &Path) -> Result<()>
 where
     NI: Idx + ToByteSlice,
     G: Graph<NI> + SerializeGraphOp<BufWriter<File>>,
@@ -90,7 +91,7 @@ where
     Ok(())
 }
 
-fn load_from_binary<G, NI>(path: PathBuf) -> Result<G, Error>
+fn load_from_binary<G, NI>(path: PathBuf) -> Result<G>
 where
     NI: Idx + ToByteSlice,
     G: Graph<NI> + TryFrom<(PathBuf, CsrLayout)>,
@@ -103,34 +104,4 @@ where
         .unwrap();
 
     Ok(graph)
-}
-
-mod cli {
-    use pico_args::Arguments;
-    use std::{convert::Infallible, ffi::OsStr, path::PathBuf};
-
-    #[derive(Debug)]
-    pub(crate) struct AppArgs {
-        pub(crate) path: std::path::PathBuf,
-        pub(crate) use_32_bit: bool,
-        pub(crate) undirected: bool,
-        pub(crate) output: std::path::PathBuf,
-    }
-
-    pub(crate) fn create() -> Result<AppArgs, Box<dyn std::error::Error>> {
-        let mut pargs = Arguments::from_env();
-
-        fn as_path_buf(arg: &OsStr) -> Result<PathBuf, Infallible> {
-            Ok(arg.into())
-        }
-
-        let args = AppArgs {
-            path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
-            use_32_bit: pargs.contains("--use-32-bit"),
-            undirected: pargs.contains("--undirected"),
-            output: pargs.value_from_os_str(["-o", "--output"], as_path_buf)?,
-        };
-
-        Ok(args)
-    }
 }

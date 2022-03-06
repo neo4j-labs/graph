@@ -12,15 +12,21 @@ const CHUNK_SIZE: usize = 16384;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "clap", derive(clap::Args))]
 pub struct PageRankConfig {
-    // The maximum number of page rank iterations.
-    pub max_iterations: usize,
-    // If the sum of page rank deltas per iteration is
-    // below the tolerance value, the computation stop.
+    /// The maximum number of page rank iterations.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::default().max_iterations))]
+    pub(super) max_iterations: usize,
+
+    /// If the sum of page rank deltas per iteration is
+    /// below the tolerance value, the computation stop.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::default().tolerance))]
     pub tolerance: f64,
-    // Imagining a random surfer clicking links, the
-    // damping factor defines the probability if the
-    // surfer will continue at any step.
+
+    /// Imagining a random surfer clicking links, the
+    /// damping factor defines the probability if the
+    /// surfer will continue at any step.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::default().damping_factor))]
     pub damping_factor: f32,
 }
 

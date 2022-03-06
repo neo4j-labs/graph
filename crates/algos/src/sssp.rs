@@ -17,23 +17,27 @@ const BATCH_SIZE: usize = 64;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct DeltaSteppingConfig<NI> {
-    // The node for which to compute distances to all reachable nodes.
-    pub start_node: NI,
-    // Defines the "bucket width". A bucket maintains nodes with the
-    // same tentative distance to the start node.
+#[cfg_attr(feature = "clap", derive(clap::Args))]
+pub struct DeltaSteppingConfig {
+    /// The node for which to compute distances to all reachable nodes.
+    #[cfg_attr(feature = "clap", clap(long))]
+    pub start_node: usize,
+
+    /// Defines the "bucket width". A bucket maintains nodes with the
+    /// same tentative distance to the start node.
+    #[cfg_attr(feature = "clap", clap(long))]
     pub delta: f32,
 }
 
-impl<NI: Idx> DeltaSteppingConfig<NI> {
-    pub fn new(start_node: NI, delta: f32) -> Self {
+impl DeltaSteppingConfig {
+    pub fn new(start_node: usize, delta: f32) -> Self {
         Self { start_node, delta }
     }
 }
 
 pub fn delta_stepping<NI: Idx>(
     graph: &DirectedCsrGraph<NI, (), f32>,
-    config: DeltaSteppingConfig<NI>,
+    config: DeltaSteppingConfig,
 ) -> Vec<AtomicF32> {
     let start = Instant::now();
 
@@ -47,7 +51,7 @@ pub fn delta_stepping<NI: Idx>(
     distance[start_node.index()].store(0.0, Ordering::Release);
 
     let mut frontier = vec![NI::zero(); graph.edge_count().index()];
-    frontier[0] = start_node;
+    frontier[0] = NI::new(start_node);
     let frontier_idx = AtomicUsize::new(0);
     let mut frontier_len = 1;
 
