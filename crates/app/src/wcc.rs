@@ -4,46 +4,23 @@ use log::info;
 
 use std::hash::Hash;
 use std::path::Path as StdPath;
-use std::str::FromStr;
 use std::time::Instant;
 
-#[derive(Debug)]
-enum FileFormat {
-    EdgeList,
-    Graph500,
-}
+use super::*;
 
-impl FromStr for FileFormat {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "edgelist" => Ok(Self::EdgeList),
-            "graph500" => Ok(Self::Graph500),
-            _ => Err(format!("unsupported file format {}", s)),
-        }
-    }
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-    let cli::AppArgs {
+pub(crate) fn wcc(app_args: CommonArgs, config: WccConfig) -> Result<()> {
+    let CommonArgs {
         path,
         format,
         use_32_bit,
         runs,
-        chunk_size,
-        neighbor_rounds,
-        sampling_size,
-    } = cli::create()?;
+    } = app_args;
 
     info!(
         "Reading graph ({} bit) from: {:?}",
         if use_32_bit { "32" } else { "64" },
         path
     );
-
-    let config = WccConfig::new(chunk_size, neighbor_rounds, sampling_size);
 
     match (use_32_bit, format) {
         (true, FileFormat::EdgeList) => {
@@ -66,7 +43,7 @@ fn run<NI, Format, Path>(
     file_format: Format,
     runs: usize,
     config: WccConfig,
-) -> Result<(), Box<dyn std::error::Error>>
+) -> Result<()>
 where
     NI: Idx + Hash,
     Path: AsRef<StdPath>,
@@ -110,51 +87,4 @@ where
     info!("Average runtime: {:?}", total / runs as u32);
 
     Ok(())
-}
-
-mod cli {
-    use graph::wcc::WccConfig;
-    use pico_args::Arguments;
-    use std::{convert::Infallible, ffi::OsStr, path::PathBuf};
-
-    #[derive(Debug)]
-    pub(crate) struct AppArgs {
-        pub(crate) path: std::path::PathBuf,
-        pub(crate) format: crate::FileFormat,
-        pub(crate) runs: usize,
-        pub(crate) use_32_bit: bool,
-        pub(crate) chunk_size: usize,
-        pub(crate) neighbor_rounds: usize,
-        pub(crate) sampling_size: usize,
-    }
-
-    pub(crate) fn create() -> Result<AppArgs, Box<dyn std::error::Error>> {
-        let mut pargs = Arguments::from_env();
-
-        fn as_path_buf(arg: &OsStr) -> Result<PathBuf, Infallible> {
-            Ok(arg.into())
-        }
-
-        let default_config = WccConfig::default();
-
-        let args = AppArgs {
-            path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
-            format: pargs
-                .opt_value_from_str(["-f", "--format"])?
-                .unwrap_or(crate::FileFormat::EdgeList),
-            runs: pargs.opt_value_from_str(["-r", "--runs"])?.unwrap_or(1),
-            use_32_bit: pargs.contains("--use-32-bit"),
-            chunk_size: pargs
-                .opt_value_from_str("--chunk-size")?
-                .unwrap_or(default_config.chunk_size),
-            neighbor_rounds: pargs
-                .opt_value_from_str("--neighbor-rounds")?
-                .unwrap_or(default_config.neighbor_rounds),
-            sampling_size: pargs
-                .opt_value_from_str("--sampling-size")?
-                .unwrap_or(default_config.sampling_size),
-        };
-
-        Ok(args)
-    }
 }
