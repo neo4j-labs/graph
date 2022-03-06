@@ -1,16 +1,17 @@
 use graph::prelude::*;
 
 use log::info;
-use std::path::PathBuf;
+use std::path::Path as StdPath;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-    let cli::AppArgs {
+use super::*;
+
+pub(crate) fn triangle_count(args: CommonArgs, relabel: bool) -> Result<()> {
+    let CommonArgs {
         path,
+        format,
         use_32_bit,
         runs,
-        relabel,
-    } = cli::create()?;
+    } = args;
 
     info!(
         "Reading graph ({} bit) from: {:?}",
@@ -18,21 +19,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         path
     );
 
-    if use_32_bit {
-        run::<u32>(path, relabel, runs)
-    } else {
-        run::<usize>(path, relabel, runs)
+    match (use_32_bit, format) {
+        (true, FileFormat::EdgeList) => {
+            run::<u32, _, _>(path, EdgeListInput::default(), runs, relabel)
+        }
+        (true, FileFormat::Graph500) => {
+            run::<u32, _, _>(path, Graph500Input::default(), runs, relabel)
+        }
+        (false, FileFormat::EdgeList) => {
+            run::<usize, _, _>(path, EdgeListInput::default(), runs, relabel)
+        }
+        (false, FileFormat::Graph500) => {
+            run::<usize, _, _>(path, Graph500Input::default(), runs, relabel)
+        }
     }
 }
 
-fn run<NI: Idx>(
-    path: PathBuf,
-    relabel: bool,
-    runs: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn run<NI, Format, Path>(path: Path, file_format: Format, runs: usize, relabel: bool) -> Result<()>
+where
+    NI: Idx,
+    Path: AsRef<StdPath>,
+    Format: InputCapabilities<NI>,
+    Format::GraphInput: TryFrom<InputPath<Path>>,
+    UndirectedCsrGraph<NI>: TryFrom<(Format::GraphInput, CsrLayout)>,
+    Error: From<<Format::GraphInput as TryFrom<InputPath<Path>>>::Error>,
+    Error: From<<UndirectedCsrGraph<NI> as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
+{
     let mut graph: UndirectedCsrGraph<NI> = GraphBuilder::new()
         .csr_layout(CsrLayout::Deduplicated)
-        .file_format(EdgeListInput::default())
+        .file_format(file_format)
         .path(path)
         .build()
         .unwrap();
@@ -46,34 +61,4 @@ fn run<NI: Idx>(
     }
 
     Ok(())
-}
-
-mod cli {
-    use pico_args::Arguments;
-    use std::{convert::Infallible, ffi::OsStr, path::PathBuf};
-
-    #[derive(Debug)]
-    pub(crate) struct AppArgs {
-        pub(crate) path: std::path::PathBuf,
-        pub(crate) runs: usize,
-        pub(crate) use_32_bit: bool,
-        pub(crate) relabel: bool,
-    }
-
-    pub(crate) fn create() -> Result<AppArgs, Box<dyn std::error::Error>> {
-        let mut pargs = Arguments::from_env();
-
-        fn as_path_buf(arg: &OsStr) -> Result<PathBuf, Infallible> {
-            Ok(arg.into())
-        }
-
-        let args = AppArgs {
-            path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
-            runs: pargs.opt_value_from_str(["-r", "--runs"])?.unwrap_or(1),
-            use_32_bit: pargs.contains("--use-32-bit"),
-            relabel: pargs.contains("--relabel"),
-        };
-
-        Ok(args)
-    }
 }

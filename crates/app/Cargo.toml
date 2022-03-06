@@ -29,10 +29,6 @@ name = "app"
 path = "src/app.rs"
 
 [[bin]]
-name = "triangle_count"
-path = "src/triangle_count.rs"
-
-[[bin]]
 name = "sssp"
 path = "src/sssp.rs"
 
