@@ -18,11 +18,19 @@ publish = false
 byte-slice-cast = "1.2.0"
 env_logger = "0.9.0"
 float-ord = "0.3.2"
-kommandozeile = { git = "https://github.com/knutwalker/kommandozeile", default-features = false, features = ["args_glob_expand", "args_file", "clap_app_color", "clap_verbose", "setup_clap"] }
-graph = { path = "../algos", version = "^0.1.0", features = ["clap"] }
 log = "0.4.14"
 pico-args = "0.4.2"
 rayon = "1.5.1"
+
+[dependencies.graph]
+path = "../algos"
+version = "^0.1.0"
+features = ["clap"]
+
+[dependencies.kommandozeile]
+git = "https://github.com/knutwalker/kommandozeile"
+default-features = false
+features = ["args_glob_expand", "args_file", "clap_app_color", "clap_verbose", "setup_clap"]
 
 [[bin]]
 name = "app"
