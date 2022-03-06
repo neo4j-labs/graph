@@ -31,7 +31,3 @@ path = "src/app.rs"
 [[bin]]
 name = "serialize"
 path = "src/serialize.rs"
-
-[[bin]]
-name = "loading"
-path = "src/loading.rs"

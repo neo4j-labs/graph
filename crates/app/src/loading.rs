@@ -6,29 +6,29 @@ use log::info;
 use std::path::PathBuf;
 use std::time::Instant;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-    let args = cli::create()?;
+use super::*;
 
+pub(crate) fn loading(args: CommonArgs, undirected: bool, weighted: bool) -> Result<()> {
     info!(
         "Reading graph ({} bit) from: {}",
         if args.use_32_bit { "32" } else { "64" },
         args.path.display()
     );
 
-    run(args)?;
+    run(args, undirected, weighted)?;
+
     Ok(())
 }
 
-fn run(args: cli::AppArgs) -> Result<(), Error> {
-    if args.weighted_input {
-        run_node_idx::<usize>(args.use_32_bit, args.undirected, args.path)
+fn run(args: CommonArgs, undirected: bool, weighted: bool) -> Result<()> {
+    if weighted {
+        run_node_idx::<usize>(args.use_32_bit, undirected, args.path)
     } else {
-        run_node_idx::<()>(args.use_32_bit, args.undirected, args.path)
+        run_node_idx::<()>(args.use_32_bit, undirected, args.path)
     }
 }
 
-fn run_node_idx<EV>(use_32_bit: bool, undirected: bool, path: PathBuf) -> Result<(), Error>
+fn run_node_idx<EV>(use_32_bit: bool, undirected: bool, path: PathBuf) -> Result<()>
 where
     EV: ParseValue + std::fmt::Debug + Copy + Send + Sync,
 {
@@ -39,7 +39,7 @@ where
     }
 }
 
-fn run_direction<NI, EV>(undirected: bool, path: PathBuf) -> Result<(), Error>
+fn run_direction<NI, EV>(undirected: bool, path: PathBuf) -> Result<()>
 where
     NI: Idx + ToByteSlice,
     EV: ParseValue + std::fmt::Debug + Copy + Send + Sync,
@@ -51,7 +51,7 @@ where
     }
 }
 
-fn load<G, NI, EV>(path: PathBuf) -> Result<(), Error>
+fn load<G, NI, EV>(path: PathBuf) -> Result<()>
 where
     NI: Idx + ToByteSlice,
     EV: ParseValue + std::fmt::Debug + Send + Sync,
@@ -72,34 +72,4 @@ where
     );
 
     Ok(())
-}
-
-mod cli {
-    use pico_args::Arguments;
-    use std::{convert::Infallible, ffi::OsStr, path::PathBuf};
-
-    #[derive(Debug)]
-    pub(crate) struct AppArgs {
-        pub(crate) path: std::path::PathBuf,
-        pub(crate) use_32_bit: bool,
-        pub(crate) undirected: bool,
-        pub(crate) weighted_input: bool,
-    }
-
-    pub(crate) fn create() -> Result<AppArgs, Box<dyn std::error::Error>> {
-        let mut pargs = Arguments::from_env();
-
-        fn as_path_buf(arg: &OsStr) -> Result<PathBuf, Infallible> {
-            Ok(arg.into())
-        }
-
-        let args = AppArgs {
-            path: pargs.value_from_os_str(["-p", "--path"], as_path_buf)?,
-            use_32_bit: pargs.contains("--use-32-bit"),
-            undirected: pargs.contains("--undirected"),
-            weighted_input: pargs.contains("--weighted"),
-        };
-
-        Ok(args)
-    }
 }

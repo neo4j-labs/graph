@@ -5,6 +5,7 @@ use graph::prelude::*;
 use clap::AppSettings::DeriveDisplayOrder;
 use kommandozeile::*;
 
+mod loading;
 mod page_rank;
 mod sssp;
 mod triangle_count;
@@ -21,6 +22,10 @@ fn main() -> Result<()> {
         Algorithm::Sssp { config } => sssp::sssp(args.args, config)?,
         Algorithm::TriangleCount { relabel } => triangle_count::triangle_count(args.args, relabel)?,
         Algorithm::Wcc { config } => wcc::wcc(args.args, config)?,
+        Algorithm::Loading {
+            undirected,
+            weighted,
+        } => loading::loading(args.args, undirected, weighted)?,
     }
 
     Ok(())
@@ -84,5 +89,13 @@ enum Algorithm {
     Wcc {
         #[clap(flatten)]
         config: WccConfig,
+    },
+    Loading {
+        /// Load the graph as undirected.
+        #[clap(long)]
+        undirected: bool,
+        /// Load the graph as weighted.
+        #[clap(long)]
+        weighted: bool,
     },
 }
