@@ -39,7 +39,7 @@ compute_action = {
 
 result = client.do_action(flight.Action("compute", json.dumps(compute_action).encode('utf-8')))
 obj = json.loads(next(result).body.to_pybytes().decode())
-print("page rank result")
+print("SSSP result")
 print(json.dumps(obj, indent = 4))
 
 ticket = obj['property_id']

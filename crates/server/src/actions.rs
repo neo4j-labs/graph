@@ -135,13 +135,13 @@ impl TryFrom<FlightDescriptor> for CreateGraphCommand {
 
 #[derive(Serialize, Debug)]
 pub struct CreateActionResult {
-    node_count: usize,
-    edge_count: usize,
+    node_count: u64,
+    edge_count: u64,
     create_millis: u128,
 }
 
 impl CreateActionResult {
-    pub fn new(node_count: usize, edge_count: usize, create_millis: u128) -> Self {
+    pub fn new(node_count: u64, edge_count: u64, create_millis: u128) -> Self {
         Self {
             node_count,
             edge_count,
@@ -173,6 +173,7 @@ pub enum Algorithm {
     PageRank(PageRankConfig),
     TriangleCount,
     Sssp(DeltaSteppingConfig),
+    Wcc(WccConfig),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -205,6 +206,11 @@ pub struct TriangleCountResult {
 
 #[derive(Serialize, Debug)]
 pub struct SsspResult {
+    pub compute_millis: u128,
+}
+
+#[derive(Serialize, Debug)]
+pub struct WccResult {
     pub compute_millis: u128,
 }
 

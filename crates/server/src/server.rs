@@ -1,11 +1,14 @@
 use crate::actions::*;
 use crate::catalog::*;
 
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 
+use arrow::datatypes::Float32Type;
 use arrow::datatypes::Int64Type;
+use arrow::datatypes::UInt64Type;
 use arrow::error::ArrowError;
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions};
 use arrow_flight::utils::flight_data_to_arrow_batch;
@@ -16,7 +19,9 @@ use arrow_flight::{
 };
 use futures::{Stream, StreamExt};
 use graph::page_rank::PageRankConfig;
+use graph::prelude::Components;
 use graph::prelude::DeltaSteppingConfig;
+use graph::prelude::WccConfig;
 use log::error;
 use log::info;
 use parking_lot::RwLock;
@@ -128,7 +133,7 @@ impl FlightService for FlightServiceImpl {
             let batch = source_ids
                 .iter()
                 .zip(target_ids.iter())
-                .map(|(s, t)| (s.unwrap() as usize, t.unwrap() as usize));
+                .map(|(s, t)| (s.unwrap() as u64, t.unwrap() as u64));
 
             edge_list.extend(batch);
         }
@@ -204,6 +209,16 @@ impl FlightService for FlightServiceImpl {
                     }
                     Algorithm::Sssp(config) => {
                         compute_sssp(
+                            config,
+                            Arc::clone(&self.graph_catalog),
+                            Arc::clone(&self.property_store),
+                            graph_name,
+                            property_key,
+                        )
+                        .await?
+                    }
+                    Algorithm::Wcc(config) => {
+                        compute_wcc(
                             config,
                             Arc::clone(&self.graph_catalog),
                             Arc::clone(&self.property_store),
@@ -355,7 +370,8 @@ async fn compute_page_rank(
     .unwrap()?;
 
     let property_id = PropertyId::new(graph_name, property_key);
-    let record_batches = crate::catalog::to_f32_record_batches(ranks, "page_rank").await;
+    let record_batches =
+        crate::catalog::to_record_batches(&ranks, "page_rank", PhantomData::<Float32Type>).await;
 
     property_store
         .write()
@@ -439,7 +455,8 @@ async fn compute_sssp(
     .unwrap()?;
 
     let property_id = PropertyId::new(graph_name, property_key);
-    let record_batches = crate::catalog::to_f32_record_batches(distances, "distance").await;
+    let record_batches =
+        crate::catalog::to_record_batches(&distances, "distance", PhantomData::<Float32Type>).await;
 
     property_store
         .write()
@@ -450,6 +467,53 @@ async fn compute_sssp(
     let result = serde_json::to_vec(&result).map_err(from_json_error)?;
     Ok(arrow_flight::Result { body: result })
 }
+
+async fn compute_wcc(
+    config: WccConfig,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+    property_store: Arc<RwLock<PropertyStore>>,
+    graph_name: String,
+    property_key: String,
+) -> FlightResult<arrow_flight::Result> {
+    info!("Computing wcc on graph '{graph_name}' using config: {config:?}");
+
+    let catalog_key = graph_name.clone();
+
+    let (components, result) = tokio::task::spawn_blocking(move || {
+        let catalog = graph_catalog.read();
+
+        if let GraphType::Directed(graph) = catalog.get(catalog_key).unwrap() {
+            let start = Instant::now();
+            let components = graph::wcc::wcc_afforest(graph, config);
+            let result = WccResult {
+                compute_millis: start.elapsed().as_millis(),
+            };
+            Ok((components.to_vec(), result))
+        } else {
+            error!("Attempted running page rank on undirected graph");
+            Err(Status::invalid_argument(
+                "Page Rank requires a directed graph",
+            ))
+        }
+    })
+    .await
+    .unwrap()?;
+
+    let property_id = PropertyId::new(graph_name, property_key);
+    let record_batches =
+        crate::catalog::to_record_batches(&components, "component", PhantomData::<UInt64Type>)
+            .await;
+
+    property_store
+        .write()
+        .insert(property_id.clone(), record_batches);
+
+    let result = MutateResult::new(property_id, result);
+
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
+}
+
 fn from_arrow_err(e: ArrowError) -> Status {
     Status::internal(format!("ArrowError: {:?}", e))
 }

@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::{mem::ManuallyDrop, sync::atomic::Ordering};
 
 use rayon::prelude::*;
 
@@ -153,6 +153,24 @@ impl<NI: Idx> DisjointSetStruct<NI> {
 impl<NI: Idx> Components<NI> for DisjointSetStruct<NI> {
     fn component(&self, node: NI) -> NI {
         self.find(node)
+    }
+
+    fn to_vec(self) -> Vec<NI> {
+        let mut components = ManuallyDrop::new(self.0.into_vec());
+        let (ptr, len, cap) = (
+            components.as_mut_ptr(),
+            components.len(),
+            components.capacity(),
+        );
+
+        // SAFETY: NI and NI::Atomic have the same memory layout
+        let components = unsafe {
+            let ptr = ptr as *mut Vec<NI>;
+            let ptr = ptr as *mut _;
+            Vec::from_raw_parts(ptr, len, cap)
+        };
+
+        components
     }
 }
 
