@@ -111,7 +111,7 @@ fn page_rank_iteration<NI: Idx>(
     out_scores: &SharedMut<f32>,
     scores: &SharedMut<f32>,
 ) -> f64 {
-    let next_chunk = NI::zero().atomic();
+    let next_chunk = Atomic::new(NI::zero());
     let total_error = AtomicF64::new(0_f64);
 
     rayon::scope(|s| {
@@ -120,7 +120,7 @@ fn page_rank_iteration<NI: Idx>(
                 let mut error = 0_f64;
 
                 loop {
-                    let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
+                    let start = NI::fetch_add(&next_chunk, NI::new(CHUNK_SIZE), Ordering::AcqRel);
                     if start >= graph.node_count() {
                         break;
                     }

@@ -16,6 +16,7 @@ pub use crate::graph_ops::SerializeGraphOp;
 
 pub use crate::index::AtomicIdx;
 pub use crate::index::Idx;
+pub use atomic::Atomic;
 
 pub use crate::input::*;
 

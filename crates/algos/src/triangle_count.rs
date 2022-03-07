@@ -17,7 +17,7 @@ pub fn relabel_graph<NI: Idx>(graph: &mut UndirectedCsrGraph<NI>) {
 pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
     let start = Instant::now();
 
-    let next_chunk = NI::zero().atomic();
+    let next_chunk = Atomic::new(NI::zero());
     let total_triangles = AtomicU64::new(0);
 
     rayon::scope(|s| {
@@ -26,7 +26,7 @@ pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
                 let mut triangles = 0;
 
                 loop {
-                    let start = next_chunk.fetch_add(NI::new(CHUNK_SIZE), Ordering::AcqRel);
+                    let start = NI::fetch_add(&next_chunk, NI::new(CHUNK_SIZE), Ordering::AcqRel);
                     if start >= graph.node_count() {
                         break;
                     }

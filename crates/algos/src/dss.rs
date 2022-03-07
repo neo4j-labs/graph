@@ -17,7 +17,7 @@ use crate::prelude::*;
 /// [1] [Java](https://github.com/neo4j/graph-data-science/blob/edeab6ab68f241135737aafe68a113248f11042c/core/src/main/java/org/neo4j/gds/core/utils/paged/dss/HugeAtomicDisjointSetStruct.java)
 /// [2] [C++](https://github.com/wjakob/dset/blob/7967ef0e6041cd9d73b9c7f614ab8ae92e9e587a/dset.h)
 /// [3] [Rust](https://github.com/tov/disjoint-sets-rs/blob/88ab08df21f04fcf7c157b6e042efd561ee873ba/src/concurrent.rs)
-pub struct DisjointSetStruct<NI: Idx>(Box<[NI::Atomic]>);
+pub struct DisjointSetStruct<NI: Idx>(Box<[Atomic<NI>]>);
 
 unsafe impl<NI: Idx> Sync for DisjointSetStruct<NI> {}
 unsafe impl<NI: Idx> Send for DisjointSetStruct<NI> {}
@@ -135,7 +135,7 @@ impl<NI: Idx> DisjointSetStruct<NI> {
 
         (0..size)
             .into_par_iter()
-            .map(|i| NI::new(i).atomic())
+            .map(|i| Atomic::new(NI::new(i)))
             .collect_into_vec(&mut v);
 
         Self(v.into_boxed_slice())
