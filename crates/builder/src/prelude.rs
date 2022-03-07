@@ -14,7 +14,6 @@ pub use crate::graph_ops::OutDegreePartitionOp;
 pub use crate::graph_ops::RelabelByDegreeOp;
 pub use crate::graph_ops::SerializeGraphOp;
 
-pub use crate::index::AtomicIdx;
 pub use crate::index::Idx;
 pub use atomic::Atomic;
 
