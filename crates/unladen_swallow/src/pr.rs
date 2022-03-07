@@ -30,7 +30,7 @@ pub(crate) fn run_page_rank<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> PageRankRe
     let (scores, ran_iterations, error) = graph_page_rank(graph, config);
     let page_rank_micros = start.elapsed().as_micros().min(u64::MAX as _) as _;
     PageRankResult {
-        scores: scores.into(),
+        scores,
         ran_iterations,
         error,
         page_rank_micros,
