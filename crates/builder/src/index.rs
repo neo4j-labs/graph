@@ -3,6 +3,7 @@ use std::iter::{Step, Sum};
 use std::sync::atomic::Ordering;
 
 use atoi::FromRadix10;
+use atomic::Atomic;
 
 pub trait Idx:
     Copy
@@ -31,6 +32,12 @@ pub trait Idx:
     fn atomic(self) -> Self::Atomic;
 
     fn parse(bytes: &[u8]) -> (Self, usize);
+
+    fn get_and_increment(this: &Atomic<Self>, order: Ordering) -> Self {
+        Self::fetch_add(this, Self::new(1), order)
+    }
+
+    fn fetch_add(this: &Atomic<Self>, val: Self, order: Ordering) -> Self;
 }
 
 pub trait AtomicIdx: Send + Sync {
@@ -96,6 +103,11 @@ macro_rules! impl_idx {
             #[inline]
             fn parse(bytes: &[u8]) -> (Self, usize) {
                 FromRadix10::from_radix_10(bytes)
+            }
+
+            #[inline]
+            fn fetch_add(this: &Atomic<$TYPE>, val: $TYPE, order: Ordering) -> $TYPE {
+                this.fetch_add(val, order)
             }
         }
 

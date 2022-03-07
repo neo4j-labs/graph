@@ -3,13 +3,14 @@ use std::{
     path::Path, sync::atomic::Ordering::Acquire,
 };
 
+use atomic::Atomic;
 use fxhash::FxHashMap;
 use linereader::LineReader;
 use rayon::prelude::*;
 
 use crate::{
     graph::csr::{sort_targets, Csr, Target},
-    index::{AtomicIdx, Idx},
+    index::Idx,
     Error, SharedMut,
 };
 
@@ -129,7 +130,7 @@ where
 
         // SAFETY: Label and Label::Atomic have the same memory layout
         let offsets = unsafe {
-            let ptr = ptr as *mut Label::Atomic;
+            let ptr = ptr as *mut Atomic<Label>;
             Vec::from_raw_parts(ptr, len, cap)
         };
 
@@ -141,7 +142,7 @@ where
             .enumerate()
             .for_each(|(node, &label)| {
                 let next_label = label + Label::new(1);
-                let offset = offsets[next_label.index()].fetch_add(Label::new(1), Acquire);
+                let offset = Label::get_and_increment(&offsets[next_label.index()], Acquire);
                 // SAFETY: There is exactly one thread that writes at `offset.index()`.
                 unsafe {
                     nodes_ptr
