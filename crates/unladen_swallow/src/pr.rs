@@ -1,4 +1,4 @@
-use crate::g::Graph;
+use crate::graphs::Graph;
 use graph::prelude::{page_rank as graph_page_rank, DirectedCsrGraph, Idx, PageRankConfig};
 use pyo3::{
     exceptions::{PyIndexError, PyTypeError},
@@ -13,13 +13,10 @@ use std::{
 
 pub(crate) fn register(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PageRankResult>()?;
-    m.add_function(wrap_pyfunction!(page_rank, m)?)?;
     Ok(())
 }
 
-/// Runs Page Rank on a Graph 500 graph
-#[pyfunction]
-pub fn page_rank(py: Python<'_>, graph: PyRef<Graph>) -> PageRankResult {
+pub(crate) fn page_rank(py: Python<'_>, graph: PyRef<Graph>) -> PageRankResult {
     let graph = graph.g();
     py.allow_threads(move || run_page_rank(graph))
 }

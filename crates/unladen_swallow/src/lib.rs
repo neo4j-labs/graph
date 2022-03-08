@@ -6,7 +6,7 @@ use pyo3::{
 };
 use pyo3_log::{Caching, Logger};
 
-mod g;
+mod graphs;
 mod pr;
 
 type GResult<T> = std::result::Result<T, GError>;
@@ -32,7 +32,7 @@ fn unladen_swallow(py: Python, m: &PyModule) -> PyResult<()> {
         .install()
         .unwrap();
 
-    g::register(py, m)?;
+    graphs::register(py, m)?;
     pr::register(py, m)?;
 
     Ok(())
