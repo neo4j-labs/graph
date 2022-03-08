@@ -6,22 +6,11 @@ use graph::prelude::{
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::{exceptions::PyValueError, types::PyList};
-use std::{
-    path::PathBuf,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Ungraph>()?;
-    m.add_function(wrap_pyfunction!(show_undirected_nb, m)?)?;
     Ok(())
-}
-
-#[pyfunction]
-pub fn show_undirected_nb(py: Python<'_>, obj: PyObject) -> PyResult<String> {
-    let vu: PyRef<NeighborsBuffer> = obj.extract(py)?;
-    Ok(format!("very unsafe: pyobj {obj:?}, vu {vu:?}"))
 }
 
 #[pyclass]
@@ -90,13 +79,7 @@ impl Ungraph {
             ))
         })?;
 
-        let start = Instant::now();
-        g.to_degree_ordered();
-
-        let relabel_micros = start.elapsed().as_micros();
-        let total_micros = relabel_micros + u128::from(self.load_micros);
-        let load_micros = total_micros.min(u64::MAX as _) as _;
-        self.load_micros = load_micros;
+        (_, self.load_micros) = super::timed(self.load_micros, || g.to_degree_ordered());
 
         Ok(())
     }
@@ -109,6 +92,13 @@ impl Ungraph {
 impl Ungraph {
     pub fn g(&self) -> &UndirectedCsrGraph<u32> {
         &self.g
+    }
+
+    pub(crate) fn new(g: UndirectedCsrGraph<u32>, load_micros: u64) -> Self {
+        Self {
+            g: Arc::new(g),
+            load_micros,
+        }
     }
 }
 
@@ -125,6 +115,10 @@ impl std::fmt::Debug for Ungraph {
 impl Drop for Ungraph {
     fn drop(&mut self) {
         let sc = Arc::strong_count(&self.g);
-        println!("graph dropped, graph string count: {sc}")
+        if sc <= 1 {
+            log::trace!("dropping graph and releasing all data");
+        } else {
+            log::trace!("dropping graph, but keeping data around as it is being used by {} neighbor list(s)", sc - 1);
+        }
     }
 }

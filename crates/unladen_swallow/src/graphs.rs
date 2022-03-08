@@ -3,20 +3,19 @@ use graph::prelude::{
     CsrLayout, DirectedCsrGraph, DirectedNeighbors, Graph500, Graph500Input, GraphBuilder,
     UndirectedCsrGraph, UndirectedNeighbors,
 };
-use numpy::{npyffi::types::NPY_TYPES, PyArray, PyArray1, PY_ARRAY_API};
-#[allow(deprecated)]
-use pyo3::{
-    class::buffer::PyBufferProtocol, exceptions::PyBufferError, ffi, prelude::*, AsPyPointer,
+use numpy::{
+    npyffi::{types::NPY_TYPES, NpyTypes, NPY_ARRAY_DEFAULT, NPY_ARRAY_WRITEABLE},
+    PyArray, PyArray1, PY_ARRAY_API,
 };
+use pyo3::{prelude::*, types::PyCapsule};
 use std::{
-    any::Any, ffi::CStr, fmt::Debug, os::raw::c_int, path::PathBuf, sync::Arc, time::Instant,
+    any::Any, ffi::CStr, fmt::Debug, os::raw::c_void, path::PathBuf, sync::Arc, time::Instant,
 };
 
 mod g;
 mod ug;
 
 pub(crate) use g::Graph;
-#[allow(unused)]
 pub(crate) use ug::Ungraph;
 
 /// Defines how the neighbor list of individual nodes are organized within the
@@ -36,18 +35,11 @@ pub enum Layout {
 
 pub(crate) fn register(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Layout>()?;
-    m.add_function(wrap_pyfunction!(show_nb, m)?)?;
 
     g::register(py, m)?;
     ug::register(py, m)?;
 
     Ok(())
-}
-
-#[pyfunction]
-pub fn show_nb(py: Python<'_>, obj: PyObject) -> PyResult<String> {
-    let vu: PyRef<NeighborsBuffer> = obj.extract(py)?;
-    Ok(format!("very unsafe: pyobj {obj:?}, vu {vu:?}"))
 }
 
 fn load_from_py<G, T, F>(py: Python<'_>, path: PathBuf, layout: Layout, mk: F) -> PyResult<T>
@@ -61,13 +53,15 @@ where
         G: TryFrom<(Graph500<u32>, CsrLayout)>,
         graph::prelude::Error: From<G::Error>,
     {
-        let start = Instant::now();
-        let graph = GraphBuilder::new()
-            .csr_layout(layout)
-            .file_format(Graph500Input::default())
-            .path(path)
-            .build()?;
-        let load_micros = start.elapsed().as_micros().min(u64::MAX as _) as _;
+        let (graph, load_micros) = time(move || {
+            GraphBuilder::new()
+                .csr_layout(layout)
+                .file_format(Graph500Input::default())
+                .path(path)
+                .build()
+        });
+        let graph = graph?;
+
         Ok((graph, load_micros))
     }
 
@@ -83,22 +77,95 @@ where
     Ok(mk(graph, took))
 }
 
-fn as_numpy(py: Python<'_>, buf: NeighborsBuffer) -> PyResult<&PyArray1<u32>> {
-    let buf = PyCell::new(py, buf)?;
-    let buf = buf.into_ptr();
+fn as_numpy(py: Python<'_>, mut buf: NeighborsBuffer) -> PyResult<&PyArray1<u32>> {
+    // Super class-ish of new array, this type creates a base array
+    let base_type = unsafe { PY_ARRAY_API.get_type_object(py, NpyTypes::PyArray_Type) };
+    // Type of a single element, here Uint = u32
+    let element_type = unsafe { PY_ARRAY_API.PyArray_DescrFromType(py, NPY_TYPES::NPY_UINT as _) };
+    // 1-D array
+    let ndims = 1;
+    // One dim with the len in number of elements
+    let dims = std::slice::from_mut(&mut buf.len).as_mut_ptr().cast();
+    // No strides required, can be NULL for 1-D arrays
+    let strides = std::ptr::null_mut();
+    // Owning data of the buffer (this is us)
+    let data = buf.data.as_ffi();
+    // Mark it as readonly
+    let flags = NPY_ARRAY_DEFAULT & !NPY_ARRAY_WRITEABLE;
+    // Protoype object - we don't have any so it's NULL
+    let obj = std::ptr::null_mut();
 
+    // Create the actual array
+    let arr = unsafe {
+        PY_ARRAY_API.PyArray_NewFromDescr(
+            py,
+            base_type,
+            element_type,
+            ndims,
+            dims,
+            strides,
+            data,
+            flags,
+            obj,
+        )
+    };
+
+    // In order to get numpy to run *our* destructor, we need to wrap in a capsule and
+    let capsule = PyCapsule::new_with_destructor(
+        py,
+        buf,
+        // SAFETY: byte string literal ends in a NULL byte
+        unsafe { CStr::from_bytes_with_nul_unchecked(b"__graph_neighbors_buf__\0") },
+        |b, _| drop(b),
+    )?;
+
+    // add the capsule as base object so that it will be freed
     unsafe {
-        let tpe = PY_ARRAY_API.PyArray_DescrFromType(py, NPY_TYPES::NPY_UINT as _);
-        let ptr = PY_ARRAY_API.PyArray_FromBuffer(py, buf, tpe, -1, 0);
-        Ok(PyArray::from_owned_ptr(py, ptr))
+        PY_ARRAY_API.PyArray_SetBaseObject(py, arr.cast(), capsule.into_ptr());
     }
+
+    unsafe { Ok(PyArray::from_owned_ptr(py, arr)) }
 }
 
-#[pyclass(unsendable)]
+fn time<R, F>(f: F) -> (R, u64)
+where
+    F: FnOnce() -> R,
+{
+    run_with_timing::<R, F, u8, _>(f, None)
+}
+
+fn timed<T, R, F>(prev: T, f: F) -> (R, u64)
+where
+    F: FnOnce() -> R,
+    u128: From<T>,
+{
+    run_with_timing::<R, F, T, _>(f, Some(prev))
+}
+
+fn run_with_timing<R, F, T, U>(f: F, prev: U) -> (R, u64)
+where
+    F: FnOnce() -> R,
+    u128: From<T>,
+    U: Into<Option<T>>,
+{
+    let prev: Option<T> = prev.into();
+    let prev = prev.map_or(0, u128::from);
+
+    let start = Instant::now();
+    let result = f();
+
+    let micros = start.elapsed().as_micros();
+    let micros = micros + prev;
+    let micros = micros.min(u64::MAX as _) as u64;
+
+    (result, micros)
+}
+
+#[pyclass]
 pub struct NeighborsBuffer {
-    data: *const u32,
+    data: SharedConst,
     len: usize,
-    _g: Arc<dyn Any>,
+    _g: Arc<dyn Any + Send + Sync>,
 }
 
 impl NeighborsBuffer {
@@ -106,7 +173,7 @@ impl NeighborsBuffer {
         let g = Arc::clone(g);
         let data = g.out_neighbors(node);
         Self {
-            data: data.as_ptr(),
+            data: SharedConst(data.as_ptr()),
             len: data.len(),
             _g: g,
         }
@@ -116,7 +183,7 @@ impl NeighborsBuffer {
         let g = Arc::clone(g);
         let data = g.in_neighbors(node);
         Self {
-            data: data.as_ptr(),
+            data: SharedConst(data.as_ptr()),
             len: data.len(),
             _g: g,
         }
@@ -126,104 +193,17 @@ impl NeighborsBuffer {
         let g = Arc::clone(g);
         let data = g.neighbors(node);
         Self {
-            data: data.as_ptr(),
+            data: SharedConst(data.as_ptr()),
             len: data.len(),
             _g: g,
         }
     }
 }
 
-#[allow(deprecated)]
-#[pyproto]
-impl PyBufferProtocol for NeighborsBuffer {
-    fn bf_getbuffer(slf: PyRefMut<Self>, view: *mut ffi::Py_buffer, flags: c_int) -> PyResult<()> {
-        // see https://docs.python.org/3/c-api/typeobj.html#c.PyBufferProcs.bf_getbuffer
-        // 1. Check if the request can be met. If not, raise PyExc_BufferError, set view->obj to NULL and return -1.
-        // 2. Fill in the requested fields.
-        // 3. Increment an internal counter for the number of exports.
-        // 4. Set view->obj to exporter and increment view->obj.
-        // 5. Return 0.
-
-        println!(
-            "getbuffer *view = {view:p} flags = {flags} data = {:p}",
-            slf.data
-        );
-
-        if view.is_null() {
-            return Err(PyBufferError::new_err("View is null"));
-        }
-
-        if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
-            // view is not NULL, checked above
-            unsafe {
-                (*view).obj = std::ptr::null_mut();
-            }
-
-            return Err(PyBufferError::new_err(
-                "Cannot satisfy a write request on a read-only buffer",
-            ));
-        }
-
-        // 4. Set view->obj to exporter and increment view->obj.
-        // view is not NULL
-        unsafe {
-            (*view).obj = slf.as_ptr();
-            ffi::Py_INCREF((*view).obj);
-        }
-
-        unsafe {
-            // A pointer to the start of the logical structure described by the buffer fields.
-            // For contiguous arrays, the value points to the beginning of the memory block.
-            (*view).buf = slf.data as _;
-
-            // product(shape) * itemsize. For contiguous arrays, this is the length of the underlying memory block.
-            // This is the length in BYTES, not the number of elements in the array
-            (*view).len = (slf.len * std::mem::size_of::<u32>()) as _;
-
-            // An indicator of whether the buffer is read-only.
-            (*view).readonly = true as _;
-
-            // A NUL terminated string in struct module style syntax describing the contents of a single item.
-            // https://docs.python.org/3/library/struct.html#format-characters -> I == u32
-            static FORMAT: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"I\0") };
-            (*view).format = FORMAT.as_ptr() as _;
-
-            // Item size in bytes of a single element.
-            (*view).itemsize = std::mem::size_of::<u32>() as _;
-
-            // The number of dimensions the memory represents as an n-dimensional array.
-            (*view).ndim = 1;
-
-            // An array of `ndim` elements indicating the shape of the memory as an n-dimensional array
-            (*view).shape = std::slice::from_ref(&slf.len).as_ptr() as _;
-            // (*view).shape = std::ptr::null_mut();
-
-            // An array of `ndim` elements giving the number of bytes to skip to get to a new element in each dimension.
-            // (*view).strides = std::slice::from_ref(&0).as_ptr() as _;
-            (*view).strides = std::ptr::null_mut();
-
-            // An array `ndim` elements dictating how many bytes to add to each pointer after de-referencing.
-            // A suboffset value that is negative indicates that no de-referencing should occur (striding in a contiguous memory block).
-            // If all suboffsets are negative (i.e. no de-referencing is needed), then this field must be NULL.
-            (*view).suboffsets = std::ptr::null_mut();
-
-            // This is for use internally by the exporting object (this is us).
-            (*view).internal = std::ptr::null_mut();
-        }
-
-        Ok(())
-    }
-
-    fn bf_releasebuffer(slf: PyRefMut<Self>, view: *mut ffi::Py_buffer) -> PyResult<()> {
-        println!("releasebuffer *view = {view:p} data = {:p}", slf.data);
-        Ok(())
-    }
-}
-
 impl Debug for NeighborsBuffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NeighborsBuffer")
-            .field("data", &self.data)
+            .field("data", &self.data.0)
             .field("len", &self.len)
             .finish()
     }
@@ -232,7 +212,27 @@ impl Debug for NeighborsBuffer {
 impl Drop for NeighborsBuffer {
     fn drop(&mut self) {
         let sc = Arc::strong_count(&self._g);
-        let data = self.data;
-        println!("buffer dropped, graph strong count: {sc}, data = {data:p}");
+        if sc <= 1 {
+            log::trace!(
+                "dropping last neighbors list, graph was already dropped so will release all data"
+            );
+        } else if sc == 2 {
+            log::trace!("dropping last neighbors list, but graph is still alive");
+        } else {
+            log::trace!(
+                "dropping neighbors list, there are still {} other neighbor list(s) around",
+                sc - 2
+            );
+        }
     }
 }
+
+struct SharedConst(*const u32);
+
+impl SharedConst {
+    fn as_ffi(&self) -> *mut c_void {
+        self.0 as _
+    }
+}
+
+unsafe impl Send for SharedConst {}

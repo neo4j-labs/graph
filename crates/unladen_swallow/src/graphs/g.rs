@@ -1,4 +1,4 @@
-use super::{as_numpy, load_from_py, Layout, NeighborsBuffer};
+use super::{as_numpy, load_from_py, Layout, NeighborsBuffer, Ungraph};
 use crate::pr::PageRankResult;
 use graph::prelude::{DirectedCsrGraph, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait};
 use numpy::PyArray1;
@@ -86,6 +86,11 @@ impl Graph {
         PyList::new(py, self.g.in_neighbors(node))
     }
 
+    fn to_undirected(&self) -> Ungraph {
+        let (g, load_micros) = super::timed(self.load_micros, || self.g.to_undirected(None));
+        Ungraph::new(g, load_micros)
+    }
+
     /// Run Page Rank on this graph
     fn page_rank(slf: PyRef<Self>, py: Python<'_>) -> PageRankResult {
         crate::pr::page_rank(py, slf)
@@ -115,6 +120,10 @@ impl std::fmt::Debug for Graph {
 impl Drop for Graph {
     fn drop(&mut self) {
         let sc = Arc::strong_count(&self.g);
-        println!("graph dropped, graph string count: {sc}")
+        if sc <= 1 {
+            log::trace!("dropping graph and releasing all data");
+        } else {
+            log::trace!("dropping graph, but keeping data around as it is being used by {} neighbor list(s)", sc - 1);
+        }
     }
 }
