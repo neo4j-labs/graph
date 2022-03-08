@@ -419,6 +419,33 @@ impl<NI: Idx, NV, EV> DirectedCsrGraph<NI, NV, EV> {
 
         g
     }
+
+    pub fn to_undirected(
+        &self,
+        layout: impl Into<Option<CsrLayout>>,
+    ) -> UndirectedCsrGraph<NI, NV, EV>
+    where
+        NV: Clone + Send + Sync,
+        EV: Copy + Send + Sync,
+    {
+        use rayon::prelude::*;
+
+        let edges = (0..self.node_count().index())
+            .into_par_iter()
+            .flat_map(|n| {
+                let n = NI::new(n);
+                self.out_neighbors_with_values(n)
+                    .into_par_iter()
+                    .map(move |t| (n, t.target, t.value))
+            })
+            .collect::<Vec<_>>();
+
+        let node_values = NodeValues::new(self.node_values.0.to_vec());
+        let edge_list = EdgeList::with_max_node_id(edges, self.node_count() - NI::new(1));
+        let layout = layout.into().unwrap_or(CsrLayout::Unsorted);
+
+        UndirectedCsrGraph::from((node_values, edge_list, layout))
+    }
 }
 
 impl<NI: Idx, NV, EV> Graph<NI> for DirectedCsrGraph<NI, NV, EV> {
