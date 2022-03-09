@@ -1,4 +1,5 @@
 use criterion::*;
+use graph_builder::graph::csr::Csr;
 use graph_builder::prelude::*;
 
 mod common;
@@ -38,6 +39,8 @@ fn from_edge_list(c: &mut Criterion) {
     group.finish();
 }
 
+type C = Csr<usize, usize, ()>;
+
 fn bench_from_edge_list(
     b: &mut criterion::Bencher,
     Input {
@@ -51,14 +54,7 @@ fn bench_from_edge_list(
     let edges: Vec<(usize, usize, ())> = uniform_edge_list(node_count, edge_count, |_, _| ());
     b.iter_batched(
         || EdgeList::new(edges.clone()),
-        |mut edge_list| {
-            black_box(Csr::from((
-                &mut edge_list,
-                node_count,
-                direction,
-                csr_layout,
-            )))
-        },
+        |edge_list| black_box(C::from((&edge_list, node_count, direction, csr_layout))),
         criterion::BatchSize::SmallInput,
     )
 }

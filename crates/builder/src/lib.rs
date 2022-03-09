@@ -1,9 +1,11 @@
-#![feature(slice_partition_dedup)]
+#![feature(doc_cfg)]
+#![feature(generic_associated_types)]
 #![feature(maybe_uninit_write_slice)]
 #![feature(maybe_uninit_slice)]
-#![feature(step_trait)]
 #![feature(new_uninit)]
-#![feature(doc_cfg)]
+#![feature(slice_partition_dedup)]
+#![feature(step_trait)]
+#![feature(type_alias_impl_trait)]
 #![allow(dead_code)]
 
 //! A library that can be used as a building block for high-performant graph

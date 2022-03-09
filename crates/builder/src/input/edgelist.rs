@@ -43,20 +43,56 @@ impl<NI: Idx, EV> InputCapabilities<NI> for EdgeListInput<NI, EV> {
     type GraphInput = EdgeList<NI, EV>;
 }
 
+#[allow(clippy::len_without_is_empty)]
+pub trait Edges {
+    type NI: Idx;
+    type EV;
+
+    type EdgeIter<'a>: ParallelIterator<Item = (Self::NI, Self::NI, Self::EV)>
+    where
+        Self: 'a;
+
+    fn edges(&self) -> Self::EdgeIter<'_>;
+
+    fn max_node_id(&self) -> Self::NI {
+        default_max_node_id(self)
+    }
+
+    fn degrees(&self, node_count: Self::NI, direction: Direction) -> Vec<Atomic<Self::NI>> {
+        let mut degrees = Vec::with_capacity(node_count.index());
+        degrees.resize_with(node_count.index(), || Atomic::new(Self::NI::zero()));
+
+        if matches!(direction, Direction::Outgoing | Direction::Undirected) {
+            self.edges().for_each(|(s, _, _)| {
+                Self::NI::get_and_increment(&degrees[s.index()], AcqRel);
+            });
+        }
+
+        if matches!(direction, Direction::Incoming | Direction::Undirected) {
+            self.edges().for_each(|(_, t, _)| {
+                Self::NI::get_and_increment(&degrees[t.index()], AcqRel);
+            });
+        }
+
+        degrees
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize;
+}
+
+fn default_max_node_id<E: Edges + ?Sized>(edges: &E) -> E::NI {
+    edges
+        .edges()
+        .into_par_iter()
+        .map(|(s, t, _)| E::NI::max(s, t))
+        .reduce(E::NI::zero, E::NI::max)
+}
+
 #[derive(Debug)]
 pub struct EdgeList<NI: Idx, EV> {
     list: Box<[(NI, NI, EV)]>,
     max_node_id: Option<NI>,
-}
-
-impl<NI: Idx, EV> EdgeList<NI, EV> {
-    pub(crate) fn edges(&self) -> &[(NI, NI, EV)] {
-        &self.list
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.list.len()
-    }
 }
 
 impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
@@ -73,35 +109,31 @@ impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
             max_node_id: Some(max_node_id),
         }
     }
+}
 
-    pub fn max_node_id(&self) -> NI {
-        match self.max_node_id {
-            Some(id) => id,
-            None => self
-                .edges()
-                .par_iter()
-                .map(|(s, t, _)| NI::max(*s, *t))
-                .reduce(NI::zero, NI::max),
-        }
+impl<NI: Idx, EV: Copy + Send + Sync> Edges for EdgeList<NI, EV> {
+    type NI = NI;
+
+    type EV = EV;
+
+    type EdgeIter<'a> = rayon::iter::Copied<rayon::slice::Iter<'a, (Self::NI, Self::NI, Self::EV)>>
+    where
+        Self: 'a;
+
+    fn edges(&self) -> Self::EdgeIter<'_> {
+        self.list.into_par_iter().copied()
     }
 
-    pub fn degrees(&self, node_count: NI, direction: Direction) -> Vec<Atomic<NI>> {
-        let mut degrees = Vec::with_capacity(node_count.index());
-        degrees.resize_with(node_count.index(), || Atomic::new(NI::zero()));
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.list.len()
+    }
 
-        if matches!(direction, Direction::Outgoing | Direction::Undirected) {
-            self.edges().par_iter().for_each(|(s, _, _)| {
-                NI::get_and_increment(&degrees[s.index()], AcqRel);
-            });
+    fn max_node_id(&self) -> Self::NI {
+        match self.max_node_id {
+            Some(id) => id,
+            None => default_max_node_id(self),
         }
-
-        if matches!(direction, Direction::Incoming | Direction::Undirected) {
-            self.edges().par_iter().for_each(|(_, t, _)| {
-                NI::get_and_increment(&degrees[t.index()], AcqRel);
-            });
-        }
-
-        degrees
     }
 }
 

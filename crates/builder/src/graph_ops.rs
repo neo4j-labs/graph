@@ -4,8 +4,8 @@ use rayon::prelude::*;
 use crate::graph::csr::{prefix_sum, Csr, SwapCsr, Target};
 use crate::index::Idx;
 use crate::{
-    DirectedDegrees, DirectedNeighborsWithValues, Error, Graph, SharedMut, UndirectedDegrees,
-    UndirectedNeighborsWithValues,
+    CsrLayout, DirectedDegrees, DirectedNeighborsWithValues, Error, Graph, SharedMut,
+    UndirectedDegrees, UndirectedNeighborsWithValues,
 };
 
 use std::ops::Range;
@@ -167,6 +167,62 @@ pub trait RelabelByDegreeOp<N, EV> {
     /// assert_eq!(graph.neighbors(0), &[1, 2, 3]);
     /// ```
     fn to_degree_ordered(&mut self);
+}
+
+pub trait ToUndirectedOp {
+    type Undirected;
+
+    /// Creates a new undirected graph from the edges of an existing graph.
+    ///
+    /// Note, that this method creates a new graph with the same space
+    /// requirements as the input graph.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use graph_builder::prelude::*;
+    ///
+    /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(0, 1), (2, 0)])
+    ///     .build();
+    ///
+    /// assert_eq!(graph.out_degree(0), 1);
+    /// assert_eq!(graph.out_neighbors(0), &[1]);
+    ///
+    /// assert_eq!(graph.in_degree(0), 1);
+    /// assert_eq!(graph.in_neighbors(0), &[2]);
+    ///
+    /// let graph = graph.to_undirected(None);
+    ///
+    /// assert_eq!(graph.degree(0), 2);
+    /// assert_eq!(graph.neighbors(0), &[1, 2]);
+    /// ```
+    ///
+    /// This method accepts an optional [`CsrLayout`] as second parameter,
+    /// which has the same effect as described in [`GraphBuilder::csr_layout`]
+
+    /// # Example
+    ///
+    /// ```
+    /// use graph_builder::prelude::*;
+    ///
+    /// let graph: DirectedCsrGraph<u32> = GraphBuilder::new()
+    ///     .edges(vec![(0, 2), (1, 0), (2, 0)])
+    ///     .build();
+    ///
+    /// // No layout specified, a default layput is chosen
+    /// let un_graph = graph.to_undirected(None);
+    /// assert_eq!(un_graph.neighbors(0), &[2, 1, 2]);
+    ///
+    /// // The `Sorted` layout
+    /// let un_graph = graph.to_undirected(CsrLayout::Sorted);
+    /// assert_eq!(un_graph.neighbors(0), &[1, 2, 2]);
+    ///
+    /// // The `Deduplicated` layout
+    /// let un_graph = graph.to_undirected(CsrLayout::Deduplicated);
+    /// assert_eq!(un_graph.neighbors(0), &[1, 2]);
+    /// ```
+    fn to_undirected(&self, layout: impl Into<Option<CsrLayout>>) -> Self::Undirected;
 }
 
 pub trait SerializeGraphOp<W> {

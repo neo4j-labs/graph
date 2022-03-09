@@ -279,7 +279,7 @@ where
 mod tests {
     use std::path::PathBuf;
 
-    use crate::input::InputPath;
+    use crate::input::{edgelist::Edges, InputPath};
 
     use super::*;
 
