@@ -1,7 +1,8 @@
+use atomic::Atomic;
 use log::info;
 use std::{convert::TryFrom, fs::File, marker::PhantomData, path::Path, sync::Arc};
 
-use crate::index::{AtomicIdx, Idx};
+use crate::index::Idx;
 
 use parking_lot::Mutex;
 use rayon::prelude::*;
@@ -84,19 +85,19 @@ impl<NI: Idx, EV: Sync> EdgeList<NI, EV> {
         }
     }
 
-    pub fn degrees(&self, node_count: NI, direction: Direction) -> Vec<NI::Atomic> {
+    pub fn degrees(&self, node_count: NI, direction: Direction) -> Vec<Atomic<NI>> {
         let mut degrees = Vec::with_capacity(node_count.index());
-        degrees.resize_with(node_count.index(), NI::Atomic::zero);
+        degrees.resize_with(node_count.index(), || Atomic::new(NI::zero()));
 
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
             self.edges().par_iter().for_each(|(s, _, _)| {
-                degrees[s.index()].get_and_increment(AcqRel);
+                NI::get_and_increment(&degrees[s.index()], AcqRel);
             });
         }
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
             self.edges().par_iter().for_each(|(_, t, _)| {
-                degrees[t.index()].get_and_increment(AcqRel);
+                NI::get_and_increment(&degrees[t.index()], AcqRel);
             });
         }
 

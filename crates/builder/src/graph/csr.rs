@@ -1,3 +1,4 @@
+use atomic::Atomic;
 use byte_slice_cast::{AsByteSlice, AsMutByteSlice, ToByteSlice, ToMutByteSlice};
 use log::info;
 use std::{
@@ -16,7 +17,7 @@ use rayon::prelude::*;
 
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp},
-    index::{AtomicIdx, Idx},
+    index::Idx,
     input::{edgelist::EdgeList, Direction, DotGraph, Graph500},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
     NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
@@ -185,7 +186,7 @@ where
         // will write into different positions.
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
             edge_list.edges().par_iter().for_each(|(s, t, v)| {
-                let offset = offsets[s.index()].get_and_increment(Acquire);
+                let offset = NI::get_and_increment(&offsets[s.index()], Acquire);
 
                 unsafe {
                     targets_ptr.add(offset.index()).write(Target::new(*t, *v));
@@ -195,7 +196,8 @@ where
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
             edge_list.edges().par_iter().for_each(|(s, t, v)| {
-                let offset = offsets[t.index()].get_and_increment(Acquire);
+                let offset = NI::get_and_increment(&offsets[t.index()], Acquire);
+
                 unsafe {
                     targets_ptr.add(offset.index()).write(Target::new(*s, *v));
                 }
@@ -816,19 +818,19 @@ where
     }
 }
 
-fn prefix_sum_atomic<NI: AtomicIdx>(degrees: Vec<NI>) -> Vec<NI> {
+fn prefix_sum_atomic<NI: Idx>(degrees: Vec<Atomic<NI>>) -> Vec<Atomic<NI>> {
     let mut last = degrees.last().unwrap().load(Acquire);
     let mut sums = degrees
         .into_iter()
-        .scan(NI::Inner::zero(), |total, degree| {
+        .scan(NI::zero(), |total, degree| {
             let value = *total;
             *total += degree.into_inner();
-            Some(value.atomic())
+            Some(Atomic::new(value))
         })
         .collect::<Vec<_>>();
 
     last += sums.last().unwrap().load(Acquire);
-    sums.push(last.atomic());
+    sums.push(Atomic::new(last));
 
     sums
 }
@@ -935,7 +937,7 @@ fn to_mut_slices<'targets, NI: Idx, T>(
 mod tests {
     use std::{
         io::{Seek, SeekFrom},
-        sync::atomic::{AtomicUsize, Ordering::SeqCst},
+        sync::atomic::Ordering::SeqCst,
     };
 
     use crate::builder::GraphBuilder;
@@ -994,7 +996,7 @@ mod tests {
     fn prefix_sum_atomic_test() {
         let degrees = vec![42, 0, 1337, 4, 2, 0]
             .into_iter()
-            .map(AtomicUsize::new)
+            .map(Atomic::<usize>::new)
             .collect::<Vec<_>>();
 
         let prefix_sum = prefix_sum_atomic(degrees)

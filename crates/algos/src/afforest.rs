@@ -12,7 +12,7 @@ use crate::prelude::*;
 /// [1]  Michael Sutton, Tal Ben-Nun, Amnon Barak:
 ///      "Optimizing Parallel Graph Connectivity Computation via Subgraph Sampling",
 ///       Symposium on Parallel and Distributed Processing, IPDPS 2018
-pub struct Afforest<NI: Idx>(Box<[NI::Atomic]>);
+pub struct Afforest<NI: Idx>(Box<[Atomic<NI>]>);
 
 unsafe impl<NI: Idx> Send for Afforest<NI> {}
 unsafe impl<NI: Idx> Sync for Afforest<NI> {}
@@ -77,7 +77,7 @@ impl<NI: Idx> Afforest<NI> {
 
         (0..size)
             .into_par_iter()
-            .map(|i| NI::new(i).atomic())
+            .map(|i| Atomic::new(NI::new(i)))
             .collect_into_vec(&mut v);
 
         Self(v.into_boxed_slice())
