@@ -62,6 +62,7 @@ change the expected types:
 use graph_builder::prelude::*;
 
 let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
+    .csr_layout(CsrLayout::Sorted)
     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
     .build();
 
@@ -79,6 +80,7 @@ Edges can have attached values to represent weighted graphs:
 use graph_builder::prelude::*;
 
 let graph: UndirectedCsrGraph<u32, (), f32> = GraphBuilder::new()
+    .csr_layout(CsrLayout::Sorted)
     .edges_with_values(vec![(0, 1, 0.5), (0, 2, 0.7), (1, 2, 0.25), (1, 3, 1.0), (2, 3, 0.33)])
     .build();
 

@@ -264,6 +264,7 @@ impl GraphBuilder<Uninitialized> {
     /// use graph_builder::prelude::*;
     ///
     /// let g: UndirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
+    ///     .csr_layout(CsrLayout::Sorted)
     ///     .gdl_str::<usize, _>("(a)-[{f: 0.42}]->(),(a)-[{f: 13.37}]->()")
     ///     .build()
     ///     .unwrap();
