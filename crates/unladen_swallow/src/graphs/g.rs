@@ -1,6 +1,8 @@
 use super::{as_numpy, load_from_py, Layout, NeighborsBuffer, Ungraph};
 use crate::pr::PageRankResult;
-use graph::prelude::{DirectedCsrGraph, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait};
+use graph::prelude::{
+    DirectedCsrGraph, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait, ToUndirectedOp,
+};
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
