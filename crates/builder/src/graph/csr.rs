@@ -453,10 +453,9 @@ where
 
     type EV = EV;
 
-    type EdgeIter<'a>
+    type EdgeIter<'a> = impl ParallelIterator<Item = (Self::NI, Self::NI, Self::EV)>
     where
-        Self: 'a,
-    = impl ParallelIterator<Item = (Self::NI, Self::NI, Self::EV)>;
+        Self: 'a;
 
     fn edges(&self) -> Self::EdgeIter<'_> {
         (0..self.g.node_count().index())

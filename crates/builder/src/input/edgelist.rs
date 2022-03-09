@@ -116,10 +116,9 @@ impl<NI: Idx, EV: Copy + Send + Sync> Edges for EdgeList<NI, EV> {
 
     type EV = EV;
 
-    type EdgeIter<'a>
+    type EdgeIter<'a> = rayon::iter::Copied<rayon::slice::Iter<'a, (Self::NI, Self::NI, Self::EV)>>
     where
-        Self: 'a,
-    = rayon::iter::Copied<rayon::slice::Iter<'a, (Self::NI, Self::NI, Self::EV)>>;
+        Self: 'a;
 
     fn edges(&self) -> Self::EdgeIter<'_> {
         self.list.into_par_iter().copied()
