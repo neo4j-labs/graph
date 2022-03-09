@@ -11,6 +11,7 @@ pub use dotgraph::DotGraph;
 pub use dotgraph::DotGraphInput;
 pub use edgelist::EdgeList;
 pub use edgelist::EdgeListInput;
+pub use edgelist::Edges;
 pub use graph500::Graph500;
 pub use graph500::Graph500Input;
 

@@ -16,9 +16,9 @@ use std::{
 use rayon::prelude::*;
 
 use crate::{
-    graph_ops::{DeserializeGraphOp, SerializeGraphOp},
+    graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
-    input::{edgelist::EdgeList, Direction, DotGraph, Graph500},
+    input::{edgelist::Edges, Direction, DotGraph, Graph500},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
     NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
     UndirectedNeighborsWithValues,
@@ -155,14 +155,15 @@ pub trait SwapCsr<Index: Idx, NI, EV> {
     fn swap_csr(&mut self, csr: Csr<Index, NI, EV>) -> &mut Self;
 }
 
-type CsrInput<'a, NI, EV> = (&'a mut EdgeList<NI, EV>, NI, Direction, CsrLayout);
-
-impl<NI, EV> From<CsrInput<'_, NI, EV>> for Csr<NI, NI, EV>
+impl<NI, EV, E> From<(&'_ E, NI, Direction, CsrLayout)> for Csr<NI, NI, EV>
 where
     NI: Idx,
     EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
 {
-    fn from((edge_list, node_count, direction, csr_layout): CsrInput<'_, NI, EV>) -> Self {
+    fn from(
+        (edge_list, node_count, direction, csr_layout): (&'_ E, NI, Direction, CsrLayout),
+    ) -> Self {
         let start = Instant::now();
         let degrees = edge_list.degrees(node_count, direction);
         info!("Computed degrees in {:?}", start.elapsed());
@@ -185,21 +186,21 @@ where
         // only write once into each position and every thread that might run
         // will write into different positions.
         if matches!(direction, Direction::Outgoing | Direction::Undirected) {
-            edge_list.edges().par_iter().for_each(|(s, t, v)| {
+            edge_list.edges().for_each(|(s, t, v)| {
                 let offset = NI::get_and_increment(&offsets[s.index()], Acquire);
 
                 unsafe {
-                    targets_ptr.add(offset.index()).write(Target::new(*t, *v));
+                    targets_ptr.add(offset.index()).write(Target::new(t, v));
                 }
             })
         }
 
         if matches!(direction, Direction::Incoming | Direction::Undirected) {
-            edge_list.edges().par_iter().for_each(|(s, t, v)| {
+            edge_list.edges().for_each(|(s, t, v)| {
                 let offset = NI::get_and_increment(&offsets[t.index()], Acquire);
 
                 unsafe {
-                    targets_ptr.add(offset.index()).write(Target::new(*s, *v));
+                    targets_ptr.add(offset.index()).write(Target::new(s, v));
                 }
             })
         }
@@ -419,32 +420,63 @@ impl<NI: Idx, NV, EV> DirectedCsrGraph<NI, NV, EV> {
 
         g
     }
+}
 
-    pub fn to_undirected(
-        &self,
-        layout: impl Into<Option<CsrLayout>>,
-    ) -> UndirectedCsrGraph<NI, NV, EV>
+impl<NI, NV, EV> ToUndirectedOp for DirectedCsrGraph<NI, NV, EV>
+where
+    NI: Idx,
+    NV: Clone + Sync,
+    EV: Copy + Send + Sync,
+{
+    type Undirected = UndirectedCsrGraph<NI, NV, EV>;
+
+    fn to_undirected(&self, layout: impl Into<Option<CsrLayout>>) -> Self::Undirected {
+        let node_values = NodeValues::new(self.node_values.0.to_vec());
+        let layout = layout.into().unwrap_or(CsrLayout::Unsorted);
+        let edges = ToUndirectedEdges { g: self };
+
+        UndirectedCsrGraph::from((node_values, edges, layout))
+    }
+}
+
+struct ToUndirectedEdges<'g, NI: Idx, NV, EV> {
+    g: &'g DirectedCsrGraph<NI, NV, EV>,
+}
+
+impl<'g, NI, NV, EV> Edges for ToUndirectedEdges<'g, NI, NV, EV>
+where
+    NI: Idx,
+    NV: Sync,
+    EV: Copy + Send + Sync,
+{
+    type NI = NI;
+
+    type EV = EV;
+
+    type EdgeIter<'a>
     where
-        NV: Clone + Send + Sync,
-        EV: Copy + Send + Sync,
-    {
-        use rayon::prelude::*;
+        Self: 'a,
+    = impl ParallelIterator<Item = (Self::NI, Self::NI, Self::EV)>;
 
-        let edges = (0..self.node_count().index())
+    fn edges(&self) -> Self::EdgeIter<'_> {
+        (0..self.g.node_count().index())
             .into_par_iter()
             .flat_map(|n| {
                 let n = NI::new(n);
-                self.out_neighbors_with_values(n)
+                self.g
+                    .out_neighbors_with_values(n)
                     .into_par_iter()
                     .map(move |t| (n, t.target, t.value))
             })
-            .collect::<Vec<_>>();
+    }
 
-        let node_values = NodeValues::new(self.node_values.0.to_vec());
-        let edge_list = EdgeList::with_max_node_id(edges, self.node_count() - NI::new(1));
-        let layout = layout.into().unwrap_or(CsrLayout::Unsorted);
+    fn max_node_id(&self) -> Self::NI {
+        self.g.node_count() - NI::new(1)
+    }
 
-        UndirectedCsrGraph::from((node_values, edge_list, layout))
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        unimplemented!("This type is not used in tests")
     }
 }
 
@@ -493,38 +525,37 @@ impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedCsrGraph<N
     }
 }
 
-impl<NI, EV> From<(EdgeList<NI, EV>, CsrLayout)> for DirectedCsrGraph<NI, (), EV>
+impl<NI, EV, E> From<(E, CsrLayout)> for DirectedCsrGraph<NI, (), EV>
 where
     NI: Idx,
     EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
 {
-    fn from((mut edge_list, csr_option): (EdgeList<NI, EV>, CsrLayout)) -> Self {
+    fn from((edge_list, csr_option): (E, CsrLayout)) -> Self {
         info!("Creating directed graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
         let node_values = NodeValues::new(vec![(); node_count.index()]);
 
         let start = Instant::now();
-        let csr_out = Csr::from((&mut edge_list, node_count, Direction::Outgoing, csr_option));
+        let csr_out = Csr::from((&edge_list, node_count, Direction::Outgoing, csr_option));
         info!("Created outgoing csr in {:?}.", start.elapsed());
 
         let start = Instant::now();
-        let csr_inc = Csr::from((&mut edge_list, node_count, Direction::Incoming, csr_option));
+        let csr_inc = Csr::from((&edge_list, node_count, Direction::Incoming, csr_option));
         info!("Created incoming csr in {:?}.", start.elapsed());
 
         DirectedCsrGraph::new(node_values, csr_out, csr_inc)
     }
 }
 
-impl<NI, NV, EV> From<(NodeValues<NV>, EdgeList<NI, EV>, CsrLayout)>
-    for DirectedCsrGraph<NI, NV, EV>
+impl<NI, NV, EV, E> From<(NodeValues<NV>, E, CsrLayout)> for DirectedCsrGraph<NI, NV, EV>
 where
     NI: Idx,
     EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
 {
-    fn from(
-        (node_values, mut edge_list, csr_option): (NodeValues<NV>, EdgeList<NI, EV>, CsrLayout),
-    ) -> Self {
+    fn from((node_values, edge_list, csr_option): (NodeValues<NV>, E, CsrLayout)) -> Self {
         info!("Creating directed graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
@@ -536,11 +567,11 @@ where
         );
 
         let start = Instant::now();
-        let csr_out = Csr::from((&mut edge_list, node_count, Direction::Outgoing, csr_option));
+        let csr_out = Csr::from((&edge_list, node_count, Direction::Outgoing, csr_option));
         info!("Created outgoing csr in {:?}.", start.elapsed());
 
         let start = Instant::now();
-        let csr_inc = Csr::from((&mut edge_list, node_count, Direction::Incoming, csr_option));
+        let csr_inc = Csr::from((&edge_list, node_count, Direction::Incoming, csr_option));
         info!("Created incoming csr in {:?}.", start.elapsed());
 
         DirectedCsrGraph::new(node_values, csr_out, csr_inc)
@@ -708,49 +739,38 @@ impl<NI: Idx, NV, EV> SwapCsr<NI, NI, EV> for UndirectedCsrGraph<NI, NV, EV> {
     }
 }
 
-impl<NI, EV> From<(EdgeList<NI, EV>, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
+impl<NI, EV, E> From<(E, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
 where
     NI: Idx,
     EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
 {
-    fn from((mut edge_list, csr_option): (EdgeList<NI, EV>, CsrLayout)) -> Self {
+    fn from((edge_list, csr_option): (E, CsrLayout)) -> Self {
         info!("Creating undirected graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
         let node_values = NodeValues::new(vec![(); node_count.index()]);
 
         let start = Instant::now();
-        let csr = Csr::from((
-            &mut edge_list,
-            node_count,
-            Direction::Undirected,
-            csr_option,
-        ));
+        let csr = Csr::from((&edge_list, node_count, Direction::Undirected, csr_option));
         info!("Created csr in {:?}.", start.elapsed());
 
         UndirectedCsrGraph::new(node_values, csr)
     }
 }
 
-impl<NI, NV, EV> From<(NodeValues<NV>, EdgeList<NI, EV>, CsrLayout)>
-    for UndirectedCsrGraph<NI, NV, EV>
+impl<NI, NV, EV, E> From<(NodeValues<NV>, E, CsrLayout)> for UndirectedCsrGraph<NI, NV, EV>
 where
     NI: Idx,
     EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
 {
-    fn from(
-        (node_values, mut edge_list, csr_option): (NodeValues<NV>, EdgeList<NI, EV>, CsrLayout),
-    ) -> Self {
+    fn from((node_values, edge_list, csr_option): (NodeValues<NV>, E, CsrLayout)) -> Self {
         info!("Creating undirected graph");
         let node_count = edge_list.max_node_id() + NI::new(1);
 
         let start = Instant::now();
-        let csr = Csr::from((
-            &mut edge_list,
-            node_count,
-            Direction::Undirected,
-            csr_option,
-        ));
+        let csr = Csr::from((&edge_list, node_count, Direction::Undirected, csr_option));
         info!("Created csr in {:?}.", start.elapsed());
 
         UndirectedCsrGraph::new(node_values, csr)
@@ -967,6 +987,8 @@ mod tests {
         sync::atomic::Ordering::SeqCst,
     };
 
+    use rayon::ThreadPoolBuilder;
+
     use crate::builder::GraphBuilder;
 
     use super::*;
@@ -1157,5 +1179,32 @@ mod tests {
         };
 
         assert!(matches!(res, _expected));
+    }
+
+    #[test]
+    fn test_to_undirected() {
+        // we need a deterministic order of loading, so we're doing stuff in serial
+        let pool = ThreadPoolBuilder::new().num_threads(1).build().unwrap();
+        pool.install(|| {
+            let g: DirectedCsrGraph<u32> = GraphBuilder::new()
+                .edges(vec![(0, 1), (3, 0), (0, 3), (7, 0), (0, 42), (21, 0)])
+                .build();
+
+            let ug = g.to_undirected(None);
+            assert_eq!(ug.degree(0), 6);
+            assert_eq!(ug.neighbors(0), &[1, 3, 42, 3, 7, 21]);
+
+            let ug = g.to_undirected(CsrLayout::Unsorted);
+            assert_eq!(ug.degree(0), 6);
+            assert_eq!(ug.neighbors(0), &[1, 3, 42, 3, 7, 21]);
+
+            let ug = g.to_undirected(CsrLayout::Sorted);
+            assert_eq!(ug.degree(0), 6);
+            assert_eq!(ug.neighbors(0), &[1, 3, 3, 7, 21, 42]);
+
+            let ug = g.to_undirected(CsrLayout::Deduplicated);
+            assert_eq!(ug.degree(0), 5);
+            assert_eq!(ug.neighbors(0), &[1, 3, 7, 21, 42]);
+        });
     }
 }
