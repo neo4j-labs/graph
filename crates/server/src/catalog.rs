@@ -226,8 +226,7 @@ pub async fn to_record_batches<T: arrow::datatypes::ArrowPrimitiveType>(
     let batches = data
         .chunks(crate::server::CHUNK_SIZE)
         .map(|chunk| {
-            let chunk = chunk.iter().copied().collect::<Vec<_>>();
-            let chunk = arrow::array::PrimitiveArray::<T>::from_iter_values(chunk);
+            let chunk = arrow::array::PrimitiveArray::<T>::from_iter_values(chunk.to_vec());
             RecordBatch::try_new(schema.clone(), vec![Arc::new(chunk)]).unwrap()
         })
         .collect::<Vec<_>>();

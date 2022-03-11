@@ -106,13 +106,11 @@ impl<NI: Idx> Components<NI> for Afforest<NI> {
         );
 
         // SAFETY: NI and NI::Atomic have the same memory layout
-        let components = unsafe {
+        unsafe {
             let ptr = ptr as *mut Vec<NI>;
             let ptr = ptr as *mut _;
             Vec::from_raw_parts(ptr, len, cap)
-        };
-
-        components
+        }
     }
 }
 
