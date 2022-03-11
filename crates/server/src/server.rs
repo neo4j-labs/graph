@@ -445,7 +445,7 @@ async fn compute_sssp(
 
             Ok((distances, result))
         } else {
-            error!("Attempted running sssp on undirected graph");
+            error!("Incompatible graph");
             Err(Status::invalid_argument(
                 "Sssp requires a directed, weighted graph",
             ))
