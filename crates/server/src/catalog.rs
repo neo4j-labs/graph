@@ -1,27 +1,26 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, marker::PhantomData, path::Path, sync::Arc};
 
 use arrow::{
-    datatypes::{DataType, Field, Schema},
+    datatypes::{Field, Schema},
     record_batch::RecordBatch,
 };
 use arrow_flight::Ticket;
 use graph::prelude::*;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tonic::Status;
 
 use crate::actions::{from_json_error, FileFormat, Orientation};
 
 pub enum GraphType {
-    Directed(DirectedCsrGraph<usize>),
-    Undirected(UndirectedCsrGraph<usize>),
-    DirectedWeighted(DirectedCsrGraph<usize, (), f32>),
-    UndirectedWeighted(UndirectedCsrGraph<usize, (), f32>),
+    Directed(DirectedCsrGraph<u64>),
+    Undirected(UndirectedCsrGraph<u64>),
+    DirectedWeighted(DirectedCsrGraph<u64, (), f32>),
+    UndirectedWeighted(UndirectedCsrGraph<u64, (), f32>),
 }
 
 impl GraphType {
     pub fn from_edge_list(
-        edge_list: Vec<(usize, usize)>,
+        edge_list: Vec<(u64, u64)>,
         orientation: Orientation,
         csr_layout: CsrLayout,
     ) -> Self {
@@ -35,7 +34,7 @@ impl GraphType {
 
     #[allow(dead_code)]
     pub fn from_edge_list_with_weights(
-        edge_list: Vec<(usize, usize, f32)>,
+        edge_list: Vec<(u64, u64, f32)>,
         orientation: Orientation,
         csr_layout: CsrLayout,
     ) -> Self {
@@ -108,7 +107,7 @@ impl GraphType {
         }
     }
 
-    pub fn node_count(&self) -> usize {
+    pub fn node_count(&self) -> u64 {
         match self {
             GraphType::Directed(g) => g.node_count(),
             GraphType::Undirected(g) => g.node_count(),
@@ -117,7 +116,7 @@ impl GraphType {
         }
     }
 
-    pub fn edge_count(&self) -> usize {
+    pub fn edge_count(&self) -> u64 {
         match self {
             GraphType::Directed(g) => g.edge_count(),
             GraphType::Undirected(g) => g.edge_count(),
@@ -215,19 +214,19 @@ impl PropertyStore {
     }
 }
 
-// TODO: macro for supported types
-pub async fn to_f32_record_batches(data: Vec<f32>, field_name: impl AsRef<str>) -> PropertyEntry {
-    let field = Field::new(field_name.as_ref(), DataType::Float32, false);
+pub async fn to_record_batches<T: arrow::datatypes::ArrowPrimitiveType>(
+    data: &[T::Native],
+    field_name: impl AsRef<str>,
+    _phantom: PhantomData<T>,
+) -> PropertyEntry {
+    let field = Field::new(field_name.as_ref(), T::DATA_TYPE, false);
     let schema = Schema::new(vec![field]);
     let schema = Arc::new(schema);
 
     let batches = data
-        .into_iter()
         .chunks(crate::server::CHUNK_SIZE)
-        .into_iter()
         .map(|chunk| {
-            let chunk = chunk.collect::<Vec<_>>();
-            let chunk = arrow::array::Float32Array::from(chunk);
+            let chunk = arrow::array::PrimitiveArray::<T>::from_iter_values(chunk.to_vec());
             RecordBatch::try_new(schema.clone(), vec![Arc::new(chunk)]).unwrap()
         })
         .collect::<Vec<_>>();

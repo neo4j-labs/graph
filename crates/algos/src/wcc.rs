@@ -90,6 +90,8 @@ pub trait UnionFind<NI> {
 
 pub trait Components<NI> {
     fn component(&self, node: NI) -> NI;
+
+    fn to_vec(self) -> Vec<NI>;
 }
 
 /// Computes Wcc by iterating all relationships in parallel and
