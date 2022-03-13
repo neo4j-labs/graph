@@ -15,8 +15,8 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrow = "8.0.0"
-arrow-flight = "8.0.0"
+arrow = "10.0.0"
+arrow-flight = "10.0.0"
 async-trait = "0.1.36"
 clap = { version = "3.1.0", features = ["derive"] }
 env_logger = "0.9.0"
