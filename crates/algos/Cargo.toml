@@ -1,6 +1,6 @@
 [package]
 name = "graph"
-version = "0.1.15"
+version = "0.2.0"
 authors = [
     "Martin Junghanns <github@s1ck.dev>",
     "Paul Horn <developer@knutwalker.de>",
