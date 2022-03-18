@@ -19,9 +19,10 @@ use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
     input::{edgelist::Edges, Direction, DotGraph, Graph500},
-    DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
-    NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
-    UndirectedNeighborsWithValues,
+    DirectedDegrees, DirectedNeighbors, DirectedNeighborsIterator, DirectedNeighborsWithValues,
+    DirectedNeighborsWithValuesIterator, Error, Graph, NodeValues as NodeValuesTrait, SharedMut,
+    UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsIterator,
+    UndirectedNeighborsWithValues, UndirectedNeighborsWithValuesIterator,
 };
 
 /// Defines how the neighbor list of individual nodes are organized within the
@@ -514,6 +515,18 @@ impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedCsrGraph<NI, NV, ()> {
     }
 }
 
+impl<NI: Idx, NV> DirectedNeighborsIterator<NI> for DirectedCsrGraph<NI, NV, ()> {
+    type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
+
+    fn out_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.csr_out.targets(node).iter()
+    }
+
+    fn in_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.csr_inc.targets(node).iter()
+    }
+}
+
 impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedCsrGraph<NI, NV, EV> {
     fn out_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
         self.csr_out.targets_with_values(node)
@@ -521,6 +534,18 @@ impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedCsrGraph<N
 
     fn in_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
         self.csr_inc.targets_with_values(node)
+    }
+}
+
+impl<NI: Idx, NV, EV> DirectedNeighborsWithValuesIterator<NI, EV> for DirectedCsrGraph<NI, NV, EV> {
+    type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV:'a, EV: 'a;
+
+    fn out_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.csr_out.targets_with_values(node).iter()
+    }
+
+    fn in_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.csr_inc.targets_with_values(node).iter()
     }
 }
 
@@ -725,9 +750,27 @@ impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedCsrGraph<NI, NV> {
     }
 }
 
+impl<NI: Idx, NV> UndirectedNeighborsIterator<NI> for UndirectedCsrGraph<NI, NV> {
+    type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
+
+    fn neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.csr.targets(node).iter()
+    }
+}
+
 impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedCsrGraph<NI, NV, EV> {
     fn neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
         self.csr.targets_with_values(node)
+    }
+}
+
+impl<NI: Idx, NV, EV> UndirectedNeighborsWithValuesIterator<NI, EV>
+    for UndirectedCsrGraph<NI, NV, EV>
+{
+    type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV: 'a, EV: 'a;
+
+    fn neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.csr.targets_with_values(node).iter()
     }
 }
 
@@ -1205,5 +1248,83 @@ mod tests {
             assert_eq!(ug.degree(0), 5);
             assert_eq!(ug.neighbors(0), &[1, 3, 7, 21, 42]);
         });
+    }
+
+    #[test]
+    fn test_directed_neighbors_iterator() {
+        let g: DirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert_eq!(
+            g.out_neighbors_iter(0).copied().collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert_eq!(
+            g.in_neighbors_iter(2).copied().collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+    }
+
+    #[test]
+    fn test_directed_neighbors_with_values_iterator() {
+        let g: DirectedCsrGraph<u32, (), f32> = GraphBuilder::new()
+            .edges_with_values(vec![
+                (0, 1, 42.0),
+                (0, 2, 13.37),
+                (1, 2, 43.0),
+                (1, 3, 1.0),
+                (2, 3, 0.0),
+                (3, 1, 13.38),
+            ])
+            .build();
+
+        assert_eq!(
+            g.out_neighbors_with_values_iter(0)
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![Target::new(1, 42.0), Target::new(2, 13.37)]
+        );
+        assert_eq!(
+            g.in_neighbors_with_values_iter(2)
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![Target::new(0, 13.37), Target::new(1, 43.0)]
+        );
+    }
+
+    #[test]
+    fn test_undirected_neighbors_iterator() {
+        let g: UndirectedCsrGraph<u32> = GraphBuilder::new()
+            .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
+            .build();
+
+        assert_eq!(
+            g.neighbors_iter(2).copied().collect::<Vec<_>>(),
+            vec![0, 1, 3]
+        );
+    }
+
+    #[test]
+    fn test_undirected_neighbors_with_values_iterator() {
+        let g: UndirectedCsrGraph<u32, (), f32> = GraphBuilder::new()
+            .edges_with_values(vec![
+                (0, 1, 42.0),
+                (0, 2, 13.37),
+                (1, 2, 43.0),
+                (1, 3, 1.0),
+                (2, 3, 0.0),
+                (3, 1, 13.38),
+            ])
+            .build();
+
+        assert_eq!(
+            g.neighbors_with_values_iter(2).copied().collect::<Vec<_>>(),
+            vec![
+                Target::new(0, 42.0),
+                Target::new(1, 43.0),
+                Target::new(3, 0.0)
+            ]
+        );
     }
 }

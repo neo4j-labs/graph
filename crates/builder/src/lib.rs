@@ -240,9 +240,28 @@ pub trait UndirectedNeighbors<NI: Idx> {
     fn neighbors(&self, node: NI) -> &[NI];
 }
 
+pub trait UndirectedNeighborsIterator<NI: Idx> {
+    type NeighborsIterator<'a>: Iterator<Item = &'a NI>
+    where
+        Self: 'a;
+
+    /// Returns a slice of all nodes connected to the given node.
+    fn neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+}
+
 pub trait UndirectedNeighborsWithValues<NI: Idx, EV> {
     /// Returns a slice of all nodes connected to the given node.
     fn neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
+}
+
+pub trait UndirectedNeighborsWithValuesIterator<NI: Idx, EV> {
+    type NeighborsIterator<'a>: Iterator<Item = &'a Target<NI, EV>>
+    where
+        Self: 'a,
+        EV: 'a;
+
+    /// Returns a slice of all nodes connected to the given node.
+    fn neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
 pub trait DirectedDegrees<NI: Idx> {
@@ -265,6 +284,22 @@ pub trait DirectedNeighbors<NI: Idx> {
     fn in_neighbors(&self, node: NI) -> &[NI];
 }
 
+pub trait DirectedNeighborsIterator<NI: Idx> {
+    type NeighborsIterator<'a>: Iterator<Item = &'a NI>
+    where
+        Self: 'a;
+
+    /// Returns an iterator of all nodes which are connected in outgoing direction
+    /// to the given node, i.e., the given node is the source node of the
+    /// connecting edge.
+    fn out_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+
+    /// Returns an iterator of all nodes which are connected in incoming direction
+    /// to the given node, i.e., the given node is the target node of the
+    /// connecting edge.
+    fn in_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+}
+
 /// A graph where the order within an edge tuple is important.
 ///
 /// An edge tuple `e = (u, v)` has a source node `u` and a target node `v`. From
@@ -281,6 +316,23 @@ pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
     /// to the given node, i.e., the given node is the target node of the
     /// connecting edge.
     fn in_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
+}
+
+pub trait DirectedNeighborsWithValuesIterator<NI: Idx, EV> {
+    type NeighborsIterator<'a>: Iterator<Item = &'a Target<NI, EV>>
+    where
+        Self: 'a,
+        EV: 'a;
+
+    /// Returns an iterator of all nodes which are connected in outgoing direction
+    /// to the given node, i.e., the given node is the source node of the
+    /// connecting edge.
+    fn out_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+
+    /// Returns an iterator of all nodes which are connected in incoming direction
+    /// to the given node, i.e., the given node is the target node of the
+    /// connecting edge.
+    fn in_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
 #[repr(transparent)]
