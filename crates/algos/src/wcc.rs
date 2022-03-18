@@ -188,7 +188,7 @@ where
                 let u = NI::new(u);
                 let limit = usize::min(graph.out_degree(u).index(), config.neighbor_rounds);
 
-                for v in &graph.out_neighbors(u)[..limit] {
+                for v in graph.out_neighbors_iter(u).take(limit) {
                     uf.union(u, *v);
                 }
             }
@@ -282,12 +282,12 @@ fn link_remaining<NI, UF>(
                 }
 
                 if graph.out_degree(u).index() > config.neighbor_rounds {
-                    for v in &graph.out_neighbors(u)[config.neighbor_rounds..] {
+                    for v in graph.out_neighbors_iter(u).skip(config.neighbor_rounds) {
                         uf.union(u, *v);
                     }
                 }
 
-                for v in graph.in_neighbors(u) {
+                for v in graph.in_neighbors_iter(u) {
                     uf.union(u, *v);
                 }
             }
