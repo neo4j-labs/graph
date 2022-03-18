@@ -165,7 +165,7 @@ fn relax_edges<NI: Idx>(
     node: NI,
     delta: f32,
 ) {
-    for Target { target, value } in graph.out_neighbors_with_values(node) {
+    for Target { target, value } in graph.out_neighbors_with_values_iter(node) {
         let mut old_distance = distances[target.index()].load(Ordering::Acquire);
         let new_distance = distances[node.index()].load(Ordering::Acquire) + value;
 
