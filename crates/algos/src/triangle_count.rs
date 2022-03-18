@@ -34,25 +34,25 @@ pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
                     let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
                     for u in start..end {
-                        for &v in graph.neighbors(u) {
+                        for &v in graph.neighbors_iter(u) {
                             if v > u {
                                 break;
                             }
 
-                            let mut it = graph.neighbors(u);
+                            let mut it = graph.neighbors_iter(u).peekable();
 
-                            for &w in graph.neighbors(v) {
+                            for &w in graph.neighbors_iter(v) {
                                 if w > v {
                                     break;
                                 }
-                                while let Some(&x) = it.first() {
+                                while let Some(&&x) = it.peek() {
                                     if x >= w {
                                         if x == w {
                                             triangles += 1;
                                         }
                                         break;
                                     }
-                                    it = &it[1..];
+                                    it.next();
                                 }
                             }
                         }
