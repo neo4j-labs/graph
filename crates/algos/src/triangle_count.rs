@@ -39,20 +39,20 @@ pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
                                 break;
                             }
 
-                            let mut it = graph.neighbors_iter(u).peekable();
+                            let mut it = itertools::put_back(graph.neighbors_iter(u));
 
                             for &w in graph.neighbors_iter(v) {
                                 if w > v {
                                     break;
                                 }
-                                while let Some(&&x) = it.peek() {
-                                    if x >= w {
-                                        if x == w {
+                                while let Some(x) = it.next() {
+                                    if x >= &w {
+                                        if x == &w {
                                             triangles += 1;
                                         }
+                                        it.put_back(x);
                                         break;
                                     }
-                                    it.next();
                                 }
                             }
                         }

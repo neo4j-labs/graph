@@ -23,6 +23,7 @@ num-format = "0.4.0"
 nanorand = "0.7.0"
 rayon = "1.5.1"
 serde = { version = "1.0.136", features = ["derive"], optional = true }
+itertools = "0.10.3"
 
 [dev-dependencies]
 graph_builder = { path = "../builder", version = "^0.2.0", features = ["gdl"] }
