@@ -21,8 +21,7 @@ use crate::{
     input::{edgelist::Edges, Direction, DotGraph, Graph500},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsIterator, DirectedNeighborsWithValues,
     DirectedNeighborsWithValuesIterator, Error, Graph, NodeValues as NodeValuesTrait, SharedMut,
-    UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsIterator,
-    UndirectedNeighborsWithValues, UndirectedNeighborsWithValuesIterator,
+    UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsWithValues,
 };
 
 /// Defines how the neighbor list of individual nodes are organized within the
@@ -745,31 +744,17 @@ impl<NI: Idx, NV, EV> UndirectedDegrees<NI> for UndirectedCsrGraph<NI, NV, EV> {
 }
 
 impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedCsrGraph<NI, NV> {
-    fn neighbors(&self, node: NI) -> &[NI] {
-        self.csr.targets(node)
-    }
-}
-
-impl<NI: Idx, NV> UndirectedNeighborsIterator<NI> for UndirectedCsrGraph<NI, NV> {
     type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
 
-    fn neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+    fn neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr.targets(node).iter()
     }
 }
 
 impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedCsrGraph<NI, NV, EV> {
-    fn neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
-        self.csr.targets_with_values(node)
-    }
-}
-
-impl<NI: Idx, NV, EV> UndirectedNeighborsWithValuesIterator<NI, EV>
-    for UndirectedCsrGraph<NI, NV, EV>
-{
     type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV: 'a, EV: 'a;
 
-    fn neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+    fn neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr.targets_with_values(node).iter()
     }
 }
@@ -1142,10 +1127,22 @@ mod tests {
         assert_eq!(g0.node_count(), g1.node_count());
         assert_eq!(g0.edge_count(), g1.edge_count());
 
-        assert_eq!(g0.neighbors(0), g1.neighbors(0));
-        assert_eq!(g0.neighbors(1), g1.neighbors(1));
-        assert_eq!(g0.neighbors(2), g1.neighbors(2));
-        assert_eq!(g0.neighbors(3), g1.neighbors(3));
+        assert_eq!(
+            g0.neighbors(0).collect::<Vec<_>>(),
+            g1.neighbors(0).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            g0.neighbors(1).collect::<Vec<_>>(),
+            g1.neighbors(1).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            g0.neighbors(2).collect::<Vec<_>>(),
+            g1.neighbors(2).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            g0.neighbors(3).collect::<Vec<_>>(),
+            g1.neighbors(3).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1192,10 +1189,22 @@ mod tests {
         assert_eq!(g0.node_count(), g1.node_count());
         assert_eq!(g0.edge_count(), g1.edge_count());
 
-        assert_eq!(g0.neighbors(0), g1.neighbors(0));
-        assert_eq!(g0.neighbors(1), g1.neighbors(1));
-        assert_eq!(g0.neighbors(2), g1.neighbors(2));
-        assert_eq!(g0.neighbors(3), g1.neighbors(3));
+        assert_eq!(
+            g0.neighbors(0).collect::<Vec<_>>(),
+            g1.neighbors(0).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            g0.neighbors(1).collect::<Vec<_>>(),
+            g1.neighbors(1).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            g0.neighbors(2).collect::<Vec<_>>(),
+            g1.neighbors(2).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            g0.neighbors(3).collect::<Vec<_>>(),
+            g1.neighbors(3).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1234,19 +1243,31 @@ mod tests {
 
             let ug = g.to_undirected(None);
             assert_eq!(ug.degree(0), 6);
-            assert_eq!(ug.neighbors(0), &[1, 3, 42, 3, 7, 21]);
+            assert_eq!(
+                ug.neighbors(0).copied().collect::<Vec<_>>(),
+                &[1, 3, 42, 3, 7, 21]
+            );
 
             let ug = g.to_undirected(CsrLayout::Unsorted);
             assert_eq!(ug.degree(0), 6);
-            assert_eq!(ug.neighbors(0), &[1, 3, 42, 3, 7, 21]);
+            assert_eq!(
+                ug.neighbors(0).copied().collect::<Vec<_>>(),
+                &[1, 3, 42, 3, 7, 21]
+            );
 
             let ug = g.to_undirected(CsrLayout::Sorted);
             assert_eq!(ug.degree(0), 6);
-            assert_eq!(ug.neighbors(0), &[1, 3, 3, 7, 21, 42]);
+            assert_eq!(
+                ug.neighbors(0).copied().collect::<Vec<_>>(),
+                &[1, 3, 3, 7, 21, 42]
+            );
 
             let ug = g.to_undirected(CsrLayout::Deduplicated);
             assert_eq!(ug.degree(0), 5);
-            assert_eq!(ug.neighbors(0), &[1, 3, 7, 21, 42]);
+            assert_eq!(
+                ug.neighbors(0).copied().collect::<Vec<_>>(),
+                &[1, 3, 7, 21, 42]
+            );
         });
     }
 
@@ -1299,10 +1320,7 @@ mod tests {
             .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
             .build();
 
-        assert_eq!(
-            g.neighbors_iter(2).copied().collect::<Vec<_>>(),
-            vec![0, 1, 3]
-        );
+        assert_eq!(g.neighbors(2).copied().collect::<Vec<_>>(), vec![0, 1, 3]);
     }
 
     #[test]
@@ -1319,7 +1337,7 @@ mod tests {
             .build();
 
         assert_eq!(
-            g.neighbors_with_values_iter(2).copied().collect::<Vec<_>>(),
+            g.neighbors_with_values(2).copied().collect::<Vec<_>>(),
             vec![
                 Target::new(0, 42.0),
                 Target::new(1, 43.0),

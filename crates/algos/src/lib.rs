@@ -73,7 +73,11 @@
 //!
 //! assert_eq!(graph.degree(1), 3);
 //!
-//! assert_eq!(graph.neighbors(1), &[0, 2, 3]);
+//! let mut neighbors = graph.neighbors(1);
+//! assert_eq!(neighbors.next(), Some(&0));
+//! assert_eq!(neighbors.next(), Some(&2));
+//! assert_eq!(neighbors.next(), Some(&3));
+//! assert_eq!(neighbors.next(), None);
 //! ```
 //!
 //! Check out the [graph_builder](https://docs.rs/graph_builder/latest/) crate for

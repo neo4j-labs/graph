@@ -29,8 +29,6 @@ pub use crate::Graph;
 pub use crate::NodeValues;
 pub use crate::UndirectedDegrees;
 pub use crate::UndirectedNeighbors;
-pub use crate::UndirectedNeighborsIterator;
 pub use crate::UndirectedNeighborsWithValues;
-pub use crate::UndirectedNeighborsWithValuesIterator;
 
 pub use crate::Error;

@@ -70,7 +70,11 @@ assert_eq!(graph.edge_count(), 5);
 
 assert_eq!(graph.degree(1), 3);
 
-assert_eq!(graph.neighbors(1), &[0, 2, 3]);
+let mut neighbors = graph.neighbors(1);
+assert_eq!(neighbors.next(), Some(&0));
+assert_eq!(neighbors.next(), Some(&2));
+assert_eq!(neighbors.next(), Some(&3));
+assert_eq!(neighbors.next(), None);
 ```
 
 Edges can have attached values to represent weighted graphs:
@@ -87,7 +91,11 @@ assert_eq!(graph.edge_count(), 5);
 
 assert_eq!(graph.degree(1), 3);
 
-assert_eq!(graph.neighbors_with_values(1), &[Target::new(0, 0.5), Target::new(2, 0.25), Target::new(3, 1.0)]);
+let mut neighbors = graph.neighbors_with_values(1);
+assert_eq!(neighbors.next(), Some(&Target::new(0, 0.5)));
+assert_eq!(neighbors.next(), Some(&Target::new(2, 0.25)));
+assert_eq!(neighbors.next(), Some(&Target::new(3, 1.0)));
+assert_eq!(neighbors.next(), None);
 ```
 
 It is also possible to create a graph from a specific input format. In the

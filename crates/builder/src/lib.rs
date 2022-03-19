@@ -78,7 +78,11 @@
 //!
 //! assert_eq!(graph.degree(1), 3);
 //!
-//! assert_eq!(graph.neighbors(1), &[0, 2, 3]);
+//! let mut neighbors = graph.neighbors(1);
+//! assert_eq!(neighbors.next(), Some(&0));
+//! assert_eq!(neighbors.next(), Some(&2));
+//! assert_eq!(neighbors.next(), Some(&3));
+//! assert_eq!(neighbors.next(), None);
 //! ```
 //!
 //! Edges can have attached values to represent weighted graphs:
@@ -95,7 +99,11 @@
 //!
 //! assert_eq!(graph.degree(1), 3);
 //!
-//! assert_eq!(graph.neighbors_with_values(1), &[Target::new(0, 0.5), Target::new(2, 0.25), Target::new(3, 1.0)]);
+//! let mut neighbors = graph.neighbors_with_values(1);
+//! assert_eq!(neighbors.next(), Some(&Target::new(0, 0.5)));
+//! assert_eq!(neighbors.next(), Some(&Target::new(2, 0.25)));
+//! assert_eq!(neighbors.next(), Some(&Target::new(3, 1.0)));
+//! assert_eq!(neighbors.next(), None);
 //! ```
 //!
 //! It is also possible to create a graph from a specific input format. In the
@@ -236,32 +244,23 @@ pub trait UndirectedDegrees<NI: Idx> {
 ///
 /// The edge `(42, 1337)` is equivalent to the edge `(1337, 42)`.
 pub trait UndirectedNeighbors<NI: Idx> {
-    /// Returns a slice of all nodes connected to the given node.
-    fn neighbors(&self, node: NI) -> &[NI];
-}
-
-pub trait UndirectedNeighborsIterator<NI: Idx> {
     type NeighborsIterator<'a>: Iterator<Item = &'a NI>
     where
         Self: 'a;
 
-    /// Returns a slice of all nodes connected to the given node.
-    fn neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+    /// Returns an iterator of all nodes connected to the given node.
+    fn neighbors(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
 pub trait UndirectedNeighborsWithValues<NI: Idx, EV> {
-    /// Returns a slice of all nodes connected to the given node.
-    fn neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
-}
-
-pub trait UndirectedNeighborsWithValuesIterator<NI: Idx, EV> {
     type NeighborsIterator<'a>: Iterator<Item = &'a Target<NI, EV>>
     where
         Self: 'a,
         EV: 'a;
 
-    /// Returns a slice of all nodes connected to the given node.
-    fn neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+    /// Returns an iterator of all nodes connected to the given node
+    /// including the value of the connecting edge.
+    fn neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
 pub trait DirectedDegrees<NI: Idx> {

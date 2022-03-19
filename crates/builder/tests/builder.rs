@@ -271,7 +271,7 @@ fn undirected_usize_graph_from_edge_list_with_values() {
         .build();
 
     assert_eq!(
-        graph.neighbors_with_values(1),
+        graph.neighbors_with_values(1).copied().collect::<Vec<_>>(),
         &[
             Target::new(0, 0.1),
             Target::new(2, 0.3),
@@ -428,7 +428,7 @@ fn undirected_u64_graph_from_graph_500_file() {
     assert_eq!(graph.edge_count(), 4096);
 
     assert_eq!(
-        graph.neighbors(0),
+        graph.neighbors(0).copied().collect::<Vec<_>>(),
         &[12, 26, 37, 50, 50, 52, 82, 82, 82, 106, 109, 157, 172, 186, 250, 250]
     );
 }
@@ -472,15 +472,24 @@ fn assert_undirected_graph<NI: Idx, NV>(g: UndirectedCsrGraph<NI, NV, ()>) {
     assert_eq!(g.degree(NI::new(3)), NI::new(2));
     assert_eq!(g.degree(NI::new(4)), NI::new(2));
 
-    assert_eq!(g.neighbors(NI::new(0)), &[NI::new(1), NI::new(2)]);
     assert_eq!(
-        g.neighbors(NI::new(1)),
+        g.neighbors(NI::new(0)).copied().collect::<Vec<_>>(),
+        &[NI::new(1), NI::new(2)]
+    );
+    assert_eq!(
+        g.neighbors(NI::new(1)).copied().collect::<Vec<_>>(),
         &[NI::new(0), NI::new(2), NI::new(3)]
     );
     assert_eq!(
-        g.neighbors(NI::new(2)),
+        g.neighbors(NI::new(2)).copied().collect::<Vec<_>>(),
         &[NI::new(0), NI::new(1), NI::new(4)]
     );
-    assert_eq!(g.neighbors(NI::new(3)), &[NI::new(1), NI::new(4)]);
-    assert_eq!(g.neighbors(NI::new(4)), &[NI::new(2), NI::new(3)]);
+    assert_eq!(
+        g.neighbors(NI::new(3)).copied().collect::<Vec<_>>(),
+        &[NI::new(1), NI::new(4)]
+    );
+    assert_eq!(
+        g.neighbors(NI::new(4)).copied().collect::<Vec<_>>(),
+        &[NI::new(2), NI::new(3)]
+    );
 }
