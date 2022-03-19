@@ -39,7 +39,7 @@ pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
                                 break;
                             }
 
-                            let mut it = itertools::put_back(graph.neighbors_iter(u));
+                            let mut it = put_back_iterator(graph.neighbors_iter(u));
 
                             for &w in graph.neighbors_iter(v) {
                                 if w > v {
