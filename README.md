@@ -55,8 +55,8 @@ assert_eq!(graph.edge_count(), 5);
 assert_eq!(graph.out_degree(1), 2);
 assert_eq!(graph.in_degree(1), 1);
 
-assert_eq!(graph.out_neighbors(1), &[2, 3]);
-assert_eq!(graph.in_neighbors(1), &[0]);
+assert_eq!(graph.out_neighbors(1).as_slice(), &[2, 3]);
+assert_eq!(graph.in_neighbors(1).as_slice(), &[0]);
 ```
 
 To build an undirected graph using `u32` as node identifer, we only need to
@@ -74,7 +74,7 @@ assert_eq!(graph.edge_count(), 5);
 
 assert_eq!(graph.degree(1), 3);
 
-assert_eq!(graph.neighbors(1), &[0, 2, 3]);
+assert_eq!(graph.neighbors(1).as_slice(), &[0, 2, 3]);
 ```
 
 Check out the [graph_builder](https://docs.rs/graph_builder/latest/) crate for

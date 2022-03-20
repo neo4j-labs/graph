@@ -155,7 +155,10 @@ pub trait RelabelByDegreeOp<N, EV> {
     /// assert_eq!(graph.degree(2), 1);
     /// assert_eq!(graph.degree(3), 2);
     ///
-    /// assert_eq!(graph.neighbors(0), &[1, 3]);
+    /// let mut neighbors = graph.neighbors(0);
+    /// assert_eq!(neighbors.next(), Some(&1));
+    /// assert_eq!(neighbors.next(), Some(&3));
+    /// assert_eq!(neighbors.next(), None);
     ///
     /// graph.to_degree_ordered();
     ///
@@ -164,7 +167,7 @@ pub trait RelabelByDegreeOp<N, EV> {
     /// assert_eq!(graph.degree(2), 2);
     /// assert_eq!(graph.degree(3), 1);
     ///
-    /// assert_eq!(graph.neighbors(0), &[1, 2, 3]);
+    /// assert_eq!(graph.neighbors(0).as_slice(), &[1, 2, 3]);
     /// ```
     fn to_degree_ordered(&mut self);
 }
@@ -187,15 +190,15 @@ pub trait ToUndirectedOp {
     ///     .build();
     ///
     /// assert_eq!(graph.out_degree(0), 1);
-    /// assert_eq!(graph.out_neighbors(0), &[1]);
+    /// assert_eq!(graph.out_neighbors(0).as_slice(), &[1]);
     ///
     /// assert_eq!(graph.in_degree(0), 1);
-    /// assert_eq!(graph.in_neighbors(0), &[2]);
+    /// assert_eq!(graph.in_neighbors(0).as_slice(), &[2]);
     ///
     /// let graph = graph.to_undirected(None);
     ///
     /// assert_eq!(graph.degree(0), 2);
-    /// assert_eq!(graph.neighbors(0), &[1, 2]);
+    /// assert_eq!(graph.neighbors(0).as_slice(), &[1, 2]);
     /// ```
     ///
     /// This method accepts an optional [`CsrLayout`] as second parameter,
@@ -212,15 +215,15 @@ pub trait ToUndirectedOp {
     ///
     /// // No layout specified, a default layput is chosen
     /// let un_graph = graph.to_undirected(None);
-    /// assert_eq!(un_graph.neighbors(0), &[2, 1, 2]);
+    /// assert_eq!(un_graph.neighbors(0).as_slice(), &[2, 1, 2]);
     ///
     /// // The `Sorted` layout
     /// let un_graph = graph.to_undirected(CsrLayout::Sorted);
-    /// assert_eq!(un_graph.neighbors(0), &[1, 2, 2]);
+    /// assert_eq!(un_graph.neighbors(0).as_slice(), &[1, 2, 2]);
     ///
     /// // The `Deduplicated` layout
     /// let un_graph = graph.to_undirected(CsrLayout::Deduplicated);
-    /// assert_eq!(un_graph.neighbors(0), &[1, 2]);
+    /// assert_eq!(un_graph.neighbors(0).as_slice(), &[1, 2]);
     /// ```
     fn to_undirected(&self, layout: impl Into<Option<CsrLayout>>) -> Self::Undirected;
 }
@@ -766,9 +769,9 @@ mod tests {
         assert_eq!(graph.degree(2), 4);
         assert_eq!(graph.degree(3), 3);
 
-        assert_eq!(graph.neighbors(0), &[1, 1, 2, 2, 3]);
-        assert_eq!(graph.neighbors(1), &[0, 0, 2, 3]);
-        assert_eq!(graph.neighbors(2), &[0, 0, 1, 3]);
-        assert_eq!(graph.neighbors(3), &[0, 1, 2]);
+        assert_eq!(graph.neighbors(0).as_slice(), &[1, 1, 2, 2, 3]);
+        assert_eq!(graph.neighbors(1).as_slice(), &[0, 0, 2, 3]);
+        assert_eq!(graph.neighbors(2).as_slice(), &[0, 0, 1, 3]);
+        assert_eq!(graph.neighbors(3).as_slice(), &[0, 1, 2]);
     }
 }

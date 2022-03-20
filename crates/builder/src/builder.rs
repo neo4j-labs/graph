@@ -154,7 +154,7 @@ impl GraphBuilder<Uninitialized> {
     ///     .edges(vec![(0, 7), (0, 3), (0, 3), (0, 1)])
     ///     .build();
     ///
-    /// assert_eq!(graph.neighbors(0), &[1, 3, 3, 7]);
+    /// assert_eq!(graph.neighbors(0).copied().collect::<Vec<_>>(), &[1, 3, 3, 7]);
     /// ```
     ///
     /// Store the neighbors sorted and deduplicated:
@@ -167,7 +167,7 @@ impl GraphBuilder<Uninitialized> {
     ///     .edges(vec![(0, 7), (0, 3), (0, 3), (0, 1)])
     ///     .build();
     ///
-    /// assert_eq!(graph.neighbors(0), &[1, 3, 7]);
+    /// assert_eq!(graph.neighbors(0).copied().collect::<Vec<_>>(), &[1, 3, 7]);
     /// ```
     #[must_use]
     pub fn csr_layout(mut self, csr_layout: CsrLayout) -> Self {
@@ -270,7 +270,11 @@ impl GraphBuilder<Uninitialized> {
     ///
     /// assert_eq!(g.node_count(), 3);
     /// assert_eq!(g.edge_count(), 2);
-    /// assert_eq!(g.neighbors_with_values(0), &[Target::new(1, 0.42), Target::new(2, 13.37)]);
+    ///
+    /// let mut neighbors = g.neighbors_with_values(0);
+    /// assert_eq!(neighbors.next(), Some(&Target::new(1, 0.42)));
+    /// assert_eq!(neighbors.next(), Some(&Target::new(2, 13.37)));
+    /// assert_eq!(neighbors.next(), None);
     /// ```
     #[cfg(feature = "gdl")]
     #[doc(cfg(feature = "gdl"))]
