@@ -194,15 +194,15 @@ pub trait ToUndirectedOp {
     ///     .build();
     ///
     /// assert_eq!(graph.out_degree(0), 1);
-    /// assert_eq!(graph.out_neighbors(0), &[1]);
+    /// assert_eq!(graph.out_neighbors(0).as_slice(), &[1]);
     ///
     /// assert_eq!(graph.in_degree(0), 1);
-    /// assert_eq!(graph.in_neighbors(0), &[2]);
+    /// assert_eq!(graph.in_neighbors(0).as_slice(), &[2]);
     ///
     /// let graph = graph.to_undirected(None);
     ///
     /// assert_eq!(graph.degree(0), 2);
-    /// assert_eq!(graph.neighbors(0).copied().collect::<Vec<_>>(), &[1, 2]);
+    /// assert_eq!(graph.neighbors(0).as_slice(), &[1, 2]);
     /// ```
     ///
     /// This method accepts an optional [`CsrLayout`] as second parameter,
@@ -219,15 +219,15 @@ pub trait ToUndirectedOp {
     ///
     /// // No layout specified, a default layput is chosen
     /// let un_graph = graph.to_undirected(None);
-    /// assert_eq!(un_graph.neighbors(0).copied().collect::<Vec<_>>(), &[2, 1, 2]);
+    /// assert_eq!(un_graph.neighbors(0).as_slice(), &[2, 1, 2]);
     ///
     /// // The `Sorted` layout
     /// let un_graph = graph.to_undirected(CsrLayout::Sorted);
-    /// assert_eq!(un_graph.neighbors(0).copied().collect::<Vec<_>>(), &[1, 2, 2]);
+    /// assert_eq!(un_graph.neighbors(0).as_slice(), &[1, 2, 2]);
     ///
     /// // The `Deduplicated` layout
     /// let un_graph = graph.to_undirected(CsrLayout::Deduplicated);
-    /// assert_eq!(un_graph.neighbors(0).copied().collect::<Vec<_>>(), &[1, 2]);
+    /// assert_eq!(un_graph.neighbors(0).as_slice(), &[1, 2]);
     /// ```
     fn to_undirected(&self, layout: impl Into<Option<CsrLayout>>) -> Self::Undirected;
 }

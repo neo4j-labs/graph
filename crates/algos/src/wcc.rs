@@ -109,7 +109,7 @@ pub fn wcc_baseline<NI: Idx>(
         .for_each(|chunk| {
             for u in chunk {
                 let u = NI::new(u);
-                graph.out_neighbors(u).iter().for_each(|v| dss.union(u, *v));
+                graph.out_neighbors(u).for_each(|v| dss.union(u, *v));
             }
         });
 
@@ -188,7 +188,7 @@ where
                 let u = NI::new(u);
                 let limit = usize::min(graph.out_degree(u).index(), config.neighbor_rounds);
 
-                for v in graph.out_neighbors_iter(u).take(limit) {
+                for v in graph.out_neighbors(u).take(limit) {
                     uf.union(u, *v);
                 }
             }
@@ -214,7 +214,7 @@ where
                 for u in chunk {
                     let u = NI::new(u);
                     if r < graph.out_degree(u).index() {
-                        for v in &graph.out_neighbors(u)[r..r + 1] {
+                        for v in graph.out_neighbors(u).skip(r).take(1) {
                             af.union(u, *v);
                         }
                     }
@@ -282,12 +282,12 @@ fn link_remaining<NI, UF>(
                 }
 
                 if graph.out_degree(u).index() > config.neighbor_rounds {
-                    for v in graph.out_neighbors_iter(u).skip(config.neighbor_rounds) {
+                    for v in graph.out_neighbors(u).skip(config.neighbor_rounds) {
                         uf.union(u, *v);
                     }
                 }
 
-                for v in graph.in_neighbors_iter(u) {
+                for v in graph.in_neighbors(u) {
                     uf.union(u, *v);
                 }
             }

@@ -128,12 +128,12 @@ fn directed_usize_graph_from_edge_list_with_values() {
         .build();
 
     assert_eq!(
-        graph.out_neighbors_with_values(0),
+        graph.out_neighbors_with_values(0).as_slice(),
         &[Target::new(1, 0.1), Target::new(2, 0.2)]
     );
 
     assert_eq!(
-        graph.in_neighbors_with_values(2),
+        graph.in_neighbors_with_values(2).as_slice(),
         &[Target::new(0, 0.2), Target::new(1, 0.3)]
     );
 }
@@ -166,7 +166,7 @@ fn directed_usize_graph_from_gdl_with_f32_edge_values() {
         .build()
         .unwrap();
 
-    let actual = g.out_neighbors_with_values(0);
+    let actual = g.out_neighbors_with_values(0).as_slice();
 
     assert_eq!(actual, &[Target::new(1, 0.1), Target::new(2, 0.2)]);
 }
@@ -186,7 +186,7 @@ fn directed_usize_graph_from_gdl_with_i64_edge_values() {
         .build()
         .unwrap();
 
-    let actual = g.out_neighbors_with_values(0);
+    let actual = g.out_neighbors_with_values(0).as_slice();
 
     assert_eq!(actual, &[Target::new(1, 42), Target::new(2, 43)]);
 }
@@ -271,7 +271,7 @@ fn undirected_usize_graph_from_edge_list_with_values() {
         .build();
 
     assert_eq!(
-        graph.neighbors_with_values(1).copied().collect::<Vec<_>>(),
+        graph.neighbors_with_values(1).as_slice(),
         &[
             Target::new(0, 0.1),
             Target::new(2, 0.3),
@@ -404,9 +404,9 @@ fn directed_u64_graph_from_graph_500_file() {
     assert_eq!(graph.node_count(), 256);
     assert_eq!(graph.edge_count(), 4096);
 
-    assert_eq!(graph.out_neighbors(0), &[37, 157]);
+    assert_eq!(graph.out_neighbors(0).as_slice(), &[37, 157]);
     assert_eq!(
-        graph.in_neighbors(0),
+        graph.in_neighbors(0).as_slice(),
         &[12, 26, 50, 50, 52, 82, 82, 82, 106, 109, 172, 186, 250, 250]
     );
 }
@@ -428,7 +428,7 @@ fn undirected_u64_graph_from_graph_500_file() {
     assert_eq!(graph.edge_count(), 4096);
 
     assert_eq!(
-        graph.neighbors(0).copied().collect::<Vec<_>>(),
+        graph.neighbors(0).as_slice(),
         &[12, 26, 37, 50, 50, 52, 82, 82, 82, 106, 109, 157, 172, 186, 250, 250]
     );
 }
@@ -449,17 +449,29 @@ fn assert_directed_graph<NI: Idx, NV>(g: DirectedCsrGraph<NI, NV, ()>) {
     assert_eq!(g.in_degree(NI::new(3)), NI::new(1));
     assert_eq!(g.in_degree(NI::new(4)), NI::new(2));
 
-    assert_eq!(g.out_neighbors(NI::new(0)), &[NI::new(1), NI::new(2)]);
-    assert_eq!(g.out_neighbors(NI::new(1)), &[NI::new(2), NI::new(3)]);
-    assert_eq!(g.out_neighbors(NI::new(2)), &[NI::new(4)]);
-    assert_eq!(g.out_neighbors(NI::new(3)), &[NI::new(4)]);
-    assert_eq!(g.out_neighbors(NI::new(4)), &[]);
+    assert_eq!(
+        g.out_neighbors(NI::new(0)).as_slice(),
+        &[NI::new(1), NI::new(2)]
+    );
+    assert_eq!(
+        g.out_neighbors(NI::new(1)).as_slice(),
+        &[NI::new(2), NI::new(3)]
+    );
+    assert_eq!(g.out_neighbors(NI::new(2)).as_slice(), &[NI::new(4)]);
+    assert_eq!(g.out_neighbors(NI::new(3)).as_slice(), &[NI::new(4)]);
+    assert_eq!(g.out_neighbors(NI::new(4)).as_slice(), &[]);
 
-    assert_eq!(g.in_neighbors(NI::new(0)), &[]);
-    assert_eq!(g.in_neighbors(NI::new(1)), &[NI::new(0)]);
-    assert_eq!(g.in_neighbors(NI::new(2)), &[NI::new(0), NI::new(1)]);
-    assert_eq!(g.in_neighbors(NI::new(3)), &[NI::new(1)]);
-    assert_eq!(g.in_neighbors(NI::new(4)), &[NI::new(2), NI::new(3)]);
+    assert_eq!(g.in_neighbors(NI::new(0)).as_slice(), &[]);
+    assert_eq!(g.in_neighbors(NI::new(1)).as_slice(), &[NI::new(0)]);
+    assert_eq!(
+        g.in_neighbors(NI::new(2)).as_slice(),
+        &[NI::new(0), NI::new(1)]
+    );
+    assert_eq!(g.in_neighbors(NI::new(3)).as_slice(), &[NI::new(1)]);
+    assert_eq!(
+        g.in_neighbors(NI::new(4)).as_slice(),
+        &[NI::new(2), NI::new(3)]
+    );
 }
 
 fn assert_undirected_graph<NI: Idx, NV>(g: UndirectedCsrGraph<NI, NV, ()>) {
@@ -473,23 +485,23 @@ fn assert_undirected_graph<NI: Idx, NV>(g: UndirectedCsrGraph<NI, NV, ()>) {
     assert_eq!(g.degree(NI::new(4)), NI::new(2));
 
     assert_eq!(
-        g.neighbors(NI::new(0)).copied().collect::<Vec<_>>(),
+        g.neighbors(NI::new(0)).as_slice(),
         &[NI::new(1), NI::new(2)]
     );
     assert_eq!(
-        g.neighbors(NI::new(1)).copied().collect::<Vec<_>>(),
+        g.neighbors(NI::new(1)).as_slice(),
         &[NI::new(0), NI::new(2), NI::new(3)]
     );
     assert_eq!(
-        g.neighbors(NI::new(2)).copied().collect::<Vec<_>>(),
+        g.neighbors(NI::new(2)).as_slice(),
         &[NI::new(0), NI::new(1), NI::new(4)]
     );
     assert_eq!(
-        g.neighbors(NI::new(3)).copied().collect::<Vec<_>>(),
+        g.neighbors(NI::new(3)).as_slice(),
         &[NI::new(1), NI::new(4)]
     );
     assert_eq!(
-        g.neighbors(NI::new(4)).copied().collect::<Vec<_>>(),
+        g.neighbors(NI::new(4)).as_slice(),
         &[NI::new(2), NI::new(3)]
     );
 }

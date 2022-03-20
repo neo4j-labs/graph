@@ -129,7 +129,7 @@ fn page_rank_iteration<NI: Idx>(
 
                     for u in start..end {
                         let incoming_total = graph
-                            .in_neighbors_iter(u)
+                            .in_neighbors(u)
                             .map(|v| unsafe { out_scores.add(v.index()).read() })
                             .sum::<f32>();
 

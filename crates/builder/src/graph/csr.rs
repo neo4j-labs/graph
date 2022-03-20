@@ -19,9 +19,9 @@ use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
     input::{edgelist::Edges, Direction, DotGraph, Graph500},
-    DirectedDegrees, DirectedNeighbors, DirectedNeighborsIterator, DirectedNeighborsWithValues,
-    DirectedNeighborsWithValuesIterator, Error, Graph, NodeValues as NodeValuesTrait, SharedMut,
-    UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsWithValues,
+    DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
+    NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
+    UndirectedNeighborsWithValues,
 };
 
 /// Defines how the neighbor list of individual nodes are organized within the
@@ -460,11 +460,10 @@ where
     fn edges(&self) -> Self::EdgeIter<'_> {
         (0..self.g.node_count().index())
             .into_par_iter()
-            .flat_map(|n| {
+            .flat_map_iter(|n| {
                 let n = NI::new(n);
                 self.g
                     .out_neighbors_with_values(n)
-                    .into_par_iter()
                     .map(move |t| (n, t.target, t.value))
             })
     }
@@ -505,45 +504,25 @@ impl<NI: Idx, NV, EV> DirectedDegrees<NI> for DirectedCsrGraph<NI, NV, EV> {
 }
 
 impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedCsrGraph<NI, NV, ()> {
-    fn out_neighbors(&self, node: NI) -> &[NI] {
-        self.csr_out.targets(node)
-    }
-
-    fn in_neighbors(&self, node: NI) -> &[NI] {
-        self.csr_inc.targets(node)
-    }
-}
-
-impl<NI: Idx, NV> DirectedNeighborsIterator<NI> for DirectedCsrGraph<NI, NV, ()> {
     type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
 
-    fn out_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+    fn out_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr_out.targets(node).iter()
     }
 
-    fn in_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+    fn in_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr_inc.targets(node).iter()
     }
 }
 
 impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedCsrGraph<NI, NV, EV> {
-    fn out_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
-        self.csr_out.targets_with_values(node)
-    }
-
-    fn in_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>] {
-        self.csr_inc.targets_with_values(node)
-    }
-}
-
-impl<NI: Idx, NV, EV> DirectedNeighborsWithValuesIterator<NI, EV> for DirectedCsrGraph<NI, NV, EV> {
     type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV:'a, EV: 'a;
 
-    fn out_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+    fn out_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr_out.targets_with_values(node).iter()
     }
 
-    fn in_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_> {
+    fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr_inc.targets_with_values(node).iter()
     }
 }
@@ -1099,15 +1078,27 @@ mod tests {
         assert_eq!(g0.node_count(), g1.node_count());
         assert_eq!(g0.edge_count(), g1.edge_count());
 
-        assert_eq!(g0.out_neighbors(0), g1.out_neighbors(0));
-        assert_eq!(g0.out_neighbors(1), g1.out_neighbors(1));
-        assert_eq!(g0.out_neighbors(2), g1.out_neighbors(2));
-        assert_eq!(g0.out_neighbors(3), g1.out_neighbors(3));
+        assert_eq!(
+            g0.out_neighbors(0).as_slice(),
+            g1.out_neighbors(0).as_slice()
+        );
+        assert_eq!(
+            g0.out_neighbors(1).as_slice(),
+            g1.out_neighbors(1).as_slice()
+        );
+        assert_eq!(
+            g0.out_neighbors(2).as_slice(),
+            g1.out_neighbors(2).as_slice()
+        );
+        assert_eq!(
+            g0.out_neighbors(3).as_slice(),
+            g1.out_neighbors(3).as_slice()
+        );
 
-        assert_eq!(g0.in_neighbors(0), g1.in_neighbors(0));
-        assert_eq!(g0.in_neighbors(1), g1.in_neighbors(1));
-        assert_eq!(g0.in_neighbors(2), g1.in_neighbors(2));
-        assert_eq!(g0.in_neighbors(3), g1.in_neighbors(3));
+        assert_eq!(g0.in_neighbors(0).as_slice(), g1.in_neighbors(0).as_slice());
+        assert_eq!(g0.in_neighbors(1).as_slice(), g1.in_neighbors(1).as_slice());
+        assert_eq!(g0.in_neighbors(2).as_slice(), g1.in_neighbors(2).as_slice());
+        assert_eq!(g0.in_neighbors(3).as_slice(), g1.in_neighbors(3).as_slice());
     }
 
     #[test]
@@ -1161,15 +1152,27 @@ mod tests {
         assert_eq!(g0.node_count(), g1.node_count());
         assert_eq!(g0.edge_count(), g1.edge_count());
 
-        assert_eq!(g0.out_neighbors(0), g1.out_neighbors(0));
-        assert_eq!(g0.out_neighbors(1), g1.out_neighbors(1));
-        assert_eq!(g0.out_neighbors(2), g1.out_neighbors(2));
-        assert_eq!(g0.out_neighbors(3), g1.out_neighbors(3));
+        assert_eq!(
+            g0.out_neighbors(0).as_slice(),
+            g1.out_neighbors(0).as_slice()
+        );
+        assert_eq!(
+            g0.out_neighbors(1).as_slice(),
+            g1.out_neighbors(1).as_slice()
+        );
+        assert_eq!(
+            g0.out_neighbors(2).as_slice(),
+            g1.out_neighbors(2).as_slice()
+        );
+        assert_eq!(
+            g0.out_neighbors(3).as_slice(),
+            g1.out_neighbors(3).as_slice()
+        );
 
-        assert_eq!(g0.in_neighbors(0), g1.in_neighbors(0));
-        assert_eq!(g0.in_neighbors(1), g1.in_neighbors(1));
-        assert_eq!(g0.in_neighbors(2), g1.in_neighbors(2));
-        assert_eq!(g0.in_neighbors(3), g1.in_neighbors(3));
+        assert_eq!(g0.in_neighbors(0).as_slice(), g1.in_neighbors(0).as_slice());
+        assert_eq!(g0.in_neighbors(1).as_slice(), g1.in_neighbors(1).as_slice());
+        assert_eq!(g0.in_neighbors(2).as_slice(), g1.in_neighbors(2).as_slice());
+        assert_eq!(g0.in_neighbors(3).as_slice(), g1.in_neighbors(3).as_slice());
     }
 
     #[test]
@@ -1243,31 +1246,19 @@ mod tests {
 
             let ug = g.to_undirected(None);
             assert_eq!(ug.degree(0), 6);
-            assert_eq!(
-                ug.neighbors(0).copied().collect::<Vec<_>>(),
-                &[1, 3, 42, 3, 7, 21]
-            );
+            assert_eq!(ug.neighbors(0).as_slice(), &[1, 3, 42, 3, 7, 21]);
 
             let ug = g.to_undirected(CsrLayout::Unsorted);
             assert_eq!(ug.degree(0), 6);
-            assert_eq!(
-                ug.neighbors(0).copied().collect::<Vec<_>>(),
-                &[1, 3, 42, 3, 7, 21]
-            );
+            assert_eq!(ug.neighbors(0).as_slice(), &[1, 3, 42, 3, 7, 21]);
 
             let ug = g.to_undirected(CsrLayout::Sorted);
             assert_eq!(ug.degree(0), 6);
-            assert_eq!(
-                ug.neighbors(0).copied().collect::<Vec<_>>(),
-                &[1, 3, 3, 7, 21, 42]
-            );
+            assert_eq!(ug.neighbors(0).as_slice(), &[1, 3, 3, 7, 21, 42]);
 
             let ug = g.to_undirected(CsrLayout::Deduplicated);
             assert_eq!(ug.degree(0), 5);
-            assert_eq!(
-                ug.neighbors(0).copied().collect::<Vec<_>>(),
-                &[1, 3, 7, 21, 42]
-            );
+            assert_eq!(ug.neighbors(0).as_slice(), &[1, 3, 7, 21, 42]);
         });
     }
 
@@ -1277,14 +1268,8 @@ mod tests {
             .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
             .build();
 
-        assert_eq!(
-            g.out_neighbors_iter(0).copied().collect::<Vec<_>>(),
-            vec![1, 2]
-        );
-        assert_eq!(
-            g.in_neighbors_iter(2).copied().collect::<Vec<_>>(),
-            vec![0, 1]
-        );
+        assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
+        assert_eq!(g.in_neighbors(2).as_slice(), &[0, 1]);
     }
 
     #[test]
@@ -1301,15 +1286,11 @@ mod tests {
             .build();
 
         assert_eq!(
-            g.out_neighbors_with_values_iter(0)
-                .copied()
-                .collect::<Vec<_>>(),
+            g.out_neighbors_with_values(0).as_slice(),
             vec![Target::new(1, 42.0), Target::new(2, 13.37)]
         );
         assert_eq!(
-            g.in_neighbors_with_values_iter(2)
-                .copied()
-                .collect::<Vec<_>>(),
+            g.in_neighbors_with_values(2).as_slice(),
             vec![Target::new(0, 13.37), Target::new(1, 43.0)]
         );
     }
@@ -1320,7 +1301,7 @@ mod tests {
             .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1)])
             .build();
 
-        assert_eq!(g.neighbors(2).copied().collect::<Vec<_>>(), vec![0, 1, 3]);
+        assert_eq!(g.neighbors(2).as_slice(), &[0, 1, 3]);
     }
 
     #[test]
@@ -1337,8 +1318,8 @@ mod tests {
             .build();
 
         assert_eq!(
-            g.neighbors_with_values(2).copied().collect::<Vec<_>>(),
-            vec![
+            g.neighbors_with_values(2).as_slice(),
+            &[
                 Target::new(0, 42.0),
                 Target::new(1, 43.0),
                 Target::new(3, 0.0)

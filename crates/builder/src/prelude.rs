@@ -22,9 +22,7 @@ pub use crate::input::*;
 
 pub use crate::DirectedDegrees;
 pub use crate::DirectedNeighbors;
-pub use crate::DirectedNeighborsIterator;
 pub use crate::DirectedNeighborsWithValues;
-pub use crate::DirectedNeighborsWithValuesIterator;
 pub use crate::Graph;
 pub use crate::NodeValues;
 pub use crate::UndirectedDegrees;

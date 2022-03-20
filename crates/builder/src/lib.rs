@@ -59,8 +59,8 @@
 //! assert_eq!(graph.out_degree(1), 2);
 //! assert_eq!(graph.in_degree(1), 1);
 //!
-//! assert_eq!(graph.out_neighbors(1), &[2, 3]);
-//! assert_eq!(graph.in_neighbors(1), &[0]);
+//! assert_eq!(graph.out_neighbors(1).as_slice(), &[2, 3]);
+//! assert_eq!(graph.in_neighbors(1).as_slice(), &[0]);
 //! ```
 //!
 //! To build an undirected graph using `u32` as node identifer, we only need to
@@ -78,11 +78,7 @@
 //!
 //! assert_eq!(graph.degree(1), 3);
 //!
-//! let mut neighbors = graph.neighbors(1);
-//! assert_eq!(neighbors.next(), Some(&0));
-//! assert_eq!(neighbors.next(), Some(&2));
-//! assert_eq!(neighbors.next(), Some(&3));
-//! assert_eq!(neighbors.next(), None);
+//! assert_eq!(graph.neighbors(1).as_slice(), &[0, 2, 3]);
 //! ```
 //!
 //! Edges can have attached values to represent weighted graphs:
@@ -99,11 +95,10 @@
 //!
 //! assert_eq!(graph.degree(1), 3);
 //!
-//! let mut neighbors = graph.neighbors_with_values(1);
-//! assert_eq!(neighbors.next(), Some(&Target::new(0, 0.5)));
-//! assert_eq!(neighbors.next(), Some(&Target::new(2, 0.25)));
-//! assert_eq!(neighbors.next(), Some(&Target::new(3, 1.0)));
-//! assert_eq!(neighbors.next(), None);
+//! assert_eq!(
+//!     graph.neighbors_with_values(1).as_slice(),
+//!     &[Target::new(0, 0.5), Target::new(2, 0.25), Target::new(3, 1.0)]
+//! );
 //! ```
 //!
 //! It is also possible to create a graph from a specific input format. In the
@@ -132,8 +127,8 @@
 //! assert_eq!(graph.out_degree(1), 2);
 //! assert_eq!(graph.in_degree(1), 1);
 //!
-//! assert_eq!(graph.out_neighbors(1), &[2, 3]);
-//! assert_eq!(graph.in_neighbors(1), &[0]);
+//! assert_eq!(graph.out_neighbors(1).as_slice(), &[2, 3]);
+//! assert_eq!(graph.in_neighbors(1).as_slice(), &[0]);
 //! ```
 //!
 //! The `EdgeListInput` format also supports weighted edges. This can be
@@ -162,8 +157,14 @@
 //! assert_eq!(graph.out_degree(1), 2);
 //! assert_eq!(graph.in_degree(1), 1);
 //!
-//! assert_eq!(graph.out_neighbors_with_values(1), &[Target::new(2, 0.25), Target::new(3, 1.0)]);
-//! assert_eq!(graph.in_neighbors_with_values(1), &[Target::new(0, 0.5)]);
+//! assert_eq!(
+//!     graph.out_neighbors_with_values(1).as_slice(),
+//!     &[Target::new(2, 0.25), Target::new(3, 1.0)]
+//! );
+//! assert_eq!(
+//!     graph.in_neighbors_with_values(1).as_slice(),
+//!     &[Target::new(0, 0.5)]
+//! );
 //! ```
 
 pub mod builder;
@@ -252,6 +253,9 @@ pub trait UndirectedNeighbors<NI: Idx> {
     fn neighbors(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
+/// A graph where the order within an edge tuple is unimportant.
+///
+/// The edge `(42, 1337)` is equivalent to the edge `(1337, 42)`.
 pub trait UndirectedNeighborsWithValues<NI: Idx, EV> {
     type NeighborsIterator<'a>: Iterator<Item = &'a Target<NI, EV>>
     where
@@ -271,19 +275,13 @@ pub trait DirectedDegrees<NI: Idx> {
     fn in_degree(&self, node: NI) -> NI;
 }
 
+/// A graph where the order within an edge tuple is important.
+///
+/// An edge tuple `e = (u, v)` has a source node `u` and a target node `v`. From
+/// the perspective of `u`, the edge `e` is an **outgoing** edge. From the
+/// perspective of node `v`, the edge `e` is an **incoming** edge. The edges
+/// `(u, v)` and `(v, u)` are not considered equivalent.
 pub trait DirectedNeighbors<NI: Idx> {
-    /// Returns a slice of all nodes which are connected in outgoing direction
-    /// to the given node, i.e., the given node is the source node of the
-    /// connecting edge.
-    fn out_neighbors(&self, node: NI) -> &[NI];
-
-    /// Returns a slice of all nodes which are connected in incoming direction
-    /// to the given node, i.e., the given node is the target node of the
-    /// connecting edge.
-    fn in_neighbors(&self, node: NI) -> &[NI];
-}
-
-pub trait DirectedNeighborsIterator<NI: Idx> {
     type NeighborsIterator<'a>: Iterator<Item = &'a NI>
     where
         Self: 'a;
@@ -291,12 +289,12 @@ pub trait DirectedNeighborsIterator<NI: Idx> {
     /// Returns an iterator of all nodes which are connected in outgoing direction
     /// to the given node, i.e., the given node is the source node of the
     /// connecting edge.
-    fn out_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+    fn out_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_>;
 
     /// Returns an iterator of all nodes which are connected in incoming direction
     /// to the given node, i.e., the given node is the target node of the
     /// connecting edge.
-    fn in_neighbors_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+    fn in_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
 /// A graph where the order within an edge tuple is important.
@@ -304,20 +302,8 @@ pub trait DirectedNeighborsIterator<NI: Idx> {
 /// An edge tuple `e = (u, v)` has a source node `u` and a target node `v`. From
 /// the perspective of `u`, the edge `e` is an **outgoing** edge. From the
 /// perspective of node `v`, the edge `e` is an **incoming** edge. The edges
-/// `(u, v)` and `(v, u)` are not considered equivalent.
+/// `(u, v)` and `(v, u)` are not considered equivale
 pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
-    /// Returns a slice of all nodes which are connected in outgoing direction
-    /// to the given node, i.e., the given node is the source node of the
-    /// connecting edge.
-    fn out_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
-
-    /// Returns a slice of all nodes which are connected in incoming direction
-    /// to the given node, i.e., the given node is the target node of the
-    /// connecting edge.
-    fn in_neighbors_with_values(&self, node: NI) -> &[Target<NI, EV>];
-}
-
-pub trait DirectedNeighborsWithValuesIterator<NI: Idx, EV> {
     type NeighborsIterator<'a>: Iterator<Item = &'a Target<NI, EV>>
     where
         Self: 'a,
@@ -326,12 +312,12 @@ pub trait DirectedNeighborsWithValuesIterator<NI: Idx, EV> {
     /// Returns an iterator of all nodes which are connected in outgoing direction
     /// to the given node, i.e., the given node is the source node of the
     /// connecting edge.
-    fn out_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+    fn out_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
 
     /// Returns an iterator of all nodes which are connected in incoming direction
     /// to the given node, i.e., the given node is the target node of the
     /// connecting edge.
-    fn in_neighbors_with_values_iter(&self, node: NI) -> Self::NeighborsIterator<'_>;
+    fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
 #[repr(transparent)]
