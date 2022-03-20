@@ -186,9 +186,8 @@ where
         .for_each(|chunk| {
             for u in chunk {
                 let u = NI::new(u);
-                let limit = usize::min(graph.out_degree(u).index(), config.neighbor_rounds);
 
-                for v in graph.out_neighbors(u).take(limit) {
+                for v in graph.out_neighbors(u).take(config.neighbor_rounds) {
                     uf.union(u, *v);
                 }
             }
