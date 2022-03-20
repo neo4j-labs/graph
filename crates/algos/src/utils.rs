@@ -26,19 +26,6 @@ impl<I> PutBack<I>
 where
     I: Iterator,
 {
-    /// put back value `value` (builder method)
-    pub fn with_value(mut self, value: I::Item) -> Self {
-        self.put_back(value);
-        self
-    }
-
-    /// Split the `PutBack` into its parts.
-    #[inline]
-    pub fn into_parts(self) -> (Option<I::Item>, I) {
-        let PutBack { top, iter } = self;
-        (top, iter)
-    }
-
     /// Put back a single value to the front of the iterator.
     ///
     /// If a value is already in the put back slot, it is overwritten.
