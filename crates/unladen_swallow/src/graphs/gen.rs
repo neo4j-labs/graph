@@ -5,7 +5,11 @@ use graph::prelude::{
     RelabelByDegreeOp, ToUndirectedOp, UndirectedDegrees, UndirectedNeighbors,
 };
 use numpy::PyArray1;
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyList};
+use pyo3::{
+    exceptions::PyValueError,
+    prelude::*,
+    types::{PyDict, PyList},
+};
 use std::{marker::PhantomData, path::PathBuf, sync::Arc, time::Duration};
 
 pub(crate) struct PyGraph<NI, G> {
@@ -118,11 +122,16 @@ where
     }
 
     /// Run Page Rank on this graph
-    pub(crate) fn page_rank(&self, py: Python<'_>) -> PageRankResult
+    pub(crate) fn page_rank(
+        &self,
+        py: Python<'_>,
+        // #[args(config = "**")]
+        config: Option<&PyDict>,
+    ) -> PyResult<PageRankResult>
     where
         G: DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
     {
-        crate::pr::page_rank(py, self.g())
+        crate::pr::page_rank(py, self.g(), config)
     }
 
     pub(crate) fn __repr__(&self) -> String {

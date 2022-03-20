@@ -5,7 +5,7 @@ use graph::prelude::{
 use pyo3::{
     exceptions::{PyIndexError, PyTypeError},
     prelude::*,
-    types::{PyList, PySlice, PySliceIndices},
+    types::{PyDict, PyList, PySlice, PySliceIndices},
 };
 use std::{
     fmt::Display,
@@ -18,20 +18,25 @@ pub(crate) fn register(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-pub(crate) fn page_rank<NI, G>(py: Python<'_>, graph: &G) -> PageRankResult
+pub(crate) fn page_rank<NI, G>(
+    py: Python<'_>,
+    graph: &G,
+    config: Option<&PyDict>,
+) -> PyResult<PageRankResult>
 where
     NI: Idx,
     G: GraphTrait<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
 {
-    py.allow_threads(move || inner_page_rank(graph))
+    let config = config.map(page_rank_config).transpose()?;
+    Ok(py.allow_threads(move || inner_page_rank(graph, config)))
 }
 
-fn inner_page_rank<NI, G>(graph: &G) -> PageRankResult
+fn inner_page_rank<NI, G>(graph: &G, config: impl Into<Option<PageRankConfig>>) -> PageRankResult
 where
     NI: Idx,
     G: GraphTrait<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
 {
-    let config = PageRankConfig::default();
+    let config = config.into().unwrap_or_default();
     let start = Instant::now();
     let (scores, ran_iterations, error) = graph_page_rank(graph, config);
     let page_rank_micros = start.elapsed().as_micros().min(u64::MAX as _) as _;
@@ -41,6 +46,23 @@ where
         error,
         page_rank_micros,
     }
+}
+
+pub(crate) fn page_rank_config(dict: &PyDict) -> PyResult<PageRankConfig> {
+    Ok(PageRankConfig::new(
+        dict.get_item("max_iterations")
+            .map(FromPyObject::extract)
+            .transpose()?
+            .unwrap_or(PageRankConfig::DEFAULT_MAX_ITERATIONS),
+        dict.get_item("tolerance")
+            .map(FromPyObject::extract)
+            .transpose()?
+            .unwrap_or(PageRankConfig::DEFAULT_TOLERANCE),
+        dict.get_item("damping_factor")
+            .map(FromPyObject::extract)
+            .transpose()?
+            .unwrap_or(PageRankConfig::DEFAULT_DAMPING_FACTOR),
+    ))
 }
 
 #[pyclass]

@@ -2,7 +2,10 @@ use super::{Layout, PyGraph, Ungraph};
 use crate::pr::PageRankResult;
 use graph::prelude::DirectedCsrGraph;
 use numpy::PyArray1;
-use pyo3::{prelude::*, types::PyList};
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyList},
+};
 use std::path::PathBuf;
 
 pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -97,8 +100,9 @@ impl Graph {
     }
 
     /// Run Page Rank on this graph
-    pub fn page_rank(slf: PyRef<Self>) -> PageRankResult {
-        slf.inner.page_rank(slf.py())
+    #[args(config = "**")]
+    pub fn page_rank(slf: PyRef<Self>, config: Option<&PyDict>) -> PyResult<PageRankResult> {
+        slf.inner.page_rank(slf.py(), config)
     }
 }
 

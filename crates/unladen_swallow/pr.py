@@ -19,7 +19,7 @@ g = unladen_swallow.Graph.load(FILE, unladen_swallow.Layout.Sorted)
 print(f"{g!r}")
 
 # run page rank
-pr = g.page_rank(max_iteration=20, tolerance=1e-4, damping_factor=0.85)
+pr = g.page_rank(max_iterations=2, tolerance=0.1337, damping_factor=0.42)
 print(f"{pr!r}")
 
 for node_id, score in enumerate(pr):
