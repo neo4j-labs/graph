@@ -241,7 +241,7 @@ pub trait UndirectedDegrees<NI: Idx> {
     fn degree(&self, node: NI) -> NI;
 }
 
-/// A graph where the order within an edge tuple is unimportant.
+/// Returns the neighbors of a given node.
 ///
 /// The edge `(42, 1337)` is equivalent to the edge `(1337, 42)`.
 pub trait UndirectedNeighbors<NI: Idx> {
@@ -253,7 +253,7 @@ pub trait UndirectedNeighbors<NI: Idx> {
     fn neighbors(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
-/// A graph where the order within an edge tuple is unimportant.
+/// Returns the neighbors of a given node.
 ///
 /// The edge `(42, 1337)` is equivalent to the edge `(1337, 42)`.
 pub trait UndirectedNeighborsWithValues<NI: Idx, EV> {
@@ -275,7 +275,7 @@ pub trait DirectedDegrees<NI: Idx> {
     fn in_degree(&self, node: NI) -> NI;
 }
 
-/// A graph where the order within an edge tuple is important.
+/// Returns the neighbors of a given node either in outgoing or incoming direction.
 ///
 /// An edge tuple `e = (u, v)` has a source node `u` and a target node `v`. From
 /// the perspective of `u`, the edge `e` is an **outgoing** edge. From the
@@ -297,7 +297,7 @@ pub trait DirectedNeighbors<NI: Idx> {
     fn in_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
-/// A graph where the order within an edge tuple is important.
+/// Returns the neighbors of a given node either in outgoing or incoming direction.
 ///
 /// An edge tuple `e = (u, v)` has a source node `u` and a target node `v`. From
 /// the perspective of `u`, the edge `e` is an **outgoing** edge. From the
@@ -311,12 +311,14 @@ pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
 
     /// Returns an iterator of all nodes which are connected in outgoing direction
     /// to the given node, i.e., the given node is the source node of the
-    /// connecting edge.
+    /// connecting edge. For each connected node, the value of the connecting
+    /// edge is also returned.
     fn out_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
 
     /// Returns an iterator of all nodes which are connected in incoming direction
     /// to the given node, i.e., the given node is the target node of the
-    /// connecting edge.
+    /// connecting edge. For each connected node, the value of the connecting
+    /// edge is also returned.
     fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
