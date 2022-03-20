@@ -50,10 +50,11 @@ impl PageRankConfig {
     }
 }
 
-pub fn page_rank<NI: Idx>(
-    graph: &DirectedCsrGraph<NI>,
-    config: PageRankConfig,
-) -> (Vec<f32>, usize, f64) {
+pub fn page_rank<NI, G>(graph: &G, config: PageRankConfig) -> (Vec<f32>, usize, f64)
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
     let PageRankConfig {
         max_iterations,
         tolerance,
@@ -104,13 +105,17 @@ pub fn page_rank<NI: Idx>(
     }
 }
 
-fn page_rank_iteration<NI: Idx>(
-    graph: &DirectedCsrGraph<NI>,
+fn page_rank_iteration<NI, G>(
+    graph: &G,
     base_score: f32,
     damping_factor: f32,
     out_scores: &SharedMut<f32>,
     scores: &SharedMut<f32>,
-) -> f64 {
+) -> f64
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
     let next_chunk = Atomic::new(NI::zero());
     let total_error = AtomicF64::new(0_f64);
 
