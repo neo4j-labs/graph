@@ -49,12 +49,9 @@ where
     }
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // Not ExactSizeIterator because size may be larger than usize
-        let x = self.top.is_some() as usize;
-        let (mut low, mut hi) = self.iter.size_hint();
-        low = low.saturating_add(x);
-        hi = hi.and_then(|elt| elt.checked_add(x));
-        (low, hi)
+        let x = if self.top.is_some() { 1 } else { 0 };
+        let (low, hi) = self.iter.size_hint();
+        (low + x, hi.map(|e| e + x))
     }
 
     fn count(self) -> usize {
