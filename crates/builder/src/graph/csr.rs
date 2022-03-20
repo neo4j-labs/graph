@@ -1118,22 +1118,10 @@ mod tests {
         assert_eq!(g0.node_count(), g1.node_count());
         assert_eq!(g0.edge_count(), g1.edge_count());
 
-        assert_eq!(
-            g0.neighbors(0).collect::<Vec<_>>(),
-            g1.neighbors(0).collect::<Vec<_>>()
-        );
-        assert_eq!(
-            g0.neighbors(1).collect::<Vec<_>>(),
-            g1.neighbors(1).collect::<Vec<_>>()
-        );
-        assert_eq!(
-            g0.neighbors(2).collect::<Vec<_>>(),
-            g1.neighbors(2).collect::<Vec<_>>()
-        );
-        assert_eq!(
-            g0.neighbors(3).collect::<Vec<_>>(),
-            g1.neighbors(3).collect::<Vec<_>>()
-        );
+        assert_eq!(g0.neighbors(0).as_slice(), g1.neighbors(0).as_slice());
+        assert_eq!(g0.neighbors(1).as_slice(), g1.neighbors(1).as_slice());
+        assert_eq!(g0.neighbors(2).as_slice(), g1.neighbors(2).as_slice());
+        assert_eq!(g0.neighbors(3).as_slice(), g1.neighbors(3).as_slice());
     }
 
     #[test]
@@ -1192,22 +1180,10 @@ mod tests {
         assert_eq!(g0.node_count(), g1.node_count());
         assert_eq!(g0.edge_count(), g1.edge_count());
 
-        assert_eq!(
-            g0.neighbors(0).collect::<Vec<_>>(),
-            g1.neighbors(0).collect::<Vec<_>>()
-        );
-        assert_eq!(
-            g0.neighbors(1).collect::<Vec<_>>(),
-            g1.neighbors(1).collect::<Vec<_>>()
-        );
-        assert_eq!(
-            g0.neighbors(2).collect::<Vec<_>>(),
-            g1.neighbors(2).collect::<Vec<_>>()
-        );
-        assert_eq!(
-            g0.neighbors(3).collect::<Vec<_>>(),
-            g1.neighbors(3).collect::<Vec<_>>()
-        );
+        assert_eq!(g0.neighbors(0).as_slice(), g1.neighbors(0).as_slice());
+        assert_eq!(g0.neighbors(1).as_slice(), g1.neighbors(1).as_slice());
+        assert_eq!(g0.neighbors(2).as_slice(), g1.neighbors(2).as_slice());
+        assert_eq!(g0.neighbors(3).as_slice(), g1.neighbors(3).as_slice());
     }
 
     #[test]

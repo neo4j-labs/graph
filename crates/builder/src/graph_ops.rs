@@ -167,11 +167,7 @@ pub trait RelabelByDegreeOp<N, EV> {
     /// assert_eq!(graph.degree(2), 2);
     /// assert_eq!(graph.degree(3), 1);
     ///
-    /// let mut neighbors = graph.neighbors(0);
-    /// assert_eq!(neighbors.next(), Some(&1));
-    /// assert_eq!(neighbors.next(), Some(&2));
-    /// assert_eq!(neighbors.next(), Some(&3));
-    /// assert_eq!(neighbors.next(), None);
+    /// assert_eq!(graph.neighbors(0).as_slice(), &[1, 2, 3]);
     /// ```
     fn to_degree_ordered(&mut self);
 }
@@ -773,18 +769,9 @@ mod tests {
         assert_eq!(graph.degree(2), 4);
         assert_eq!(graph.degree(3), 3);
 
-        assert_eq!(
-            graph.neighbors(0).copied().collect::<Vec<_>>(),
-            &[1, 1, 2, 2, 3]
-        );
-        assert_eq!(
-            graph.neighbors(1).copied().collect::<Vec<_>>(),
-            &[0, 0, 2, 3]
-        );
-        assert_eq!(
-            graph.neighbors(2).copied().collect::<Vec<_>>(),
-            &[0, 0, 1, 3]
-        );
-        assert_eq!(graph.neighbors(3).copied().collect::<Vec<_>>(), &[0, 1, 2]);
+        assert_eq!(graph.neighbors(0).as_slice(), &[1, 1, 2, 2, 3]);
+        assert_eq!(graph.neighbors(1).as_slice(), &[0, 0, 2, 3]);
+        assert_eq!(graph.neighbors(2).as_slice(), &[0, 0, 1, 3]);
+        assert_eq!(graph.neighbors(3).as_slice(), &[0, 1, 2]);
     }
 }
