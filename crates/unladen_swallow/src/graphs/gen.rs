@@ -156,7 +156,7 @@ where
         node: NI,
     ) -> PyResult<&'py PyArray1<NI>>
     where
-        G: DirectedNeighbors<NI>,
+        for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>,
     {
         let buf = SharedSlice::out_neighbors(&self.g, node);
         buf.into_numpy(py)
@@ -169,7 +169,7 @@ where
     /// making a copy of the data.
     pub(crate) fn in_neighbors<'py>(&self, py: Python<'py>, node: NI) -> PyResult<&'py PyArray1<NI>>
     where
-        G: DirectedNeighbors<NI>,
+        for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>,
     {
         let buf = SharedSlice::in_neighbors(&self.g, node);
         buf.into_numpy(py)
@@ -181,7 +181,7 @@ where
     /// making a copy of the data.
     pub(crate) fn neighbors<'py>(&self, py: Python<'py>, node: NI) -> PyResult<&'py PyArray1<NI>>
     where
-        G: UndirectedNeighbors<NI>,
+        for<'a> G: UndirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>,
     {
         let buf = SharedSlice::neighbors(&self.g, node);
         buf.into_numpy(py)
@@ -200,6 +200,7 @@ where
     pub(crate) fn copy_out_neighbors<'py>(&self, py: Python<'py>, node: NI) -> &'py PyList
     where
         G: DirectedNeighbors<NI>,
+        for<'a> G::NeighborsIterator<'a>: ExactSizeIterator,
     {
         PyList::new(py, self.g.out_neighbors(node))
     }
@@ -211,6 +212,7 @@ where
     pub(crate) fn copy_in_neighbors<'py>(&self, py: Python<'py>, node: NI) -> &'py PyList
     where
         G: DirectedNeighbors<NI>,
+        for<'a> G::NeighborsIterator<'a>: ExactSizeIterator,
     {
         PyList::new(py, self.g.in_neighbors(node))
     }
@@ -222,6 +224,7 @@ where
     pub(crate) fn copy_neighbors<'py>(&self, py: Python<'py>, node: NI) -> &'py PyList
     where
         G: UndirectedNeighbors<NI>,
+        for<'a> G::NeighborsIterator<'a>: ExactSizeIterator,
     {
         PyList::new(py, self.g.neighbors(node))
     }

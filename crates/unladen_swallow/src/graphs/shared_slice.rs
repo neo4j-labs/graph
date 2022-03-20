@@ -30,10 +30,13 @@ impl SharedSlice {
     pub fn out_neighbors<NI, G>(g: &Arc<G>, node: NI) -> Self
     where
         NI: NumpyType,
-        G: DirectedNeighbors<NI> + Send + Sync + 'static,
+        for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>
+            + Send
+            + Sync
+            + 'static,
     {
         let g = Arc::clone(g);
-        let data = g.out_neighbors(node);
+        let data = g.out_neighbors(node).as_slice();
         Self {
             data: SharedConst(data.as_ptr().cast()),
             len: data.len(),
@@ -45,10 +48,13 @@ impl SharedSlice {
     pub fn in_neighbors<NI, G>(g: &Arc<G>, node: NI) -> Self
     where
         NI: NumpyType,
-        G: DirectedNeighbors<NI> + Send + Sync + 'static,
+        for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>
+            + Send
+            + Sync
+            + 'static,
     {
         let g = Arc::clone(g);
-        let data = g.in_neighbors(node);
+        let data = g.in_neighbors(node).as_slice();
         Self {
             data: SharedConst(data.as_ptr().cast()),
             len: data.len(),
@@ -60,10 +66,13 @@ impl SharedSlice {
     pub fn neighbors<NI, G>(g: &Arc<G>, node: NI) -> Self
     where
         NI: NumpyType,
-        G: UndirectedNeighbors<NI> + Send + Sync + 'static,
+        for<'a> G: UndirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>
+            + Send
+            + Sync
+            + 'static,
     {
         let g = Arc::clone(g);
-        let data = g.neighbors(node);
+        let data = g.neighbors(node).as_slice();
         Self {
             data: SharedConst(data.as_ptr().cast()),
             len: data.len(),
