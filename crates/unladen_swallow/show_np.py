@@ -1,5 +1,11 @@
 import gc
+import logging
 import unladen_swallow
+
+# install logging
+logging.basicConfig(format="%(message)s")
+logging.getLogger().setLevel(logging.NOTSET)
+
 
 g = unladen_swallow.Graph.load("/Users/knut/dev/datasets/graph500/scale_16.graph")
 

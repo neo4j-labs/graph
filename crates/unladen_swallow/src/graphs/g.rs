@@ -1,12 +1,9 @@
-use super::{as_numpy, load_from_py, Layout, NeighborsBuffer, Ungraph};
+use super::{Layout, PyGraph, Ungraph};
 use crate::pr::PageRankResult;
-use graph::prelude::{
-    DirectedCsrGraph, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait, ToUndirectedOp,
-};
+use graph::prelude::DirectedCsrGraph;
 use numpy::PyArray1;
-use pyo3::prelude::*;
-use pyo3::types::PyList;
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use pyo3::{prelude::*, types::PyList};
+use std::path::PathBuf;
 
 pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Graph>()?;
@@ -15,9 +12,15 @@ pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
 
 #[pyclass]
 pub struct Graph {
-    g: Arc<DirectedCsrGraph<u32>>,
+    inner: PyGraph<u32, DirectedCsrGraph<u32>>,
     #[pyo3(get)]
     load_micros: u64,
+}
+
+impl Graph {
+    fn new(load_micros: u64, inner: PyGraph<u32, DirectedCsrGraph<u32>>) -> Self {
+        Self { inner, load_micros }
+    }
 }
 
 #[pymethods]
@@ -26,30 +29,28 @@ impl Graph {
     #[staticmethod]
     #[args(layout = "Layout::Unsorted")]
     pub fn load(py: Python<'_>, path: PathBuf, layout: Layout) -> PyResult<Self> {
-        load_from_py(py, path, layout, |g, took| Self {
-            g: Arc::new(g),
-            load_micros: took,
-        })
+        let g = PyGraph::load(py, path, layout)?;
+        Ok(Self::new(g.load_micros, g))
     }
 
     /// Returns the number of nodes in the graph.
     fn node_count(&self) -> u32 {
-        self.g.node_count()
+        self.inner.node_count()
     }
 
     /// Returns the number of edges in the graph.
     fn edge_count(&self) -> u32 {
-        self.g.edge_count()
+        self.inner.edge_count()
     }
 
     /// Returns the number of edges where the given node is a source node.
     fn out_degree(&self, node: u32) -> u32 {
-        self.g.out_degree(node)
+        self.inner.out_degree(node)
     }
 
     /// Returns the number of edges where the given node is a target node.
     fn in_degree(&self, node: u32) -> u32 {
-        self.g.in_degree(node)
+        self.inner.in_degree(node)
     }
 
     /// Returns all nodes which are connected in outgoing direction to the given node,
@@ -58,18 +59,16 @@ impl Graph {
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
     fn out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
-        let buf = NeighborsBuffer::out_neighbors(&self.g, node);
-        as_numpy(py, buf)
+        self.inner.out_neighbors(py, node)
     }
 
     /// Returns all nodes which are connected in incoming direction to the given node,
-    /// i.e., the given node is the target node of theconnecting edge.
+    /// i.e., the given node is the target node of the connecting edge.
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
     fn in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
-        let buf = NeighborsBuffer::in_neighbors(&self.g, node);
-        as_numpy(py, buf)
+        self.inner.in_neighbors(py, node)
     }
 
     /// Returns all nodes which are connected in outgoing direction to the given node,
@@ -77,7 +76,7 @@ impl Graph {
     ///
     /// This function returns a copy of the data as a Python list.
     fn copy_out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
-        PyList::new(py, self.g.out_neighbors(node))
+        self.inner.copy_out_neighbors(py, node)
     }
 
     /// Returns all nodes which are connected in incoming direction to the given node,
@@ -85,47 +84,26 @@ impl Graph {
     ///
     /// This function returns a copy of the data as a Python list.
     fn copy_in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
-        PyList::new(py, self.g.in_neighbors(node))
-    }
-
-    fn to_undirected(&self) -> Ungraph {
-        let (g, load_micros) = super::timed(self.load_micros, || self.g.to_undirected(None));
-        Ungraph::new(g, load_micros)
-    }
-
-    /// Run Page Rank on this graph
-    fn page_rank(slf: PyRef<Self>, py: Python<'_>) -> PageRankResult {
-        crate::pr::page_rank(py, slf)
+        self.inner.copy_in_neighbors(py, node)
     }
 
     fn __repr__(&self) -> String {
-        format!("{:?}", self)
+        self.inner.__repr__()
     }
-}
 
-impl Graph {
-    pub fn g(&self) -> &DirectedCsrGraph<u32> {
-        &self.g
+    pub fn to_undirected(&self) -> Ungraph {
+        let g = self.inner.to_undirected();
+        Ungraph::new(g.load_micros, g)
+    }
+
+    /// Run Page Rank on this graph
+    pub fn page_rank(slf: PyRef<Self>) -> PageRankResult {
+        slf.inner.page_rank(slf.py())
     }
 }
 
 impl std::fmt::Debug for Graph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Graph")
-            .field("node_count", &self.g.node_count())
-            .field("edge_count", &self.g.edge_count())
-            .field("load_took", &Duration::from_micros(self.load_micros))
-            .finish()
-    }
-}
-
-impl Drop for Graph {
-    fn drop(&mut self) {
-        let sc = Arc::strong_count(&self.g);
-        if sc <= 1 {
-            log::trace!("dropping graph and releasing all data");
-        } else {
-            log::trace!("dropping graph, but keeping data around as it is being used by {} neighbor list(s)", sc - 1);
-        }
+        self.inner.fmt(f)
     }
 }

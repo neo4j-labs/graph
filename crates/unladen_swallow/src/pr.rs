@@ -1,5 +1,7 @@
-use crate::graphs::Graph;
-use graph::prelude::{page_rank as graph_page_rank, DirectedCsrGraph, Idx, PageRankConfig};
+use graph::prelude::{
+    page_rank as graph_page_rank, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait, Idx,
+    PageRankConfig,
+};
 use pyo3::{
     exceptions::{PyIndexError, PyTypeError},
     prelude::*,
@@ -16,12 +18,19 @@ pub(crate) fn register(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-pub(crate) fn page_rank(py: Python<'_>, graph: PyRef<Graph>) -> PageRankResult {
-    let graph = graph.g();
-    py.allow_threads(move || run_page_rank(graph))
+pub(crate) fn page_rank<NI, G>(py: Python<'_>, graph: &G) -> PageRankResult
+where
+    NI: Idx,
+    G: GraphTrait<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
+    py.allow_threads(move || inner_page_rank(graph))
 }
 
-pub(crate) fn run_page_rank<NI: Idx>(graph: &DirectedCsrGraph<NI>) -> PageRankResult {
+fn inner_page_rank<NI, G>(graph: &G) -> PageRankResult
+where
+    NI: Idx,
+    G: GraphTrait<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
     let config = PageRankConfig::default();
     let start = Instant::now();
     let (scores, ran_iterations, error) = graph_page_rank(graph, config);
