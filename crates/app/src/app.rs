@@ -67,6 +67,9 @@ struct CommonArgs {
 
     #[clap(short, long, default_value_t = 1)]
     runs: usize,
+
+    #[clap(short, long, default_value_t = 5)]
+    warmup_runs: usize,
 }
 
 #[derive(clap::ArgEnum, Debug, Clone)]

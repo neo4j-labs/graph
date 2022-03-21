@@ -16,6 +16,7 @@ pub(crate) fn serialize(args: CommonArgs, undirected: bool, output: PathBuf) -> 
         path,
         format: _,
         runs: _,
+        warmup_runs: _,
         use_32_bit,
     } = args;
 
