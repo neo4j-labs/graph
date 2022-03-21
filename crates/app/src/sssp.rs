@@ -2,6 +2,8 @@ use graph::prelude::*;
 
 use log::info;
 
+use std::time::Instant;
+
 use super::*;
 
 pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> {
@@ -10,6 +12,7 @@ pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> 
         format: _,
         use_32_bit,
         runs,
+        warmup_runs,
     } = args;
 
     info!(
@@ -19,22 +22,52 @@ pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> 
     );
 
     if use_32_bit {
-        run::<u32>(path, runs, config)
+        run::<u32>(path, runs, warmup_runs, config)
     } else {
-        run::<usize>(path, runs, config)
+        run::<usize>(path, runs, warmup_runs, config)
     }
 }
 
-fn run<NI: Idx>(path: PathBuf, runs: usize, config: DeltaSteppingConfig) -> Result<()> {
+fn run<NI: Idx>(
+    path: PathBuf,
+    runs: usize,
+    warmup_runs: usize,
+    config: DeltaSteppingConfig,
+) -> Result<()> {
     let graph: DirectedCsrGraph<NI, (), f32> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(EdgeListInput::default())
         .path(path)
         .build()?;
 
-    for _ in 0..runs {
+    for run in 1..=warmup_runs {
+        let start = Instant::now();
         delta_stepping(&graph, config);
+        let took = start.elapsed();
+
+        info!(
+            "Warm-up run {} of {} finished in {:.6?}",
+            run, warmup_runs, took,
+        );
     }
+
+    let mut durations = vec![];
+
+    for run in 1..runs {
+        let start = Instant::now();
+        delta_stepping(&graph, config);
+        let took = start.elapsed();
+        durations.push(took);
+
+        info!("Run {} of {} finished in {:.6?}", run, runs, took,);
+    }
+
+    let total = durations
+        .into_iter()
+        .reduce(|a, b| a + b)
+        .unwrap_or_default();
+
+    info!("Average runtime: {:?}", total / runs as u32);
 
     Ok(())
 }

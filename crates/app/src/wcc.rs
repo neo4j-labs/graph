@@ -14,6 +14,7 @@ pub(crate) fn wcc(app_args: CommonArgs, config: WccConfig) -> Result<()> {
         format,
         use_32_bit,
         runs,
+        warmup_runs,
     } = app_args;
 
     info!(
@@ -24,16 +25,16 @@ pub(crate) fn wcc(app_args: CommonArgs, config: WccConfig) -> Result<()> {
 
     match (use_32_bit, format) {
         (true, FileFormat::EdgeList) => {
-            run::<u32, _, _>(path, EdgeListInput::default(), runs, config)
+            run::<u32, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
         }
         (true, FileFormat::Graph500) => {
-            run::<u32, _, _>(path, Graph500Input::default(), runs, config)
+            run::<u32, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::EdgeList) => {
-            run::<usize, _, _>(path, EdgeListInput::default(), runs, config)
+            run::<usize, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::Graph500) => {
-            run::<usize, _, _>(path, Graph500Input::default(), runs, config)
+            run::<usize, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
     }
 }
@@ -42,6 +43,7 @@ fn run<NI, Format, Path>(
     path: Path,
     file_format: Format,
     runs: usize,
+    warmup_runs: usize,
     config: WccConfig,
 ) -> Result<()>
 where
@@ -59,28 +61,30 @@ where
         .path(path)
         .build()?;
 
+    for run in 1..=warmup_runs {
+        let start = Instant::now();
+        let _ = wcc_afforest_dss(&graph, config);
+        let took = start.elapsed();
+
+        info!(
+            "Warm-up run {} of {} finished in {:.6?}",
+            run, warmup_runs, took,
+        );
+    }
+
     let mut durations = vec![];
 
-    let warmup_runs = 5;
-
-    for run in 1..=(warmup_runs + runs) {
+    for run in 1..=runs {
         let start = Instant::now();
         let _ = wcc_afforest_dss(&graph, config);
         let took = start.elapsed();
         durations.push(took);
 
-        info!(
-            "{}Run {} of {} finished in {:.6?}",
-            if run <= warmup_runs { "Warmup " } else { "" },
-            run,
-            warmup_runs + runs,
-            took,
-        );
+        info!("Run {} of {} finished in {:.6?}", run, runs, took,);
     }
 
     let total = durations
         .into_iter()
-        .skip(warmup_runs)
         .reduce(|a, b| a + b)
         .unwrap_or_default();
 
