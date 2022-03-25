@@ -9,6 +9,7 @@ pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+/// An undirected graph using 32 bits for node ids.
 #[pyclass]
 pub struct Graph {
     inner: PyGraph<u32, UndirectedCsrGraph<u32>>,

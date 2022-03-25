@@ -23,6 +23,7 @@ impl DiGraph {
     }
 }
 
+/// A directed graph using 32 bits for node ids.
 #[pymethods]
 impl DiGraph {
     /// Load a graph in the Graph500 format
