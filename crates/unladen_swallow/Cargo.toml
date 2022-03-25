@@ -18,7 +18,7 @@ name = "unladen_swallow"
 crate-type = ["cdylib"]
 
 [dependencies]
-graph = { version = "0.2", path = "../algos" }
+graph = { path = "../algos", version = "^0.2.0" }
 log = "0.4.14"
 numpy = "0.16.0"
 pyo3-log = "0.6.0"
