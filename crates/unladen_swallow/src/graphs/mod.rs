@@ -1,11 +1,18 @@
 use crate::{GResult, GraphError as GraphErrorWrapper};
 use ::graph::prelude::{
-    CsrLayout, DirectedDegrees, DirectedNeighbors, Error as GraphError, Graph as GraphTrait,
+    CsrLayout, DirectedDegrees, DirectedNeighbors, Edges, Error as GraphError, Graph as GraphTrait,
     Graph500, Graph500Input, GraphBuilder, Idx, RelabelByDegreeOp, ToUndirectedOp,
     UndirectedDegrees, UndirectedNeighbors,
 };
-use numpy::PyArray1;
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyList};
+use numpy::{
+    ndarray::{iter::AxisIter, ArrayView2, Ix1},
+    Element, PyArray1, PyArray2,
+};
+use pyo3::{
+    exceptions::{PyTypeError, PyValueError},
+    prelude::*,
+    types::PyList,
+};
 use std::{
     fmt::Debug,
     marker::PhantomData,
@@ -43,6 +50,16 @@ pub enum Layout {
     /// Neighbor lists are sorted and do not contain duplicate target ids.
     /// Self-loops, i.e., edges in the form of `(u, u)` are removed.
     Deduplicated,
+}
+
+impl From<Layout> for CsrLayout {
+    fn from(layout: Layout) -> Self {
+        match layout {
+            Layout::Sorted => CsrLayout::Sorted,
+            Layout::Unsorted => CsrLayout::Unsorted,
+            Layout::Deduplicated => CsrLayout::Deduplicated,
+        }
+    }
 }
 
 /// A generic implementation of a python wrapper around a graph
@@ -96,16 +113,49 @@ where
             Ok((graph, load_micros))
         }
 
-        let layout = match layout {
-            Layout::Sorted => CsrLayout::Sorted,
-            Layout::Unsorted => CsrLayout::Unsorted,
-            Layout::Deduplicated => CsrLayout::Deduplicated,
-        };
         let (graph, took) = py
-            .allow_threads(move || load_graph500(path, layout))
+            .allow_threads(move || load_graph500(path, CsrLayout::from(layout)))
             .map_err(GraphErrorWrapper)?;
 
         Ok(Self::new(took, graph))
+    }
+}
+
+/// pymethods
+impl<NI, G> PyGraph<NI, G>
+where
+    NI: Idx,
+{
+    fn from_numpy(np: &PyArray2<NI>, layout: Layout) -> PyResult<Self>
+    where
+        NI: Element,
+        for<'a> G: From<(ArrayEdgeList<'a, NI>, CsrLayout)>,
+    {
+        let np = np.readonly();
+        let np = np.as_array();
+        let el = ArrayEdgeList::new(np)?;
+        Ok(Self::from_edge_list(el, layout))
+    }
+
+    fn from_pandas(py: Python<'_>, data: PyObject, layout: Layout) -> PyResult<Self>
+    where
+        NI: Element,
+        for<'a> G: From<(ArrayEdgeList<'a, NI>, CsrLayout)>,
+    {
+        let to_numpy = data.getattr(py, "to_numpy")?;
+        let np = to_numpy.call0(py)?;
+        let np = unsafe { PyArray2::from_owned_ptr(py, np.into_ptr()) };
+        Self::from_numpy(np, layout)
+    }
+
+    /// Load a graph from an edge list
+    fn from_edge_list<E>(edge_list: E, layout: Layout) -> Self
+    where
+        E: Edges<NI = NI>,
+        G: From<(E, CsrLayout)>,
+    {
+        let (graph, took) = time(move || G::from((edge_list, CsrLayout::from(layout))));
+        Self::new(took, graph)
     }
 }
 
@@ -338,4 +388,47 @@ where
     let micros = micros.min(u64::MAX as _) as u64;
 
     (result, micros)
+}
+
+struct ArrayEdgeList<'a, T> {
+    array: ArrayView2<'a, T>,
+    #[allow(unused)]
+    edge_count: usize,
+}
+
+impl<'a, T> ArrayEdgeList<'a, T> {
+    fn new(array: ArrayView2<'a, T>) -> PyResult<Self> {
+        match array.shape() {
+            &[edge_count, row_len] if row_len >= 2 => Ok(Self { array, edge_count }),
+            _ => Err(PyTypeError::new_err(
+                "Can only create a graph from a 2-dimensional array with at least 2 columns",
+            )),
+        }
+    }
+}
+
+struct ArrayRows<'a, T>(AxisIter<'a, T, Ix1>);
+
+impl<'a, T: Copy + Debug> Iterator for ArrayRows<'a, T> {
+    type Item = (T, T, ());
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let row = self.0.next()?;
+        Some((row[0], row[1], ()))
+    }
+}
+
+impl<'outer, T: Idx> Edges for ArrayEdgeList<'outer, T> {
+    type NI = T;
+
+    type EV = ();
+
+    type EdgeIter<'a> = rayon::iter::IterBridge<ArrayRows<'a, T>>
+    where
+        Self: 'a;
+
+    fn edges(&self) -> Self::EdgeIter<'_> {
+        use rayon::iter::ParallelBridge;
+        ArrayRows(self.array.outer_iter()).par_bridge()
+    }
 }

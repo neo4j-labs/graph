@@ -1,3 +1,5 @@
+#![feature(generic_associated_types)]
+
 use graph::prelude::Error as GError;
 use pyo3::{
     exceptions::PyValueError,

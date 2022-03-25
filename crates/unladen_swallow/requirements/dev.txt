@@ -5,6 +5,6 @@ isort
 maturin
 mypy
 numpy
+pandas
 pytest
-pytest-annotate
 tox

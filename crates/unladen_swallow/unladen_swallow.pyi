@@ -3,6 +3,8 @@ from typing import Optional, overload
 import numpy as np
 import numpy.typing as npt
 
+import pandas as pd
+
 class Layout:
     """
     Defines how the neighbor list of individual nodes are organized within the
@@ -34,6 +36,14 @@ class DiGraph:
     @staticmethod
     def load(path: str, layout: Layout = Layout.Unsorted) -> DiGraph:
         """Load a graph from the Graph500 binary format."""
+    @staticmethod
+    def from_numpy(
+        np: npt.NDArray[np.uint32], layout: Layout = Layout.Unsorted
+    ) -> DiGraph:
+        """Convert a numpy 2d-array into a graph."""
+    @staticmethod
+    def from_pandas(df: pd.DataFrame, layout: Layout = Layout.Unsorted) -> DiGraph:
+        """Convert a pandas dataframe into a graph."""
     def node_count(self) -> int:
         """Returns the number of nodes in the graph."""
     def edge_count(self) -> int:
@@ -94,6 +104,14 @@ class Graph:
     @staticmethod
     def load(path: str, layout: Layout = Layout.Unsorted) -> Graph:
         """Load a graph from the Graph500 binary format"""
+    @staticmethod
+    def from_numpy(
+        np: npt.NDArray[np.uint32], layout: Layout = Layout.Unsorted
+    ) -> Graph:
+        """Convert a numpy 2d-array into a graph."""
+    @staticmethod
+    def from_pandas(df: pd.DataFrame, layout: Layout = Layout.Unsorted) -> Graph:
+        """Convert a pandas dataframe into a graph."""
     def node_count(self) -> int:
         """Returns the number of nodes in the graph."""
     def edge_count(self) -> int:
