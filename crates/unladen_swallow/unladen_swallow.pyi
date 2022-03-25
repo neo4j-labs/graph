@@ -33,7 +33,7 @@ class DiGraph:
 
     @staticmethod
     def load(path: str, layout: Layout = Layout.Unsorted) -> DiGraph:
-        """Load a graph from the Graph500 binary format"""
+        """Load a graph from the Graph500 binary format."""
     def node_count(self) -> int:
         """Returns the number of nodes in the graph."""
     def edge_count(self) -> int:

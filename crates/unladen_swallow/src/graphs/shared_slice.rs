@@ -4,9 +4,9 @@ use numpy::{
     PyArray, PyArray1, PY_ARRAY_API,
 };
 use pyo3::{prelude::*, types::PyCapsule};
-use std::{any::Any, ffi::CStr, fmt::Debug, os::raw::c_void, sync::Arc};
+use std::{ffi::CStr, fmt::Debug, os::raw::c_void, sync::Arc};
 
-pub trait NumpyType: Idx {
+pub trait NumpyType {
     const NP_TYPE: NPY_TYPES;
 }
 
@@ -23,61 +23,61 @@ pub struct SharedSlice {
     data: SharedConst,
     len: usize,
     np_tpe: NPY_TYPES,
-    _g: Arc<dyn Any + Send + Sync>,
+    owner: Arc<dyn Send + Sync>,
 }
 
 impl SharedSlice {
     pub fn out_neighbors<NI, G>(g: &Arc<G>, node: NI) -> Self
     where
-        NI: NumpyType,
+        NI: NumpyType + Idx,
         for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>
             + Send
             + Sync
             + 'static,
     {
-        let g = Arc::clone(g);
-        let data = g.out_neighbors(node).as_slice();
+        let owner = Arc::clone(g);
+        let data = owner.out_neighbors(node).as_slice();
         Self {
             data: SharedConst(data.as_ptr().cast()),
             len: data.len(),
             np_tpe: NI::NP_TYPE,
-            _g: g,
+            owner,
         }
     }
 
     pub fn in_neighbors<NI, G>(g: &Arc<G>, node: NI) -> Self
     where
-        NI: NumpyType,
+        NI: NumpyType + Idx,
         for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>
             + Send
             + Sync
             + 'static,
     {
-        let g = Arc::clone(g);
-        let data = g.in_neighbors(node).as_slice();
+        let owner = Arc::clone(g);
+        let data = owner.in_neighbors(node).as_slice();
         Self {
             data: SharedConst(data.as_ptr().cast()),
             len: data.len(),
             np_tpe: NI::NP_TYPE,
-            _g: g,
+            owner,
         }
     }
 
     pub fn neighbors<NI, G>(g: &Arc<G>, node: NI) -> Self
     where
-        NI: NumpyType,
+        NI: NumpyType + Idx,
         for<'a> G: UndirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>
             + Send
             + Sync
             + 'static,
     {
-        let g = Arc::clone(g);
-        let data = g.neighbors(node).as_slice();
+        let owner = Arc::clone(g);
+        let data = owner.neighbors(node).as_slice();
         Self {
             data: SharedConst(data.as_ptr().cast()),
             len: data.len(),
             np_tpe: NI::NP_TYPE,
-            _g: g,
+            owner,
         }
     }
 
@@ -89,7 +89,7 @@ impl SharedSlice {
         );
         // Super class-ish of new array, this type creates a base array
         let base_type = unsafe { PY_ARRAY_API.get_type_object(py, NpyTypes::PyArray_Type) };
-        // Type of a single element, here Uint = u32
+        // Type of a single element, e.g. Uint = u32
         let element_type = unsafe { PY_ARRAY_API.PyArray_DescrFromType(py, NI::NP_TYPE as _) };
         // 1-D array
         let ndims = 1;
@@ -139,7 +139,7 @@ impl SharedSlice {
 
 impl Debug for SharedSlice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NeighborsBuffer")
+        f.debug_struct("SharedSlice")
             .field("data", &self.data.0)
             .field("len", &self.len)
             .finish()
@@ -148,18 +148,14 @@ impl Debug for SharedSlice {
 
 impl Drop for SharedSlice {
     fn drop(&mut self) {
-        let sc = Arc::strong_count(&self._g);
-        if sc <= 1 {
-            log::trace!(
-                "dropping last neighbors list, graph was already dropped so will release all data"
-            );
-        } else if sc == 2 {
-            log::trace!("dropping last neighbors list, but graph is still alive");
-        } else {
-            log::trace!(
-                "dropping neighbors list, there are still {} other neighbor list(s) around",
-                sc - 2
-            );
+        match Arc::strong_count(&self.owner) {
+            0..=1 => log::trace!("dropping last shared slice, releasing all data"),
+            2 => log::trace!("dropping last shared slice, there is only one owner alive"),
+            3 => log::trace!("dropping shared slice, there is another shared slice alive"),
+            count => log::trace!(
+                "dropping shared slice, there are {} other shared slices alives",
+                count - 2
+            ),
         }
     }
 }

@@ -193,7 +193,7 @@ where
 /// pymethods
 impl<NI, G> PyGraph<NI, G>
 where
-    NI: NumpyType,
+    NI: NumpyType + Idx,
     G: GraphTrait<NI> + Send + Sync + 'static,
 {
     /// Returns all nodes which are connected in outgoing direction to the given node,
@@ -293,11 +293,15 @@ impl<NI: Idx, G: GraphTrait<NI>> std::fmt::Debug for PyGraph<NI, G> {
 
 impl<NI, G> Drop for PyGraph<NI, G> {
     fn drop(&mut self) {
-        let sc = Arc::strong_count(&self.g);
-        if sc <= 1 {
-            log::trace!("dropping graph and releasing all data");
-        } else {
-            log::trace!("dropping graph, but keeping data around as it is being used by {} neighbor list(s)", sc - 1);
+        match Arc::strong_count(&self.g) {
+            0..=1 => log::trace!("dropping graph and releasing all data"),
+            2 => log::trace!(
+                "dropping graph, but keeping data around as it is being used by 1 neighbors array"
+            ),
+            count => log::trace!(
+                "dropping graph, but keeping data around as it is being used by {} neighbor arrays",
+                count - 1
+            ),
         }
     }
 }
