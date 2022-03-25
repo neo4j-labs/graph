@@ -78,7 +78,7 @@ class Graph:
         The new graph is unrelated to this graph and does not share any data.
         """
     def page_rank(
-        self, max_iterations: int, tolerance: float, damping_factor: float
+        self, *, max_iterations: int, tolerance: float, damping_factor: float
     ) -> PageRankResult:
         """Run Page Rank on this graph"""
 

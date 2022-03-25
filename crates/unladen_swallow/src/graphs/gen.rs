@@ -1,15 +1,10 @@
 use super::{load_from_py, Layout, NumpyType, SharedSlice};
-use crate::pr::PageRankResult;
 use graph::prelude::{
     CsrLayout, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait, Graph500, Idx,
     RelabelByDegreeOp, ToUndirectedOp, UndirectedDegrees, UndirectedNeighbors,
 };
 use numpy::PyArray1;
-use pyo3::{
-    exceptions::PyValueError,
-    prelude::*,
-    types::{PyDict, PyList},
-};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyList};
 use std::{marker::PhantomData, path::PathBuf, sync::Arc, time::Duration};
 
 pub(crate) struct PyGraph<NI, G> {
@@ -119,19 +114,6 @@ where
 
         (_, self.load_micros) = super::timed(self.load_micros, || g.to_degree_ordered());
         Ok(())
-    }
-
-    /// Run Page Rank on this graph
-    pub(crate) fn page_rank(
-        &self,
-        py: Python<'_>,
-        // #[args(config = "**")]
-        config: Option<&PyDict>,
-    ) -> PyResult<PageRankResult>
-    where
-        G: DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
-    {
-        crate::pr::page_rank(py, self.g(), config)
     }
 
     pub(crate) fn __repr__(&self) -> String {

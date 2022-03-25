@@ -1,11 +1,8 @@
 use super::{Layout, PyGraph, Ungraph};
 use crate::pr::PageRankResult;
-use graph::prelude::DirectedCsrGraph;
+use graph::{page_rank::PageRankConfig, prelude::DirectedCsrGraph};
 use numpy::PyArray1;
-use pyo3::{
-    prelude::*,
-    types::{PyDict, PyList},
-};
+use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
 
 pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -100,9 +97,21 @@ impl Graph {
     }
 
     /// Run Page Rank on this graph
-    #[args(config = "**")]
-    pub fn page_rank(slf: PyRef<Self>, config: Option<&PyDict>) -> PyResult<PageRankResult> {
-        slf.inner.page_rank(slf.py(), config)
+    #[args(
+        "*",
+        max_iterations = "PageRankConfig::DEFAULT_MAX_ITERATIONS",
+        tolerance = "PageRankConfig::DEFAULT_TOLERANCE",
+        damping_factor = "PageRankConfig::DEFAULT_DAMPING_FACTOR"
+    )]
+    pub fn page_rank(
+        &self,
+        py: Python<'_>,
+        max_iterations: usize,
+        tolerance: f64,
+        damping_factor: f32,
+    ) -> PageRankResult {
+        let config = PageRankConfig::new(max_iterations, tolerance, damping_factor);
+        crate::pr::page_rank(py, self.inner.g(), config)
     }
 }
 

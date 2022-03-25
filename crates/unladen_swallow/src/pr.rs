@@ -5,7 +5,7 @@ use graph::prelude::{
 use pyo3::{
     exceptions::{PyIndexError, PyTypeError},
     prelude::*,
-    types::{PyDict, PyList, PySlice, PySliceIndices},
+    types::{PyList, PySlice, PySliceIndices},
 };
 use std::{
     fmt::Display,
@@ -18,17 +18,13 @@ pub(crate) fn register(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-pub(crate) fn page_rank<NI, G>(
-    py: Python<'_>,
-    graph: &G,
-    config: Option<&PyDict>,
-) -> PyResult<PageRankResult>
+pub(crate) fn page_rank<NI, G, C>(py: Python<'_>, graph: &G, config: C) -> PageRankResult
 where
     NI: Idx,
     G: GraphTrait<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+    C: Into<Option<PageRankConfig>> + Send,
 {
-    let config = config.map(page_rank_config).transpose()?;
-    Ok(py.allow_threads(move || inner_page_rank(graph, config)))
+    py.allow_threads(move || inner_page_rank(graph, config))
 }
 
 fn inner_page_rank<NI, G>(graph: &G, config: impl Into<Option<PageRankConfig>>) -> PageRankResult
@@ -46,23 +42,6 @@ where
         error,
         page_rank_micros,
     }
-}
-
-pub(crate) fn page_rank_config(dict: &PyDict) -> PyResult<PageRankConfig> {
-    Ok(PageRankConfig::new(
-        dict.get_item("max_iterations")
-            .map(FromPyObject::extract)
-            .transpose()?
-            .unwrap_or(PageRankConfig::DEFAULT_MAX_ITERATIONS),
-        dict.get_item("tolerance")
-            .map(FromPyObject::extract)
-            .transpose()?
-            .unwrap_or(PageRankConfig::DEFAULT_TOLERANCE),
-        dict.get_item("damping_factor")
-            .map(FromPyObject::extract)
-            .transpose()?
-            .unwrap_or(PageRankConfig::DEFAULT_DAMPING_FACTOR),
-    ))
 }
 
 #[pyclass]
@@ -197,31 +176,4 @@ impl PageRankResult {
             )))
         }
     }
-
-    // fn __iter__(slf: PyRef<Self>) -> PyResult<Py<PageRanksIter>> {
-    //     let iter = PageRanksIter {
-    //         iter: slf.scores.clone(),
-    //         next: 0,
-    //     };
-    //     Py::new(slf.py(), iter)
-    // }
 }
-
-// #[pyclass]
-// pub struct PageRanksIter {
-//     iter: Arc<[f32]>,
-//     next: usize,
-// }
-
-// #[pymethods]
-// impl PageRanksIter {
-//     fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
-//         slf
-//     }
-
-//     fn __next__(mut slf: PyRefMut<Self>) -> Option<f32> {
-//         let current = *slf.iter.get(slf.next)?;
-//         slf.next += 1;
-//         Some(current)
-//     }
-// }
