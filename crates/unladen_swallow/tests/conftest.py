@@ -1,17 +1,17 @@
 from pytest import fixture
 
-from unladen_swallow import Graph, Ungraph
+from unladen_swallow import DiGraph, Graph
 
 FILE = "../builder/resources/scale_8.graph500"
 
 
 @fixture(scope="package")
-def g() -> Graph:
+def g() -> DiGraph:
     """A directed graph"""
-    return Graph.load(FILE)
+    return DiGraph.load(FILE)
 
 
 @fixture(scope="package")
-def ug() -> Ungraph:
+def ug() -> Graph:
     """An undirected graph"""
-    return Ungraph.load(FILE)
+    return Graph.load(FILE)

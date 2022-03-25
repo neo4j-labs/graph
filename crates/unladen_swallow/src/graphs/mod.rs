@@ -1,20 +1,62 @@
-use super::{load_from_py, Layout, NumpyType, SharedSlice};
-use graph::prelude::{
-    CsrLayout, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait, Graph500, Idx,
-    RelabelByDegreeOp, ToUndirectedOp, UndirectedDegrees, UndirectedNeighbors,
+use crate::{GResult, GraphError as GraphErrorWrapper};
+use ::graph::prelude::{
+    CsrLayout, DirectedDegrees, DirectedNeighbors, Error as GraphError, Graph as GraphTrait,
+    Graph500, Graph500Input, GraphBuilder, Idx, RelabelByDegreeOp, ToUndirectedOp,
+    UndirectedDegrees, UndirectedNeighbors,
 };
 use numpy::PyArray1;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyList};
-use std::{marker::PhantomData, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    fmt::Debug,
+    marker::PhantomData,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-pub(crate) struct PyGraph<NI, G> {
+mod digraph;
+mod graph;
+mod shared_slice;
+
+pub(crate) use self::graph::Graph;
+pub(crate) use self::shared_slice::{NumpyType, SharedSlice};
+
+pub(crate) fn register(py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<Layout>()?;
+
+    digraph::register(py, m)?;
+    graph::register(py, m)?;
+
+    Ok(())
+}
+
+/// Defines how the neighbor list of individual nodes are organized within the
+/// CSR target array.
+#[derive(Clone, Copy, Debug)]
+#[pyclass]
+pub enum Layout {
+    /// Neighbor lists are sorted and may contain duplicate target ids. This is
+    /// the default representation.
+    Sorted,
+    /// Neighbor lists are not in any particular order.
+    Unsorted,
+    /// Neighbor lists are sorted and do not contain duplicate target ids.
+    /// Self-loops, i.e., edges in the form of `(u, u)` are removed.
+    Deduplicated,
+}
+
+/// A generic implementation of a python wrapper around a graph
+///
+/// pyclasses cannot be generic, so for any concrete graph that we want to expose
+/// we need to add a new type, that wraps this graph with concrete type arguments
+struct PyGraph<NI, G> {
     g: Arc<G>,
-    pub(crate) load_micros: u64,
+    load_micros: u64,
     _ni: PhantomData<NI>,
 }
 
 impl<NI, G> PyGraph<NI, G> {
-    pub(crate) fn new(load_micros: u64, g: G) -> Self {
+    fn new(load_micros: u64, g: G) -> Self {
         Self {
             g: Arc::new(g),
             load_micros,
@@ -22,7 +64,7 @@ impl<NI, G> PyGraph<NI, G> {
         }
     }
 
-    pub(crate) fn g(&self) -> &G {
+    fn g(&self) -> &G {
         &*self.g
     }
 }
@@ -32,11 +74,38 @@ impl<NI, G> PyGraph<NI, G>
 where
     NI: Idx,
     G: TryFrom<(Graph500<NI>, CsrLayout)> + Send,
-    graph::prelude::Error: From<G::Error>,
+    GraphError: From<G::Error>,
 {
     /// Load a graph in the Graph500 format
-    pub(crate) fn load(py: Python<'_>, path: PathBuf, layout: Layout) -> PyResult<Self> {
-        load_from_py(py, path, layout, |g, took| Self::new(took, g))
+    fn load(py: Python<'_>, path: PathBuf, layout: Layout) -> PyResult<Self> {
+        fn load_graph500<NI, G>(path: PathBuf, layout: CsrLayout) -> GResult<(G, u64)>
+        where
+            NI: Idx,
+            G: TryFrom<(Graph500<NI>, CsrLayout)>,
+            GraphError: From<G::Error>,
+        {
+            let (graph, load_micros) = time(move || {
+                GraphBuilder::new()
+                    .csr_layout(layout)
+                    .file_format(Graph500Input::default())
+                    .path(path)
+                    .build()
+            });
+            let graph = graph?;
+
+            Ok((graph, load_micros))
+        }
+
+        let layout = match layout {
+            Layout::Sorted => CsrLayout::Sorted,
+            Layout::Unsorted => CsrLayout::Unsorted,
+            Layout::Deduplicated => CsrLayout::Deduplicated,
+        };
+        let (graph, took) = py
+            .allow_threads(move || load_graph500(path, layout))
+            .map_err(GraphErrorWrapper)?;
+
+        Ok(Self::new(took, graph))
     }
 }
 
@@ -47,17 +116,17 @@ where
     G: GraphTrait<NI>,
 {
     /// Returns the number of nodes in the graph.
-    pub(crate) fn node_count(&self) -> NI {
+    fn node_count(&self) -> NI {
         self.g.node_count()
     }
 
     /// Returns the number of edges in the graph.
-    pub(crate) fn edge_count(&self) -> NI {
+    fn edge_count(&self) -> NI {
         self.g.edge_count()
     }
 
     /// Returns the number of edges where the given node is a source node.
-    pub(crate) fn out_degree(&self, node: NI) -> NI
+    fn out_degree(&self, node: NI) -> NI
     where
         G: DirectedDegrees<NI>,
     {
@@ -65,7 +134,7 @@ where
     }
 
     /// Returns the number of edges where the given node is a target node.
-    pub(crate) fn in_degree(&self, node: NI) -> NI
+    fn in_degree(&self, node: NI) -> NI
     where
         G: DirectedDegrees<NI>,
     {
@@ -73,19 +142,19 @@ where
     }
 
     /// Returns the number of edges for the given node
-    pub(crate) fn degree(&self, node: NI) -> NI
+    fn degree(&self, node: NI) -> NI
     where
         G: UndirectedDegrees<NI>,
     {
         self.g.degree(node)
     }
 
-    pub(crate) fn to_undirected(&self) -> PyGraph<NI, G::Undirected>
+    fn to_undirected(&self) -> PyGraph<NI, G::Undirected>
     where
         G: ToUndirectedOp,
         G::Undirected: GraphTrait<NI>,
     {
-        let (g, load_micros) = super::timed(self.load_micros, || self.g.to_undirected(None));
+        let (g, load_micros) = timed(self.load_micros, || self.g.to_undirected(None));
         PyGraph {
             g: Arc::new(g),
             load_micros,
@@ -101,7 +170,7 @@ where
     ///
     /// Note, that this method creates a new graph with the same space
     /// requirements as the input graph.
-    pub(crate) fn reorder_by_degree<EV>(&mut self) -> PyResult<()>
+    fn reorder_by_degree<EV>(&mut self) -> PyResult<()>
     where
         G: RelabelByDegreeOp<NI, EV>,
     {
@@ -112,11 +181,11 @@ where
             ))
         })?;
 
-        (_, self.load_micros) = super::timed(self.load_micros, || g.to_degree_ordered());
+        (_, self.load_micros) = timed(self.load_micros, || g.to_degree_ordered());
         Ok(())
     }
 
-    pub(crate) fn __repr__(&self) -> String {
+    fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
 }
@@ -231,4 +300,38 @@ impl<NI, G> Drop for PyGraph<NI, G> {
             log::trace!("dropping graph, but keeping data around as it is being used by {} neighbor list(s)", sc - 1);
         }
     }
+}
+
+fn time<R, F>(f: F) -> (R, u64)
+where
+    F: FnOnce() -> R,
+{
+    run_with_timing::<R, F, u8, _>(f, None)
+}
+
+fn timed<T, R, F>(prev: T, f: F) -> (R, u64)
+where
+    F: FnOnce() -> R,
+    u128: From<T>,
+{
+    run_with_timing::<R, F, T, _>(f, Some(prev))
+}
+
+fn run_with_timing<R, F, T, U>(f: F, prev: U) -> (R, u64)
+where
+    F: FnOnce() -> R,
+    u128: From<T>,
+    U: Into<Option<T>>,
+{
+    let prev: Option<T> = prev.into();
+    let prev = prev.map_or(0, u128::from);
+
+    let start = Instant::now();
+    let result = f();
+
+    let micros = start.elapsed().as_micros();
+    let micros = micros + prev;
+    let micros = micros.min(u64::MAX as _) as u64;
+
+    (result, micros)
 }

@@ -1,7 +1,7 @@
-from unladen_swallow import Graph, Ungraph
+from unladen_swallow import DiGraph, Graph
 
 
-def test_out_neighbors(g: Graph):
+def test_out_neighbors(g: DiGraph):
     for n in range(g.node_count()):
         nb = g.out_neighbors(n)
 
@@ -10,7 +10,7 @@ def test_out_neighbors(g: Graph):
         assert nb.tolist() == g.copy_out_neighbors(n)
 
 
-def test_in_neighbors(g: Graph):
+def test_in_neighbors(g: DiGraph):
     for n in range(g.node_count()):
         nb = g.in_neighbors(n)
 
@@ -19,7 +19,7 @@ def test_in_neighbors(g: Graph):
         assert nb.tolist() == g.copy_in_neighbors(n)
 
 
-def test_neighbors(ug: Ungraph):
+def test_neighbors(ug: Graph):
     for n in range(ug.node_count()):
         nb = ug.neighbors(n)
 
@@ -28,7 +28,7 @@ def test_neighbors(ug: Ungraph):
         assert nb.tolist() == ug.copy_neighbors(n)
 
 
-def test_neighbors_keep_alive(g: Graph):
+def test_neighbors_keep_alive(g: DiGraph):
     import numpy
 
     degree = g.in_degree(82)

@@ -5,25 +5,25 @@ use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
 
 pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Ungraph>()?;
+    m.add_class::<Graph>()?;
     Ok(())
 }
 
 #[pyclass]
-pub struct Ungraph {
+pub struct Graph {
     inner: PyGraph<u32, UndirectedCsrGraph<u32>>,
     #[pyo3(get)]
     load_micros: u64,
 }
 
-impl Ungraph {
-    pub(crate) fn new(load_micros: u64, inner: PyGraph<u32, UndirectedCsrGraph<u32>>) -> Self {
+impl Graph {
+    pub(super) fn new(load_micros: u64, inner: PyGraph<u32, UndirectedCsrGraph<u32>>) -> Self {
         Self { inner, load_micros }
     }
 }
 
 #[pymethods]
-impl Ungraph {
+impl Graph {
     /// Load a graph in the Graph500 format
     #[staticmethod]
     #[args(layout = "Layout::Unsorted")]
@@ -79,7 +79,7 @@ impl Ungraph {
     }
 }
 
-impl std::fmt::Debug for Ungraph {
+impl std::fmt::Debug for Graph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }

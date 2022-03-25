@@ -1,19 +1,19 @@
-from unladen_swallow import Graph, Ungraph
+from unladen_swallow import Graph, DiGraph
 
 
-def test_load_graph(g: Graph):
+def test_load_graph(g: DiGraph):
     assert g.node_count() == 1 << 8
     assert g.edge_count() == 1 << 12
 
 
-def test_to_undirected(g: Graph, ug: Ungraph):
+def test_to_undirected(g: DiGraph, ug: Graph):
     g = g.to_undirected()
 
     for n in range(g.node_count()):
         assert set(g.copy_neighbors(n)) == set(ug.copy_neighbors(n))
 
 
-def test_reorder(ug: Ungraph):
+def test_reorder(ug: Graph):
     sorted_degrees = sorted(
         (ug.degree(n) for n in range(ug.node_count())), reverse=True
     )

@@ -26,13 +26,13 @@ class Layout:
     """
     Deduplicated: Layout
 
-class Graph:
+class DiGraph:
     """
     A directed graph using 32 bits for node ids.
     """
 
     @staticmethod
-    def load(path: str, layout: Layout = Layout.Unsorted) -> Graph:
+    def load(path: str, layout: Layout = Layout.Unsorted) -> DiGraph:
         """Load a graph from the Graph500 binary format"""
     def node_count(self) -> int:
         """Returns the number of nodes in the graph."""
@@ -72,7 +72,7 @@ class Graph:
 
         This function returns a copy of the data as a Python list.
         """
-    def to_undirected(self) -> Ungraph:
+    def to_undirected(self) -> Graph:
         """
         Convert this graph into an undirected graph.
         The new graph is unrelated to this graph and does not share any data.
@@ -82,7 +82,7 @@ class Graph:
     ) -> PageRankResult:
         """Run Page Rank on this graph"""
 
-class Ungraph:
+class Graph:
     """
     An undirected graph using 32 bits for node ids.
     """

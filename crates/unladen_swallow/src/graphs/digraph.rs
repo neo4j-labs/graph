@@ -1,4 +1,4 @@
-use super::{Layout, PyGraph, Ungraph};
+use super::{Graph, Layout, PyGraph};
 use crate::pr::PageRankResult;
 use graph::{page_rank::PageRankConfig, prelude::DirectedCsrGraph};
 use numpy::PyArray1;
@@ -6,25 +6,25 @@ use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
 
 pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Graph>()?;
+    m.add_class::<DiGraph>()?;
     Ok(())
 }
 
 #[pyclass]
-pub struct Graph {
+pub struct DiGraph {
     inner: PyGraph<u32, DirectedCsrGraph<u32>>,
     #[pyo3(get)]
     load_micros: u64,
 }
 
-impl Graph {
+impl DiGraph {
     fn new(load_micros: u64, inner: PyGraph<u32, DirectedCsrGraph<u32>>) -> Self {
         Self { inner, load_micros }
     }
 }
 
 #[pymethods]
-impl Graph {
+impl DiGraph {
     /// Load a graph in the Graph500 format
     #[staticmethod]
     #[args(layout = "Layout::Unsorted")]
@@ -91,9 +91,9 @@ impl Graph {
         self.inner.__repr__()
     }
 
-    pub fn to_undirected(&self) -> Ungraph {
+    pub fn to_undirected(&self) -> Graph {
         let g = self.inner.to_undirected();
-        Ungraph::new(g.load_micros, g)
+        Graph::new(g.load_micros, g)
     }
 
     /// Run Page Rank on this graph
@@ -115,7 +115,7 @@ impl Graph {
     }
 }
 
-impl std::fmt::Debug for Graph {
+impl std::fmt::Debug for DiGraph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
