@@ -1,7 +1,7 @@
-from unladen_swallow import Graph, DiGraph
-
 import numpy as np
 import pandas as pd
+
+from unladen_swallow import DiGraph, Graph
 
 
 def test_numpy_graph():

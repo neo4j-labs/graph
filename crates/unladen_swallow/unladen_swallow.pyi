@@ -2,7 +2,6 @@ from typing import Optional, overload
 
 import numpy as np
 import numpy.typing as npt
-
 import pandas as pd
 
 class Layout:
