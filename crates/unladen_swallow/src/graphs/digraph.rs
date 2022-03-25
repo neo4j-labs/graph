@@ -1,5 +1,5 @@
 use super::{Graph, Layout, PyGraph};
-use crate::pr::PageRankResult;
+use crate::page_rank::PageRankResult;
 use graph::{page_rank::PageRankConfig, prelude::DirectedCsrGraph};
 use numpy::PyArray1;
 use pyo3::{prelude::*, types::PyList};
@@ -96,7 +96,7 @@ impl DiGraph {
         Graph::new(g.load_micros, g)
     }
 
-    /// Run Page Rank on this graph
+    /// Run Page Rank on this graph.
     #[args(
         "*",
         max_iterations = "PageRankConfig::DEFAULT_MAX_ITERATIONS",
@@ -111,7 +111,7 @@ impl DiGraph {
         damping_factor: f32,
     ) -> PageRankResult {
         let config = PageRankConfig::new(max_iterations, tolerance, damping_factor);
-        crate::pr::page_rank(py, self.inner.g(), config)
+        crate::page_rank::page_rank(py, self.inner.g(), config)
     }
 }
 

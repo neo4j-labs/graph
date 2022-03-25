@@ -7,7 +7,7 @@ use pyo3::{
 use pyo3_log::{Caching, Logger};
 
 mod graphs;
-mod pr;
+mod page_rank;
 
 type GResult<T> = std::result::Result<T, GError>;
 
@@ -33,7 +33,7 @@ fn unladen_swallow(py: Python, m: &PyModule) -> PyResult<()> {
         .unwrap();
 
     graphs::register(py, m)?;
-    pr::register(py, m)?;
+    page_rank::register(py, m)?;
 
     Ok(())
 }

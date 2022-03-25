@@ -80,7 +80,7 @@ class DiGraph:
     def page_rank(
         self, *, max_iterations: int, tolerance: float, damping_factor: float
     ) -> PageRankResult:
-        """Run Page Rank on this graph"""
+        """Run Page Rank on this graph."""
 
 class Graph:
     """
