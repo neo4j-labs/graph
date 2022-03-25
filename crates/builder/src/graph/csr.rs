@@ -40,7 +40,7 @@ pub enum CsrLayout {
 
 impl Default for CsrLayout {
     fn default() -> Self {
-        CsrLayout::Sorted
+        CsrLayout::Unsorted
     }
 }
 
@@ -432,7 +432,7 @@ where
 
     fn to_undirected(&self, layout: impl Into<Option<CsrLayout>>) -> Self::Undirected {
         let node_values = NodeValues::new(self.node_values.0.to_vec());
-        let layout = layout.into().unwrap_or(CsrLayout::Unsorted);
+        let layout = layout.into().unwrap_or_default();
         let edges = ToUndirectedEdges { g: self };
 
         UndirectedCsrGraph::from((node_values, edges, layout))

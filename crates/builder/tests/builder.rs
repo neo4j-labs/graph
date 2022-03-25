@@ -65,6 +65,7 @@ fn should_compile_test() {
 fn directed_usize_graph_from_edge_list() {
     assert_directed_graph::<usize, ()>(
         GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
     );
@@ -109,6 +110,7 @@ fn directed_usize_graph_from_edge_list_with_values_and_node_values() {
 fn directed_u32_graph_from_edge_list() {
     assert_directed_graph::<u32, ()>(
         GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
     );
@@ -143,6 +145,7 @@ fn directed_usize_graph_from_edge_list_with_values() {
 fn directed_usize_graph_from_gdl() {
     assert_directed_graph::<usize, ()>(
         GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
             .gdl_str::<usize, _>(
                 "(n0)-->(n1),(n0)-->(n2),(n1)-->(n2),(n1)-->(n3),(n2)-->(n4),(n3)-->(n4)",
             )
@@ -155,6 +158,7 @@ fn directed_usize_graph_from_gdl() {
 #[test]
 fn directed_usize_graph_from_gdl_with_f32_edge_values() {
     let g: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
         .gdl_str::<usize, _>(
             "(n0)-[{ f: 0.1 }]->(n1),
                  (n0)-[{ f: 0.2 }]->(n2),
@@ -175,6 +179,7 @@ fn directed_usize_graph_from_gdl_with_f32_edge_values() {
 #[test]
 fn directed_usize_graph_from_gdl_with_i64_edge_values() {
     let g: DirectedCsrGraph<usize, (), i64> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
         .gdl_str::<usize, _>(
             "(n0)-[{ f: 42 }]->(n1),
                  (n0)-[{ f: 43 }]->(n2),
@@ -196,6 +201,7 @@ fn directed_usize_graph_from_gdl_with_i64_edge_values() {
 fn undirected_usize_graph_from_gdl() {
     assert_undirected_graph::<usize, ()>(
         GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
             .gdl_str::<usize, _>(
                 "(n0)-->(n1),(n0)-->(n2),(n1)-->(n2),(n1)-->(n3),(n2)-->(n4),(n3)-->(n4)",
             )
@@ -208,6 +214,7 @@ fn undirected_usize_graph_from_gdl() {
 fn undirected_usize_graph_from_edge_list() {
     assert_undirected_graph::<usize, ()>(
         GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
     );
@@ -252,6 +259,7 @@ fn undirected_usize_graph_from_edge_list_with_values_and_node_values() {
 fn undirected_u32_graph_from_edge_list() {
     assert_undirected_graph::<u32, ()>(
         GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
             .edges([(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 4)])
             .build(),
     );
@@ -260,6 +268,7 @@ fn undirected_u32_graph_from_edge_list() {
 #[test]
 fn undirected_usize_graph_from_edge_list_with_values() {
     let graph: UndirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
         .edges_with_values([
             (0, 1, 0.1),
             (0, 2, 0.2),

@@ -45,6 +45,7 @@
 //! use graph::prelude::*;
 //!
 //! let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+//!     .csr_layout(CsrLayout::Sorted)
 //!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
 //!     .build();
 //!
@@ -65,6 +66,7 @@
 //! use graph::prelude::*;
 //!
 //! let graph: UndirectedCsrGraph<u32> = GraphBuilder::new()
+//!     .csr_layout(CsrLayout::Sorted)
 //!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
 //!     .build();
 //!
