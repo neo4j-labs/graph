@@ -10,13 +10,13 @@ class Layout:
     """
 
     """
-    Neighbor lists are sorted and may contain duplicate target ids. This is
-    the default representation.
+    Neighbor lists are sorted and may contain duplicate target ids.
     """
     Sorted: Layout
 
     """
     Neighbor lists are not in any particular order.
+    This is the default representation.
     """
     Unsorted: Layout
 

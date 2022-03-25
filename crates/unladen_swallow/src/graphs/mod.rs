@@ -35,10 +35,10 @@ pub(crate) fn register(py: Python, m: &PyModule) -> PyResult<()> {
 #[derive(Clone, Copy, Debug)]
 #[pyclass]
 pub enum Layout {
-    /// Neighbor lists are sorted and may contain duplicate target ids. This is
-    /// the default representation.
+    /// Neighbor lists are sorted and may contain duplicate target ids.
     Sorted,
     /// Neighbor lists are not in any particular order.
+    /// This is the default representation.
     Unsorted,
     /// Neighbor lists are sorted and do not contain duplicate target ids.
     /// Self-loops, i.e., edges in the form of `(u, u)` are removed.
