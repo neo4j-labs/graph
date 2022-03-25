@@ -18,7 +18,14 @@ impl NumpyType for u64 {
     const NP_TYPE: NPY_TYPES = NPY_TYPES::NPY_ULONG;
 }
 
-#[pyclass]
+impl NumpyType for f32 {
+    const NP_TYPE: NPY_TYPES = NPY_TYPES::NPY_FLOAT;
+}
+
+impl NumpyType for f64 {
+    const NP_TYPE: NPY_TYPES = NPY_TYPES::NPY_DOUBLE;
+}
+
 pub struct SharedSlice {
     data: SharedConst,
     len: usize,
@@ -81,6 +88,24 @@ impl SharedSlice {
         }
     }
 
+    pub fn from_vec<T>(values: Vec<T>) -> Self
+    where
+        T: NumpyType + Send + Sync + 'static,
+    {
+        Self {
+            data: SharedConst(values.as_ptr().cast()),
+            len: values.len(),
+            np_tpe: T::NP_TYPE,
+            owner: Arc::new(values),
+        }
+    }
+}
+
+impl SharedSlice {
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
     pub fn into_numpy<NI: NumpyType>(mut self, py: Python<'_>) -> PyResult<&PyArray1<NI>> {
         assert_eq!(
             NI::NP_TYPE,
@@ -134,6 +159,17 @@ impl SharedSlice {
         }
 
         unsafe { Ok(PyArray::from_owned_ptr(py, arr)) }
+    }
+}
+
+impl Clone for SharedSlice {
+    fn clone(&self) -> Self {
+        Self {
+            data: SharedConst(self.data.0),
+            len: self.len,
+            np_tpe: self.np_tpe,
+            owner: Arc::clone(&self.owner),
+        }
     }
 }
 

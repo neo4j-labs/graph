@@ -122,26 +122,16 @@ class Graph:
         """
 
 class PageRankResult:
-
-    ran_iterations: int
-
-    error: float
-
-    page_rank_micros: float
-
-    def score(self, node_id: int) -> Optional[float]:
+    def scores(self) -> npt.NDArray[np.float32]:
+        pass
+    @property
+    def ran_iterations(self) -> int:
+        pass
+    @property
+    def error(self) -> float:
+        pass
+    @property
+    def micros(self) -> float:
         pass
     def __repr__(self) -> str:
-        pass
-    def __len__(self) -> int:
-        pass
-    def __length_hint__(self) -> int:
-        pass
-    def __contains__(self, key: int) -> bool:
-        pass
-    @overload
-    def __getitem__(self, key: int) -> int:
-        pass
-    @overload
-    def __getitem__(self, key: slice) -> list[int]:
         pass
