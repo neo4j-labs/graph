@@ -10,6 +10,7 @@ pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> 
         format: _,
         use_32_bit,
         runs,
+        warmup_runs,
     } = args;
 
     info!(
@@ -19,22 +20,27 @@ pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> 
     );
 
     if use_32_bit {
-        run::<u32>(path, runs, config)
+        run::<u32>(path, runs, warmup_runs, config)
     } else {
-        run::<usize>(path, runs, config)
+        run::<usize>(path, runs, warmup_runs, config)
     }
 }
 
-fn run<NI: Idx>(path: PathBuf, runs: usize, config: DeltaSteppingConfig) -> Result<()> {
+fn run<NI: Idx>(
+    path: PathBuf,
+    runs: usize,
+    warmup_runs: usize,
+    config: DeltaSteppingConfig,
+) -> Result<()> {
     let graph: DirectedCsrGraph<NI, (), f32> = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(EdgeListInput::default())
         .path(path)
         .build()?;
 
-    for _ in 0..runs {
+    time(runs, warmup_runs, || {
         delta_stepping(&graph, config);
-    }
+    });
 
     Ok(())
 }
@@ -77,7 +83,6 @@ mod tests {
         const INF: f32 = f32::MAX;
         use float_ord::FloatOrd;
         use std::cmp::Reverse;
-        use std::time::Instant;
 
         let start = Instant::now();
 

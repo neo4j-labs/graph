@@ -3,7 +3,6 @@ use graph::prelude::*;
 use log::info;
 
 use std::path::Path as StdPath;
-use std::time::Instant;
 
 use super::*;
 
@@ -13,6 +12,7 @@ pub(crate) fn page_rank(args: CommonArgs, config: PageRankConfig) -> Result<()> 
         format,
         use_32_bit,
         runs,
+        warmup_runs,
     } = args;
 
     info!(
@@ -23,16 +23,16 @@ pub(crate) fn page_rank(args: CommonArgs, config: PageRankConfig) -> Result<()> 
 
     match (use_32_bit, format) {
         (true, FileFormat::EdgeList) => {
-            run::<u32, _, _>(path, EdgeListInput::default(), runs, config)
+            run::<u32, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
         }
         (true, FileFormat::Graph500) => {
-            run::<u32, _, _>(path, Graph500Input::default(), runs, config)
+            run::<u32, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::EdgeList) => {
-            run::<usize, _, _>(path, EdgeListInput::default(), runs, config)
+            run::<usize, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::Graph500) => {
-            run::<usize, _, _>(path, Graph500Input::default(), runs, config)
+            run::<usize, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
     }
 }
@@ -41,6 +41,7 @@ fn run<NI, Format, Path>(
     path: Path,
     file_format: Format,
     runs: usize,
+    warmup_runs: usize,
     config: PageRankConfig,
 ) -> Result<()>
 where
@@ -58,18 +59,9 @@ where
         .path(path)
         .build()?;
 
-    for run in 1..=runs {
-        let start = Instant::now();
-        let (_, ran_iterations, error) = graph::page_rank::page_rank(&graph, config);
-        info!(
-            "Run {} of {} finished in {:.6?} (ran_iterations = {}, error = {:.6})",
-            run,
-            runs,
-            start.elapsed(),
-            ran_iterations,
-            error
-        );
-    }
+    time(runs, warmup_runs, || {
+        graph::page_rank::page_rank(&graph, config);
+    });
 
     Ok(())
 }
