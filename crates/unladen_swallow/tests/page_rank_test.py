@@ -1,6 +1,6 @@
-from unladen_swallow import DiGraph
-
 import pytest
+
+from unladen_swallow import DiGraph
 
 
 def test_page_rank(g: DiGraph):
