@@ -230,11 +230,11 @@ where
                         let value = match chunk.strip_prefix(b" ") {
                             Some(value_chunk) => {
                                 let (value, value_bytes) = EV::parse(value_chunk);
-                                chunk = &value_chunk[value_bytes + 1..];
+                                chunk = &value_chunk[value_bytes + line_skip..];
                                 value
                             }
                             None => {
-                                chunk = &chunk[1..];
+                                chunk = &chunk[line_skip..];
                                 // if the input does not have a value, the default for EV is used
                                 EV::parse(&[]).0
                             }
@@ -341,6 +341,8 @@ mod tests {
         let path = [env!("CARGO_MANIFEST_DIR"), "resources", "windows.el"]
             .iter()
             .collect::<PathBuf>();
+
+        println!("{path:?}");
 
         let edge_list = EdgeList::<usize, ()>::try_from(InputPath(path.as_path())).unwrap();
 
