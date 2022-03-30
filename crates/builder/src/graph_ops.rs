@@ -131,7 +131,7 @@ pub trait ForEachNodeParallelByPartitionOp<NI: Idx> {
         F: Fn(&Self, NI, &mut T) + Send + Sync;
 }
 
-pub trait RelabelByDegreeOp<N, EV> {
+pub trait RelabelByDegreeOp<NI, EV> {
     /// Creates a new graph by relabeling the node ids of the given graph.
     ///
     /// Ids are relabaled using descending degree-order, i.e., given `n` nodes,

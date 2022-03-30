@@ -1,0 +1,29 @@
+[package]
+name = "unladen_swallow"
+version = "0.2.0"
+authors = [
+    "Martin Junghanns <github@s1ck.dev>",
+    "Paul Horn <developer@knutwalker.de>",
+]
+description = "A library of high-performant graph algorithms."
+keywords = ["graph", "algorithms", "parallel"]
+repository = "https://github.com/s1ck/graph"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "unladen_swallow"
+crate-type = ["cdylib"]
+
+[dependencies]
+graph = { path = "../algos", version = "^0.2.0" }
+log = "0.4.14"
+numpy = "0.16.0"
+pyo3-log = "0.6.0"
+
+[dependencies.pyo3]
+version = "0.16.0"
+features = ["extension-module", "macros", "pyproto", "auto-initialize"]
+default-features = false

@@ -1,0 +1,9 @@
+black
+black[jupyter]
+flake8
+isort
+maturin
+mypy
+pytest
+pytest-annotate
+tox

@@ -15,32 +15,36 @@ const CHUNK_SIZE: usize = 16384;
 #[cfg_attr(feature = "clap", derive(clap::Args))]
 pub struct PageRankConfig {
     /// The maximum number of page rank iterations.
-    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::default().max_iterations))]
-    pub(super) max_iterations: usize,
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::DEFAULT_MAX_ITERATIONS))]
+    pub max_iterations: usize,
 
     /// If the sum of page rank deltas per iteration is
     /// below the tolerance value, the computation stop.
-    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::default().tolerance))]
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::DEFAULT_TOLERANCE))]
     pub tolerance: f64,
 
     /// Imagining a random surfer clicking links, the
     /// damping factor defines the probability if the
     /// surfer will continue at any step.
-    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::default().damping_factor))]
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = PageRankConfig::DEFAULT_DAMPING_FACTOR))]
     pub damping_factor: f32,
 }
 
 impl Default for PageRankConfig {
     fn default() -> Self {
         Self {
-            max_iterations: 20,
-            tolerance: 1E-4,
-            damping_factor: 0.85,
+            max_iterations: Self::DEFAULT_MAX_ITERATIONS,
+            tolerance: Self::DEFAULT_TOLERANCE,
+            damping_factor: Self::DEFAULT_DAMPING_FACTOR,
         }
     }
 }
 
 impl PageRankConfig {
+    pub const DEFAULT_MAX_ITERATIONS: usize = 20;
+    pub const DEFAULT_TOLERANCE: f64 = 1E-4;
+    pub const DEFAULT_DAMPING_FACTOR: f32 = 0.85;
+
     pub fn new(max_iterations: usize, tolerance: f64, damping_factor: f32) -> Self {
         Self {
             max_iterations,
@@ -50,10 +54,11 @@ impl PageRankConfig {
     }
 }
 
-pub fn page_rank<NI: Idx>(
-    graph: &DirectedCsrGraph<NI>,
-    config: PageRankConfig,
-) -> (Vec<f32>, usize, f64) {
+pub fn page_rank<NI, G>(graph: &G, config: PageRankConfig) -> (Vec<f32>, usize, f64)
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
     let PageRankConfig {
         max_iterations,
         tolerance,
@@ -104,13 +109,17 @@ pub fn page_rank<NI: Idx>(
     }
 }
 
-fn page_rank_iteration<NI: Idx>(
-    graph: &DirectedCsrGraph<NI>,
+fn page_rank_iteration<NI, G>(
+    graph: &G,
     base_score: f32,
     damping_factor: f32,
     out_scores: &SharedMut<f32>,
     scores: &SharedMut<f32>,
-) -> f64 {
+) -> f64
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
     let next_chunk = Atomic::new(NI::zero());
     let total_error = AtomicF64::new(0_f64);
 
