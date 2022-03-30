@@ -4,7 +4,6 @@ use log::info;
 
 use std::hash::Hash;
 use std::path::Path as StdPath;
-use std::time::Instant;
 
 use super::*;
 
@@ -61,34 +60,9 @@ where
         .path(path)
         .build()?;
 
-    for run in 1..=warmup_runs {
-        let start = Instant::now();
-        let _ = wcc_afforest_dss(&graph, config);
-        let took = start.elapsed();
-
-        info!(
-            "Warm-up run {} of {} finished in {:.6?}",
-            run, warmup_runs, took,
-        );
-    }
-
-    let mut durations = vec![];
-
-    for run in 1..=runs {
-        let start = Instant::now();
-        let _ = wcc_afforest_dss(&graph, config);
-        let took = start.elapsed();
-        durations.push(took);
-
-        info!("Run {} of {} finished in {:.6?}", run, runs, took,);
-    }
-
-    let total = durations
-        .into_iter()
-        .reduce(|a, b| a + b)
-        .unwrap_or_default();
-
-    info!("Average runtime: {:?}", total / runs as u32);
+    time(runs, warmup_runs, || {
+        wcc_afforest_dss(&graph, config);
+    });
 
     Ok(())
 }

@@ -3,7 +3,6 @@ use graph::prelude::*;
 use log::info;
 
 use std::path::Path as StdPath;
-use std::time::Instant;
 
 use super::*;
 
@@ -60,37 +59,9 @@ where
         .path(path)
         .build()?;
 
-    for run in 1..=warmup_runs {
-        let start = Instant::now();
-        let (_, ran_iterations, error) = graph::page_rank::page_rank(&graph, config);
-        let took = start.elapsed();
-
-        info!(
-            "Warm-up run {} of {} finished in {:.6?} (ran_iterations = {}, error = {:.6})",
-            run, runs, took, ran_iterations, error
-        );
-    }
-
-    let mut durations = vec![];
-
-    for run in 1..=runs {
-        let start = Instant::now();
-        let (_, ran_iterations, error) = graph::page_rank::page_rank(&graph, config);
-        let took = start.elapsed();
-        durations.push(took);
-
-        info!(
-            "Run {} of {} finished in {:.6?} (ran_iterations = {}, error = {:.6})",
-            run, runs, took, ran_iterations, error
-        );
-    }
-
-    let total = durations
-        .into_iter()
-        .reduce(|a, b| a + b)
-        .unwrap_or_default();
-
-    info!("Average runtime: {:?}", total / runs as u32);
+    time(runs, warmup_runs, || {
+        graph::page_rank::page_rank(&graph, config);
+    });
 
     Ok(())
 }

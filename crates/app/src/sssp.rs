@@ -2,8 +2,6 @@ use graph::prelude::*;
 
 use log::info;
 
-use std::time::Instant;
-
 use super::*;
 
 pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> {
@@ -40,34 +38,9 @@ fn run<NI: Idx>(
         .path(path)
         .build()?;
 
-    for run in 1..=warmup_runs {
-        let start = Instant::now();
+    time(runs, warmup_runs, || {
         delta_stepping(&graph, config);
-        let took = start.elapsed();
-
-        info!(
-            "Warm-up run {} of {} finished in {:.6?}",
-            run, warmup_runs, took,
-        );
-    }
-
-    let mut durations = vec![];
-
-    for run in 1..runs {
-        let start = Instant::now();
-        delta_stepping(&graph, config);
-        let took = start.elapsed();
-        durations.push(took);
-
-        info!("Run {} of {} finished in {:.6?}", run, runs, took,);
-    }
-
-    let total = durations
-        .into_iter()
-        .reduce(|a, b| a + b)
-        .unwrap_or_default();
-
-    info!("Average runtime: {:?}", total / runs as u32);
+    });
 
     Ok(())
 }
@@ -110,7 +83,6 @@ mod tests {
         const INF: f32 = f32::MAX;
         use float_ord::FloatOrd;
         use std::cmp::Reverse;
-        use std::time::Instant;
 
         let start = Instant::now();
 
