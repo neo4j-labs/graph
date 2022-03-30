@@ -28,10 +28,10 @@ pub(crate) fn triangle_count(args: CommonArgs, relabel: bool) -> Result<()> {
             run::<u32, _, _>(path, Graph500Input::default(), runs, warmup_runs, relabel)
         }
         (false, FileFormat::EdgeList) => {
-            run::<usize, _, _>(path, EdgeListInput::default(), runs, warmup_runs, relabel)
+            run::<u64, _, _>(path, EdgeListInput::default(), runs, warmup_runs, relabel)
         }
         (false, FileFormat::Graph500) => {
-            run::<usize, _, _>(path, Graph500Input::default(), runs, warmup_runs, relabel)
+            run::<u64, _, _>(path, Graph500Input::default(), runs, warmup_runs, relabel)
         }
     }
 }

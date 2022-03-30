@@ -35,7 +35,7 @@ where
     if use_32_bit {
         run_direction::<u32, EV>(undirected, path)
     } else {
-        run_direction::<usize, EV>(undirected, path)
+        run_direction::<u64, EV>(undirected, path)
     }
 }
 

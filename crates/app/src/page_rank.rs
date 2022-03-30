@@ -29,10 +29,10 @@ pub(crate) fn page_rank(args: CommonArgs, config: PageRankConfig) -> Result<()> 
             run::<u32, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::EdgeList) => {
-            run::<usize, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
+            run::<u64, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::Graph500) => {
-            run::<usize, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
+            run::<u64, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
     }
 }
