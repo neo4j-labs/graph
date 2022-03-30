@@ -29,7 +29,6 @@ where
     let config = config.into().unwrap_or_default();
     let start = Instant::now();
     let (scores, ran_iterations, error) = graph_page_rank(graph, config);
-    eprintln!("scores = {:#?}", scores);
     let micros = start.elapsed().as_micros().min(u64::MAX as _) as _;
     let scores = SharedSlice::from_vec(scores);
     PageRankResult {
