@@ -199,8 +199,7 @@ where
 
         let all_edges = Arc::new(Mutex::new(Vec::new()));
 
-        // Assume all line breaks are the same size.
-        let line_skip = line_skip(bytes);
+        let new_line_bytes = new_line_bytes(bytes);
 
         rayon::scope(|s| {
             for start in (0..bytes.len()).step_by(chunk_size) {
@@ -230,11 +229,11 @@ where
                         let value = match chunk.strip_prefix(b" ") {
                             Some(value_chunk) => {
                                 let (value, value_bytes) = EV::parse(value_chunk);
-                                chunk = &value_chunk[value_bytes + line_skip..];
+                                chunk = &value_chunk[value_bytes + new_line_bytes..];
                                 value
                             }
                             None => {
-                                chunk = &chunk[line_skip..];
+                                chunk = &chunk[new_line_bytes..];
                                 // if the input does not have a value, the default for EV is used
                                 EV::parse(&[]).0
                             }
@@ -264,20 +263,17 @@ where
     }
 }
 
-// Returns 1 if the first line break of input buffer is Linux/macOS style (b'\n'),
-// and 2 if it's Windows style (b'\r\n').
-fn line_skip(bytes: &[u8]) -> usize {
-    let mut cursor = 0;
-
-    while cursor < bytes.len() && bytes[cursor] != b'\n' {
-        cursor += 1;
-    }
-
-    if cursor > 0 && bytes[cursor - 1] == b'\r' {
-        return 2;
-    }
-
-    1
+// Returns the OS-dependent number of bytes for newline:
+//
+// `1` for Linux/macOS style (b'\n')
+// '2' for Windows style (b'\r\n')
+fn new_line_bytes(bytes: &[u8]) -> usize {
+    1 + bytes
+        .iter()
+        .position(|b| *b == b'\n')
+        .and_then(|idx| idx.checked_sub(1))
+        .and_then(|idx| bytes.get(idx).copied())
+        .map_or(0, |b| (b == b'\r') as usize)
 }
 
 #[cfg(test)]
