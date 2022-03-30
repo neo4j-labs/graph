@@ -30,12 +30,12 @@ pub(crate) fn serialize(args: CommonArgs, undirected: bool, output: PathBuf) -> 
         if use_32_bit {
             run::<UndirectedCsrGraph<u32>, _>(path, output)?;
         } else {
-            run::<UndirectedCsrGraph<usize>, _>(path, output)?;
+            run::<UndirectedCsrGraph<u64>, _>(path, output)?;
         }
     } else if use_32_bit {
         run::<DirectedCsrGraph<u32>, _>(path, output)?;
     } else {
-        run::<DirectedCsrGraph<usize>, _>(path, output)?;
+        run::<DirectedCsrGraph<u64>, _>(path, output)?;
     }
 
     Ok(())

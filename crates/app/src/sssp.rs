@@ -22,7 +22,7 @@ pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> 
     if use_32_bit {
         run::<u32>(path, runs, warmup_runs, config)
     } else {
-        run::<usize>(path, runs, warmup_runs, config)
+        run::<u64>(path, runs, warmup_runs, config)
     }
 }
 

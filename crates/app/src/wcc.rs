@@ -30,10 +30,10 @@ pub(crate) fn wcc(app_args: CommonArgs, config: WccConfig) -> Result<()> {
             run::<u32, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::EdgeList) => {
-            run::<usize, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
+            run::<u64, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
         }
         (false, FileFormat::Graph500) => {
-            run::<usize, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
+            run::<u64, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
         }
     }
 }
