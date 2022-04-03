@@ -199,6 +199,8 @@ where
 
         let all_edges = Arc::new(Mutex::new(Vec::new()));
 
+        let new_line_bytes = new_line_bytes(bytes);
+
         rayon::scope(|s| {
             for start in (0..bytes.len()).step_by(chunk_size) {
                 let all_edges = Arc::clone(&all_edges);
@@ -227,11 +229,11 @@ where
                         let value = match chunk.strip_prefix(b" ") {
                             Some(value_chunk) => {
                                 let (value, value_bytes) = EV::parse(value_chunk);
-                                chunk = &value_chunk[value_bytes + 1..];
+                                chunk = &value_chunk[value_bytes + new_line_bytes..];
                                 value
                             }
                             None => {
-                                chunk = &chunk[1..];
+                                chunk = &chunk[new_line_bytes..];
                                 // if the input does not have a value, the default for EV is used
                                 EV::parse(&[]).0
                             }
@@ -261,6 +263,19 @@ where
     }
 }
 
+// Returns the OS-dependent number of bytes for newline:
+//
+// `1` for Linux/macOS style (b'\n')
+// '2' for Windows style (b'\r\n')
+fn new_line_bytes(bytes: &[u8]) -> usize {
+    1 + bytes
+        .iter()
+        .position(|b| *b == b'\n')
+        .and_then(|idx| idx.checked_sub(1))
+        .and_then(|idx| bytes.get(idx).copied())
+        .map_or(0, |b| (b == b'\r') as usize)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -270,7 +285,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn edge_list_from_file() {
+    fn edge_list_from_linux_file() {
         let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.el"]
             .iter()
             .collect::<PathBuf>();
@@ -315,5 +330,18 @@ mod tests {
         let edge_list = edge_list.list.into_vec();
 
         assert_eq!(expected, edge_list)
+    }
+
+    #[test]
+    fn edge_list_from_windows_file() {
+        let path = [env!("CARGO_MANIFEST_DIR"), "resources", "windows.el"]
+            .iter()
+            .collect::<PathBuf>();
+
+        println!("{path:?}");
+
+        let edge_list = EdgeList::<usize, ()>::try_from(InputPath(path.as_path())).unwrap();
+
+        assert_eq!(3, edge_list.max_node_id());
     }
 }
