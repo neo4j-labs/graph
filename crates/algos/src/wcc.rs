@@ -42,29 +42,33 @@ pub use crate::dss::DisjointSetStruct;
 #[cfg_attr(feature = "clap", derive(clap::Args))]
 pub struct WccConfig {
     /// Number of nodes to be processed in batch by a single thread.
-    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::default().chunk_size))]
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::DEFAULT_CHUNK_SIZE))]
     pub chunk_size: usize,
 
     /// Number of relationships of each node to sample during subgraph linking.
-    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::default().neighbor_rounds))]
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::DEFAULT_NEIGHBOR_ROUNDS))]
     pub neighbor_rounds: usize,
 
     /// Number of samples to draw from the DSS to find the largest component.
-    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::default().sampling_size))]
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::DEFAULT_SAMPLING_SIZE))]
     pub sampling_size: usize,
 }
 
 impl Default for WccConfig {
     fn default() -> Self {
         Self {
-            chunk_size: 16384,
-            neighbor_rounds: 2,
-            sampling_size: 1024,
+            chunk_size: WccConfig::DEFAULT_CHUNK_SIZE,
+            neighbor_rounds: WccConfig::DEFAULT_NEIGHBOR_ROUNDS,
+            sampling_size: WccConfig::DEFAULT_SAMPLING_SIZE,
         }
     }
 }
 
 impl WccConfig {
+    pub const DEFAULT_CHUNK_SIZE: usize = 16384;
+    pub const DEFAULT_NEIGHBOR_ROUNDS: usize = 2;
+    pub const DEFAULT_SAMPLING_SIZE: usize = 1024;
+
     pub fn new(chunk_size: usize, neighbor_rounds: usize, sampling_size: usize) -> Self {
         Self {
             chunk_size,
