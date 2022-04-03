@@ -81,6 +81,10 @@ class DiGraph:
         self, *, max_iterations: int, tolerance: float, damping_factor: float
     ) -> PageRankResult:
         """Run Page Rank on this graph."""
+    def wcc(
+        self, *, chunk_size: int, neighbor_rounds: int, sampling_size: int
+    ) -> PageRankResult:
+        """Run Weakly Connected Components on this graph."""
 
 class Graph:
     """
