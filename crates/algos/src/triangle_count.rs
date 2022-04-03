@@ -8,13 +8,21 @@ use std::{sync::atomic::Ordering, time::Instant};
 
 const CHUNK_SIZE: usize = 64;
 
-pub fn relabel_graph<NI: Idx>(graph: &mut UndirectedCsrGraph<NI>) {
+pub fn relabel_graph<NI, G, EV>(graph: &mut G)
+where
+    NI: Idx,
+    G: RelabelByDegreeOp<NI, EV>,
+{
     let start = Instant::now();
     graph.to_degree_ordered();
     info!("Relabeled graph in {:?}", start.elapsed());
 }
 
-pub fn global_triangle_count<NI: Idx>(graph: &UndirectedCsrGraph<NI>) -> u64 {
+pub fn global_triangle_count<NI, G>(graph: &G) -> u64
+where
+    NI: Idx,
+    G: Graph<NI> + UndirectedNeighbors<NI> + Sync,
+{
     let start = Instant::now();
 
     let next_chunk = Atomic::new(NI::zero());

@@ -96,10 +96,11 @@ pub trait Components<NI> {
 
 /// Computes Wcc by iterating all relationships in parallel and
 /// linking source and target nodes using a disjoint set struct.
-pub fn wcc_baseline<NI: Idx>(
-    graph: &DirectedCsrGraph<NI>,
-    config: WccConfig,
-) -> impl Components<NI> {
+pub fn wcc_baseline<NI, G>(graph: &G, config: WccConfig) -> impl Components<NI>
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedNeighbors<NI> + Sync,
+{
     let node_count = graph.node_count().index();
     let dss = DisjointSetStruct::new(node_count);
 
@@ -119,10 +120,11 @@ pub fn wcc_baseline<NI: Idx>(
 /// Computes Wcc using the Afforest algorithm backed by a disjoint
 /// set struct. The disjoint set struct performans path compression
 /// while searching the set id for a given node.
-pub fn wcc_afforest<NI: Idx + Hash>(
-    graph: &DirectedCsrGraph<NI>,
-    config: WccConfig,
-) -> impl Components<NI> {
+pub fn wcc_afforest<NI, G>(graph: &G, config: WccConfig) -> impl Components<NI>
+where
+    NI: Idx + Hash,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
     let start = Instant::now();
     let comp = Afforest::new(graph.node_count().index());
     info!("Afforest creation took {:?}", start.elapsed());
@@ -135,10 +137,11 @@ pub fn wcc_afforest<NI: Idx + Hash>(
 /// Computes Wcc using the Afforest algorithm as described in the original
 /// paper (see module description). The backing union find structure can
 /// achieve better cache locality compared to the disjoint set struct variant.
-pub fn wcc_afforest_dss<NI: Idx + Hash>(
-    graph: &DirectedCsrGraph<NI>,
-    config: WccConfig,
-) -> impl Components<NI> {
+pub fn wcc_afforest_dss<NI, G>(graph: &G, config: WccConfig) -> impl Components<NI>
+where
+    NI: Idx + Hash,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
     let start = Instant::now();
     let dss = DisjointSetStruct::new(graph.node_count().index());
     info!("DSS creation took {:?}", start.elapsed());
@@ -148,9 +151,10 @@ pub fn wcc_afforest_dss<NI: Idx + Hash>(
     dss
 }
 
-fn wcc<NI, UF>(graph: &DirectedCsrGraph<NI>, comp: &UF, config: WccConfig)
+fn wcc<NI, G, UF>(graph: &G, comp: &UF, config: WccConfig)
 where
     NI: Idx + Hash,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
     UF: UnionFind<NI> + Send + Sync,
 {
     let start = Instant::now();
@@ -175,9 +179,10 @@ where
 }
 
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
-fn sample_subgraph<NI, UF>(graph: &DirectedCsrGraph<NI>, uf: &UF, config: WccConfig)
+fn sample_subgraph<NI, G, UF>(graph: &G, uf: &UF, config: WccConfig)
 where
     NI: Idx,
+    G: Graph<NI> + DirectedNeighbors<NI> + Sync,
     UF: UnionFind<NI> + Send + Sync,
 {
     (0..graph.node_count().index())
@@ -197,9 +202,10 @@ where
 // Sample a subgraph by looking at the first `NEIGHBOR_ROUNDS` many targets of each node.
 // In contrast to `sample_subgraph`, the method calls `compress` for each neighbor round.
 #[allow(dead_code)]
-fn sample_subgraph_afforest<NI>(graph: &DirectedCsrGraph<NI>, af: &Afforest<NI>, config: WccConfig)
+fn sample_subgraph_afforest<NI, G>(graph: &G, af: &Afforest<NI>, config: WccConfig)
 where
     NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
 {
     let neighbor_rounds = config.neighbor_rounds;
     for r in 0..neighbor_rounds {
@@ -261,13 +267,10 @@ where
 }
 
 // Process the remaining edges while skipping nodes that are in the largest component.
-fn link_remaining<NI, UF>(
-    graph: &DirectedCsrGraph<NI>,
-    uf: &UF,
-    skip_component: NI,
-    config: WccConfig,
-) where
+fn link_remaining<NI, G, UF>(graph: &G, uf: &UF, skip_component: NI, config: WccConfig)
+where
     NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
     UF: UnionFind<NI> + Send + Sync,
 {
     (0..graph.node_count().index())
