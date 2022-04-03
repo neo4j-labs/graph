@@ -35,10 +35,11 @@ impl DeltaSteppingConfig {
     }
 }
 
-pub fn delta_stepping<NI: Idx>(
-    graph: &DirectedCsrGraph<NI, (), f32>,
-    config: DeltaSteppingConfig,
-) -> Vec<AtomicF32> {
+pub fn delta_stepping<NI, G>(graph: &G, config: DeltaSteppingConfig) -> Vec<AtomicF32>
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedNeighborsWithValues<NI, f32> + Sync,
+{
     let start = Instant::now();
 
     let DeltaSteppingConfig { start_node, delta } = config;
@@ -100,14 +101,18 @@ pub fn delta_stepping<NI: Idx>(
     distance
 }
 
-fn process_shared_bin<'bins, NI: Idx>(
+fn process_shared_bin<'bins, NI, G>(
     bins: &'bins mut ThreadLocalBins<NI>,
     curr_bin: usize,
-    graph: &DirectedCsrGraph<NI, (), f32>,
+    graph: &G,
     (frontier, frontier_idx, frontier_len): (&[NI], &AtomicUsize, usize),
     distance: &[AtomicF32],
     delta: f32,
-) -> &'bins mut ThreadLocalBins<NI> {
+) -> &'bins mut ThreadLocalBins<NI>
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedNeighborsWithValues<NI, f32> + Sync,
+{
     loop {
         let offset = frontier_idx.fetch_add(BATCH_SIZE, Ordering::AcqRel);
 
@@ -126,13 +131,17 @@ fn process_shared_bin<'bins, NI: Idx>(
     bins
 }
 
-fn process_local_bins<'bins, NI: Idx>(
+fn process_local_bins<'bins, NI, G>(
     bins: &'bins mut ThreadLocalBins<NI>,
     curr_bin: usize,
-    graph: &DirectedCsrGraph<NI, (), f32>,
+    graph: &G,
     distance: &[AtomicF32],
     delta: f32,
-) -> &'bins mut ThreadLocalBins<NI> {
+) -> &'bins mut ThreadLocalBins<NI>
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedNeighborsWithValues<NI, f32> + Sync,
+{
     while curr_bin < bins.len()
         && !bins.is_empty(curr_bin)
         && bins.bin_len(curr_bin) < BIN_SIZE_THRESHOLD
@@ -158,13 +167,16 @@ fn min_non_empty_bin<NI: Idx>(local_bins: &mut ThreadLocalBins<NI>, curr_bin: us
     next_local_bin
 }
 
-fn relax_edges<NI: Idx>(
-    graph: &DirectedCsrGraph<NI, (), f32>,
+fn relax_edges<NI, G>(
+    graph: &G,
     distances: &[AtomicF32],
     local_bins: &mut ThreadLocalBins<NI>,
     node: NI,
     delta: f32,
-) {
+) where
+    NI: Idx,
+    G: Graph<NI> + DirectedNeighborsWithValues<NI, f32> + Sync,
+{
     for Target { target, value } in graph.out_neighbors_with_values(node) {
         let mut old_distance = distances[target.index()].load(Ordering::Acquire);
         let new_distance = distances[node.index()].load(Ordering::Acquire) + value;
