@@ -1,6 +1,5 @@
 use super::{Graph, Layout, PyGraph};
-use crate::page_rank::PageRankResult;
-use crate::wcc::WccResult;
+use crate::{page_rank::PageRankResult, wcc::WccResult};
 use graph::{page_rank::PageRankConfig, prelude::DirectedCsrGraph, wcc::WccConfig};
 use numpy::PyArray1;
 use pyo3::{prelude::*, types::PyList};
@@ -131,7 +130,7 @@ impl DiGraph {
         sampling_size: usize,
     ) -> WccResult {
         let config = WccConfig::new(chunk_size, neighbor_rounds, sampling_size);
-        crate::wcc::wcc(py, self.inner.g(), config)
+        WccResult::new(crate::wcc::wcc(py, self.inner.g(), config))
     }
 }
 
