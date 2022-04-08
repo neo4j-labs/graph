@@ -74,7 +74,7 @@ fn random_walk_for_node<NI: Idx>(
     let mut walk = Vec::with_capacity(config.walk_length as usize);
     walk.push(*node);
 
-    if graph.out_degree(*node).index() == 1 {
+    if graph.out_degree(*node).index() == 0 {
         return vec![*node];
     }
 
@@ -151,12 +151,13 @@ fn is_neighbour<NI: Idx>(graph: &DirectedCsrGraph<NI>, node1: &NI, node2: &NI) -
 #[cfg(test)]
 mod tests {
     use crate::prelude::{CsrLayout, DirectedCsrGraph, GraphBuilder};
+    use std::collections::HashMap;
 
     use super::*;
 
     #[test]
-    fn test_tc_two_components() {
-        let gdl = "(a)-->()-->()<--(a),(b)-->()-->()<--(b)";
+    fn test_random_walks_with_default_parameters() {
+        let gdl = "(a)-->(b)-->(a),(a)-->(c)-->(a),(b)-->(c)-->(b),(d),(e)";
 
         let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
             .csr_layout(CsrLayout::Deduplicated)
@@ -164,32 +165,122 @@ mod tests {
             .build()
             .unwrap();
 
-        random_walks(&graph, &RandomWalkConfig::default());
+        let config = RandomWalkConfig::default();
+
+        let walks: Vec<Vec<usize>> = random_walks(&graph, &config).collect();
+
+        let expected_walk_count = config.walks_per_node as usize * graph.node_count();
+
+        assert_eq!(expected_walk_count, walks.len());
+
+        walks
+            .iter()
+            .map(|walk| walk.len())
+            .for_each(|walk_len| assert_eq!(walk_len, config.walk_length as usize));
+
+        assert!(!walks.iter().any(|walk| walk[0] == 3 || walk[0] == 4));
     }
-    //
-    // #[test]
-    // fn test_tc_connected_triangles() {
-    //     let gdl = "(a)-->()-->()<--(a),(a)-->()-->()<--(a)";
-    //
-    //     let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
-    //         .csr_layout(CsrLayout::Deduplicated)
-    //         .gdl_str::<usize, _>(gdl)
-    //         .build()
-    //         .unwrap();
-    //
-    //     assert_eq!(global_triangle_count(&graph), 2);
-    // }
-    //
-    // #[test]
-    // fn test_tc_diamond() {
-    //     let gdl = "(a)-->(b)-->(c)<--(a),(b)-->(d)<--(c)";
-    //
-    //     let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
-    //         .csr_layout(CsrLayout::Deduplicated)
-    //         .gdl_str::<usize, _>(gdl)
-    //         .build()
-    //         .unwrap();
-    //
-    //     assert_eq!(global_triangle_count(&graph), 2);
-    // }
+
+    #[test]
+    fn test_return_factor_should_make_walks_include_start_node_more_often() {
+        let gdl = r#"
+              (a)-->(b)-->(a)
+            , (b)-->(c)-->(a)
+            , (c)-->(d)-->(a)
+            , (d)-->(e)-->(a)
+            , (e)-->(f)-->(a)
+            , (f)-->(g)-->(a)
+            , (g)-->(h)-->(a)"#;
+
+        let mut gdl_graph = ::gdl::Graph::default();
+        gdl_graph.append(gdl).unwrap();
+
+        let a_id = gdl_graph.get_node("a").unwrap().id();
+        let b_id = gdl_graph.get_node("b").unwrap().id();
+        let c_id = gdl_graph.get_node("c").unwrap().id();
+
+        let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
+            .gdl_graph::<usize>(&gdl_graph)
+            .build()
+            .unwrap();
+
+        let config = RandomWalkConfig::new(100, 10, 1.0, 0.01);
+
+        let node_counter: HashMap<usize, usize> = count_node_occurrences(a_id, &graph, &config);
+
+        let a_count = *node_counter.get(&a_id).unwrap();
+        let b_count = *node_counter.get(&b_id).unwrap();
+        let c_count = *node_counter.get(&c_id).unwrap();
+
+        // (a) and (b) have similar occurrences, since from (a) the only reachable node is (b)
+        assert!(a_count.abs_diff(b_count) <= 1000);
+
+        // all other nodes should occur far less often because of the high return probability
+        assert!(a_count > c_count * 40);
+    }
+
+    #[test]
+    fn test_large_in_out_factor_should_make_the_walk_keep_the_same_distance() {
+        let gdl = r#"
+              (a)-->(b)
+            , (a)-->(c)
+            , (a)-->(d)
+            , (b)-->(a)
+            , (b)-->(e)
+            , (c)-->(a)
+            , (c)-->(d)
+            , (c)-->(e)
+            , (d)-->(a)
+            , (d)-->(c)
+            , (d)-->(e)
+            , (e)-->(a)"#;
+
+        let mut gdl_graph = ::gdl::Graph::default();
+        gdl_graph.append(gdl).unwrap();
+
+        let a_id = gdl_graph.get_node("a").unwrap().id();
+        let b_id = gdl_graph.get_node("b").unwrap().id();
+        let c_id = gdl_graph.get_node("c").unwrap().id();
+        let d_id = gdl_graph.get_node("d").unwrap().id();
+        let e_id = gdl_graph.get_node("e").unwrap().id();
+
+        let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
+            .gdl_graph::<usize>(&gdl_graph)
+            .build()
+            .unwrap();
+
+        let config = RandomWalkConfig::new(1000, 10, 100000.0, 0.1);
+
+        let node_counter: HashMap<usize, usize> = count_node_occurrences(a_id, &graph, &config);
+
+        let a_count = *node_counter.get(&a_id).unwrap();
+        let b_count = *node_counter.get(&b_id).unwrap();
+        let c_count = *node_counter.get(&c_id).unwrap();
+        let d_count = *node_counter.get(&d_id).unwrap();
+        let e_count = *node_counter.get(&e_id).unwrap();
+
+        // (a), (b), (c), (d) should be much more common than (e)
+        assert!(a_count - e_count > 4000);
+        assert!(b_count - e_count > 1200);
+        assert!(c_count - e_count > 1200);
+        assert!(d_count - e_count > 1200);
+    }
+
+    fn count_node_occurrences(
+        a_id: usize,
+        graph: &DirectedCsrGraph<usize>,
+        config: &RandomWalkConfig,
+    ) -> HashMap<usize, usize> {
+        random_walks(graph, config)
+            .collect::<Vec<Vec<usize>>>()
+            .iter()
+            .filter(|walk| walk[0] == a_id)
+            .flatten()
+            .fold(HashMap::new(), |mut acc, node| {
+                *acc.entry(*node).or_default() += 1;
+                acc
+            })
+    }
 }
