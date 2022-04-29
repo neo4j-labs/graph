@@ -1,28 +1,51 @@
-use rayon::prelude::*;
+//! Second Order Random Walk algorithm
+//!
+//! This algorithm generates random walks through a given graph.
+//! A random walk simulates a traversal of the graph starting at a specific node.
+//! Every time a node with more than one neighbour is reached a random function decides which neighbour is visited.
+//!
+//! In an unbiased random walk the transition probability for every neighbour is the same.
+//! For second order random walks the transition probability is biased by the present and the previous nodes.
 
 use crate::prelude::*;
 use nanorand::Rng;
+use rayon::prelude::*;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RandomWalkConfig {
-    walks_per_node: u32,
-    walk_length: u32,
-    normalized_return_probability: f32,
-    normalized_same_distance_probability: f32,
-    normalized_in_out_probability: f32,
+    /// Number of random walks generated for each node if the node has at least one outgoing relationship.
+    pub walks_per_node: u32,
+    /// The maximum number of steps for each random walk.
+    pub walk_length: u32,
+    /// Tendency of the random walk to stay close to the start node or fan out in the graph. A higher value means stay local.
+    pub in_out_factor: f32,
+    /// Tendency of the random walk to return to the last visited node. A value below 1.0 means a higher tendency.
+    pub return_factor: f32,
 }
 
 impl RandomWalkConfig {
     fn new(walks_per_node: u32, walk_length: u32, in_out_factor: f32, return_factor: f32) -> Self {
-        let max_probability = f32::max(f32::max(1.0 / return_factor, 1.0), 1.0 / in_out_factor);
-        let normalized_return_probability = (1.0 / return_factor) / max_probability;
-        let normalized_same_distance_probability = 1.0 / max_probability;
-        let normalized_in_out_probability = (1.0 / in_out_factor) / max_probability;
-
         Self {
             walks_per_node,
             walk_length,
+            in_out_factor,
+            return_factor,
+        }
+    }
+
+    fn parse(&self) -> ParsedRandomWalkConfig {
+        let max_probability = f32::max(
+            f32::max(1.0 / self.return_factor, 1.0),
+            1.0 / self.in_out_factor,
+        );
+        let normalized_return_probability = (1.0 / self.return_factor) / max_probability;
+        let normalized_same_distance_probability = 1.0 / max_probability;
+        let normalized_in_out_probability = (1.0 / self.in_out_factor) / max_probability;
+
+        ParsedRandomWalkConfig {
+            walks_per_node: self.walks_per_node,
+            walk_length: self.walk_length,
             normalized_return_probability,
             normalized_same_distance_probability,
             normalized_in_out_probability,
@@ -36,11 +59,22 @@ impl Default for RandomWalkConfig {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+struct ParsedRandomWalkConfig {
+    walks_per_node: u32,
+    walk_length: u32,
+    normalized_return_probability: f32,
+    normalized_same_distance_probability: f32,
+    normalized_in_out_probability: f32,
+}
+
+/// Computes random walks for the given graph. The parameters are defined by the `input_config`.
 pub fn random_walks<'graph, NI: Idx>(
     graph: &'graph DirectedCsrGraph<NI>,
-    config: &'graph RandomWalkConfig,
+    input_config: &'graph RandomWalkConfig,
 ) -> impl ParallelIterator<Item = Vec<NI>> + 'graph {
     let node_count = graph.node_count().index();
+    let config = input_config.parse();
 
     (0..node_count)
         .into_par_iter()
@@ -52,13 +86,13 @@ pub fn random_walks<'graph, NI: Idx>(
                 None
             }
         })
-        .flat_map_iter(|node| random_walks_for_node(&node, graph, config))
+        .flat_map_iter(move |node| random_walks_for_node(&node, graph, &config))
 }
 
 fn random_walks_for_node<NI: Idx>(
     node: &NI,
     graph: &DirectedCsrGraph<NI>,
-    config: &RandomWalkConfig,
+    config: &ParsedRandomWalkConfig,
 ) -> Vec<Vec<NI>> {
     (0..config.walks_per_node)
         .into_iter()
@@ -69,7 +103,7 @@ fn random_walks_for_node<NI: Idx>(
 fn random_walk_for_node<NI: Idx>(
     node: &NI,
     graph: &DirectedCsrGraph<NI>,
-    config: &RandomWalkConfig,
+    config: &ParsedRandomWalkConfig,
 ) -> Vec<NI> {
     let mut walk = Vec::with_capacity(config.walk_length as usize);
     walk.push(*node);
@@ -105,7 +139,7 @@ fn walk_one_step<NI: Idx>(
     prev_node: &NI,
     current_node: &NI,
     graph: &DirectedCsrGraph<NI>,
-    config: &RandomWalkConfig,
+    config: &ParsedRandomWalkConfig,
 ) -> Option<NI> {
     let current_node_degree = graph.out_degree(*current_node);
     let mut rng = nanorand::tls_rng();
@@ -154,8 +188,9 @@ fn is_neighbour<NI: Idx>(graph: &DirectedCsrGraph<NI>, node1: &NI, node2: &NI) -
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::{CsrLayout, DirectedCsrGraph, GraphBuilder};
     use std::collections::HashMap;
+
+    use crate::prelude::{CsrLayout, DirectedCsrGraph, GraphBuilder};
 
     use super::*;
 
