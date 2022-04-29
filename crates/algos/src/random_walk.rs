@@ -1,7 +1,7 @@
-use rand::prelude::*;
 use rayon::prelude::*;
 
 use crate::prelude::*;
+use nanorand::Rng;
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -94,11 +94,11 @@ fn random_walk_for_node<NI: Idx>(
 
 fn random_neighbour<NI: Idx>(node: &NI, graph: &DirectedCsrGraph<NI>) -> NI {
     let degree = graph.out_degree(*node);
-    let mut rng = rand::thread_rng();
+    let mut rng = nanorand::tls_rng();
 
-    let index = rng.gen_range(0..degree.index());
+    let index = rng.generate_range(0..degree.index());
 
-    graph.out_neighbors(*node)[index]
+    *graph.out_neighbors(*node).nth(index).unwrap()
 }
 
 fn walk_one_step<NI: Idx>(
@@ -108,20 +108,20 @@ fn walk_one_step<NI: Idx>(
     config: &RandomWalkConfig,
 ) -> Option<NI> {
     let current_node_degree = graph.out_degree(*current_node);
-    let mut rng = rand::thread_rng();
+    let mut rng = nanorand::tls_rng();
 
     match current_node_degree.index() {
         0 => None,
         1 => {
-            let neighbour = graph.out_neighbors(*current_node)[0];
-            Some(neighbour)
+            let neighbour = graph.out_neighbors(*current_node).next().unwrap();
+            Some(*neighbour)
         }
         _ => {
             let mut tries = 0;
 
             while tries < 10 {
                 let new_node = random_neighbour(current_node, graph);
-                let r: f32 = rng.gen();
+                let r: f32 = rng.generate();
 
                 if new_node == *prev_node {
                     if r < config.normalized_return_probability {
@@ -138,14 +138,18 @@ fn walk_one_step<NI: Idx>(
                 tries += 1;
             }
 
-            let neighbour = graph.out_neighbors(*current_node)[0];
-            Some(neighbour)
+            let neighbour = graph.out_neighbors(*current_node).next().unwrap();
+            Some(*neighbour)
         }
     }
 }
 
 fn is_neighbour<NI: Idx>(graph: &DirectedCsrGraph<NI>, node1: &NI, node2: &NI) -> bool {
-    graph.out_neighbors(*node1).binary_search(node2).is_ok()
+    graph
+        .out_neighbors(*node1)
+        .as_slice()
+        .binary_search(node2)
+        .is_ok()
 }
 
 #[cfg(test)]
