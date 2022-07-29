@@ -27,20 +27,20 @@ source .env/bin/activate
 Build in debug mode.
 
 ```
-maturin develop
+maturin develop --cargo-extra-args="--features=extension-module"
 ```
 
 Build in release mode.
 
 ```
-maturin develop --release
+maturin develop --release --cargo-extra-args="--features=extension-module"
 ```
 
 Rebuild the extension in release mode 2 seconds after the last file change.
 This is an optional step.
 
 ```
-cargo watch --shell 'maturin develop --release' --delay 2
+cargo watch --shell 'maturin develop --release --cargo-extra-args="--features=extension-module"' --delay 2
 ```
 
 ### Testing
