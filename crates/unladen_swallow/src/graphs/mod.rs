@@ -65,7 +65,7 @@ impl<NI, G> PyGraph<NI, G> {
     }
 
     fn g(&self) -> &G {
-        &*self.g
+        &self.g
     }
 }
 
