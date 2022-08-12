@@ -15,8 +15,8 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrow = "10.0.0"
-arrow-flight = "10.0.0"
+arrow = "20.0.0"
+arrow-flight = "20.0.0"
 async-trait = "0.1.52"
 clap = { version = "3.1.6", features = ["derive"] }
 env_logger = "0.9.0"
@@ -28,4 +28,4 @@ parking_lot = "0.12.0"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 tokio = "1.17.0"
-tonic = "0.6.2"
+tonic = "0.8.0"

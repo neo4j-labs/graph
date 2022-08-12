@@ -1,6 +1,7 @@
 use crate::actions::*;
 use crate::catalog::*;
 
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -121,7 +122,7 @@ impl FlightService for FlightServiceImpl {
 
         // all the remaining stream messages should be dictionary and record batches
         let start = Instant::now();
-        let dicts = vec![None; schema.fields().len()];
+        let dicts = HashMap::new();
         let mut edge_list = Vec::with_capacity(edge_count as usize);
         while let Some(flight_data) = request.message().await? {
             let batch = flight_data_to_arrow_batch(&flight_data, schema.clone(), &dicts)
