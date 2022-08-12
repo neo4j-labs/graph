@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, DEFAULT_PARALLELISM};
 
 use log::info;
 use num_format::{Locale, ToFormattedString};
@@ -28,9 +28,13 @@ where
     let next_chunk = Atomic::new(NI::zero());
     let total_triangles = AtomicU64::new(0);
 
-    rayon::scope(|s| {
-        for _ in 0..rayon::current_num_threads() {
-            s.spawn(|_| {
+    std::thread::scope(|s| {
+        let num_threads = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(DEFAULT_PARALLELISM);
+
+        for _ in 0..num_threads {
+            s.spawn(|| {
                 let mut triangles = 0;
 
                 loop {

@@ -201,10 +201,10 @@ where
 
         let new_line_bytes = new_line_bytes(bytes);
 
-        rayon::scope(|s| {
+        std::thread::scope(|s| {
             for start in (0..bytes.len()).step_by(chunk_size) {
                 let all_edges = Arc::clone(&all_edges);
-                s.spawn(move |_| {
+                s.spawn(move || {
                     let mut end = usize::min(start + chunk_size, bytes.len());
                     while end <= bytes.len() && bytes[end - 1] != b'\n' {
                         end += 1;
