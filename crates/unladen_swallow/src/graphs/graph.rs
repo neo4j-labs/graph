@@ -1,6 +1,6 @@
 use super::{Layout, PyGraph};
 use graph::prelude::UndirectedCsrGraph;
-use numpy::PyArray1;
+use numpy::{PyArray1, PyArray2};
 use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
 
@@ -30,6 +30,22 @@ impl Graph {
     #[args(layout = "Layout::Unsorted")]
     pub fn load(py: Python<'_>, path: PathBuf, layout: Layout) -> PyResult<Self> {
         let g = PyGraph::load(py, path, layout)?;
+        Ok(Self::new(g.load_micros, g))
+    }
+
+    /// Convert a numpy 2d-array into a graph.
+    #[staticmethod]
+    #[args(layout = "Layout::Unsorted")]
+    pub fn from_numpy(np: &PyArray2<u32>, layout: Layout) -> PyResult<Self> {
+        let g = PyGraph::from_numpy(np, layout)?;
+        Ok(Self::new(g.load_micros, g))
+    }
+
+    /// Convert a pandas dataframe into a graph.
+    #[staticmethod]
+    #[args(layout = "Layout::Unsorted")]
+    pub fn from_pandas(py: Python<'_>, data: PyObject, layout: Layout) -> PyResult<Self> {
+        let g = PyGraph::from_pandas(py, data, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
 
