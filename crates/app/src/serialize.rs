@@ -87,7 +87,7 @@ where
     NI: Idx + ToByteSlice,
     G: Graph<NI> + SerializeGraphOp<BufWriter<File>>,
 {
-    let writer = BufWriter::new(File::create(&output)?);
+    let writer = BufWriter::new(File::create(output)?);
     G::serialize(graph, writer)?;
     Ok(())
 }
