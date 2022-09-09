@@ -4,6 +4,7 @@ use log::info;
 use num_format::{Locale, ToFormattedString};
 
 use std::sync::atomic::AtomicU64;
+use std::thread::available_parallelism;
 use std::{sync::atomic::Ordering, time::Instant};
 
 const CHUNK_SIZE: usize = 64;
@@ -29,9 +30,7 @@ where
     let total_triangles = AtomicU64::new(0);
 
     std::thread::scope(|s| {
-        let num_threads = std::thread::available_parallelism()
-            .map(|p| p.get())
-            .unwrap_or(DEFAULT_PARALLELISM);
+        let num_threads = available_parallelism().map_or(DEFAULT_PARALLELISM, |p| p.get());
 
         for _ in 0..num_threads {
             s.spawn(|| {

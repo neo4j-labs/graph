@@ -6,6 +6,7 @@ use log::info;
 use rayon::prelude::*;
 
 use std::sync::atomic::Ordering;
+use std::thread::available_parallelism;
 use std::time::Instant;
 
 const CHUNK_SIZE: usize = 16384;
@@ -124,9 +125,7 @@ where
     let total_error = AtomicF64::new(0_f64);
 
     std::thread::scope(|s| {
-        let num_threads = std::thread::available_parallelism()
-            .map(|p| p.get())
-            .unwrap_or(DEFAULT_PARALLELISM);
+        let num_threads = available_parallelism().map_or(DEFAULT_PARALLELISM, |p| p.get());
 
         for _ in 0..num_threads {
             s.spawn(|| {
