@@ -1,6 +1,6 @@
 use super::{Graph, Layout, PyGraph};
-use crate::page_rank::PageRankResult;
-use graph::{page_rank::PageRankConfig, prelude::DirectedCsrGraph};
+use crate::{page_rank::PageRankResult, wcc::WccResult};
+use graph::{page_rank::PageRankConfig, prelude::DirectedCsrGraph, wcc::WccConfig};
 use numpy::PyArray1;
 use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
@@ -113,6 +113,24 @@ impl DiGraph {
     ) -> PageRankResult {
         let config = PageRankConfig::new(max_iterations, tolerance, damping_factor);
         crate::page_rank::page_rank(py, self.inner.g(), config)
+    }
+
+    /// Run Weakly Connected Compontents on this graph.
+    #[args(
+        "*",
+        chunk_size = "WccConfig::DEFAULT_CHUNK_SIZE",
+        neighbor_rounds = "WccConfig::DEFAULT_NEIGHBOR_ROUNDS",
+        sampling_size = "WccConfig::DEFAULT_SAMPLING_SIZE"
+    )]
+    pub fn wcc(
+        &self,
+        py: Python<'_>,
+        chunk_size: usize,
+        neighbor_rounds: usize,
+        sampling_size: usize,
+    ) -> WccResult {
+        let config = WccConfig::new(chunk_size, neighbor_rounds, sampling_size);
+        WccResult::new(crate::wcc::wcc(py, self.inner.g(), config))
     }
 }
 

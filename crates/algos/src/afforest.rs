@@ -25,7 +25,7 @@ impl<NI: Idx> UnionFind<NI> for Afforest<NI> {
 
         while p1 != p2 {
             let high = NI::max(p1, p2);
-            let low = p1 + (p2 - high);
+            let low = p1 + p2 - high;
             let p_high = self.find(high);
 
             if p_high == low
