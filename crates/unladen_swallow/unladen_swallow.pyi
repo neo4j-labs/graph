@@ -83,7 +83,7 @@ class DiGraph:
         """Run Page Rank on this graph."""
     def wcc(
         self, *, chunk_size: int, neighbor_rounds: int, sampling_size: int
-    ) -> PageRankResult:
+    ) -> WccResult:
         """Run Weakly Connected Components on this graph."""
 
 class Graph:
@@ -133,6 +133,15 @@ class PageRankResult:
         pass
     @property
     def error(self) -> float:
+        pass
+    @property
+    def micros(self) -> float:
+        pass
+    def __repr__(self) -> str:
+        pass
+
+class WccResult:
+    def components(self) -> npt.NDArray[np.uint32]:
         pass
     @property
     def micros(self) -> float:
