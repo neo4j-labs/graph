@@ -27,20 +27,20 @@ source .env/bin/activate
 Build in debug mode.
 
 ```
-maturin develop --cargo-extra-args="--features=extension-module"
+maturin develop
 ```
 
 Build in release mode.
 
 ```
-maturin develop --release --cargo-extra-args="--features=extension-module"
+maturin develop --release
 ```
 
 Rebuild the extension in release mode 2 seconds after the last file change.
 This is an optional step.
 
 ```
-cargo watch --shell 'maturin develop --release --cargo-extra-args="--features=extension-module"' --delay 2
+cargo watch --shell 'maturin develop --release' --delay 2
 ```
 
 ### Testing
@@ -62,4 +62,7 @@ isort tests
 
 # Verify with https://pypi.org/project/flake8/
 flake8 tests
+
+# Very types using http://mypy-lang.org
+mypy .
 ```
