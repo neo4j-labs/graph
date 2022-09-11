@@ -1,0 +1,30 @@
+[package]
+name = "gds_export"
+version = "0.1.0"
+authors = [
+    "Martin Junghanns <github@s1ck.dev>",
+    "Paul Horn <developer@knutwalker.de>",
+]
+description = "A library for exporting graphs to Neo4j GDS"
+keywords = ["graph", "export", "arrow"]
+repository = "https://github.com/s1ck/graph"
+edition = "2021"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+arrow = "20.0.0"
+arrow-flight = "20.0.0"
+futures = "0.3"
+graph_builder = { path = "../builder", version = "^0.2.0" }
+http = "0.2.8"
+itertools = "0.10.3"
+log = "0.4.14"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tonic = "0.8"
+
+[dev-dependencies]
+graph_builder = { path = "../builder", version = "^0.2.0", features = ["gdl"] }
+tokio = { version = "1.0", features = ["tokio-macros"] }
