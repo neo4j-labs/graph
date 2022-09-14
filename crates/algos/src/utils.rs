@@ -49,7 +49,7 @@ where
     }
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let x = if self.top.is_some() { 1 } else { 0 };
+        let x = usize::from(self.top.is_some());
         let (low, hi) = self.iter.size_hint();
         (low + x, hi.map(|e| e + x))
     }
