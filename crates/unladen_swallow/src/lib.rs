@@ -1,4 +1,3 @@
-#![feature(generic_associated_types)]
 #![allow(clippy::borrow_deref_ref)]
 
 use graph::prelude::Error as GError;
