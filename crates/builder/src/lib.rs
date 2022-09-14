@@ -1,5 +1,4 @@
 #![feature(doc_cfg)]
-#![feature(generic_associated_types)]
 #![feature(maybe_uninit_write_slice)]
 #![feature(new_uninit)]
 #![feature(slice_partition_dedup)]
