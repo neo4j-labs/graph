@@ -2,7 +2,6 @@ use std::{path::PathBuf, time::Instant};
 
 use graph::prelude::*;
 
-use clap::AppSettings::DeriveDisplayOrder;
 use kommandozeile::*;
 use log::info;
 
@@ -37,13 +36,7 @@ fn main() -> Result<()> {
 }
 
 #[derive(Debug, clap::Parser)]
-#[clap(
-    author,
-    version,
-    about,
-    propagate_version = true,
-    global_setting = DeriveDisplayOrder
-)]
+#[clap(author, version, about, propagate_version = true)]
 struct Args {
     #[clap(flatten)]
     args: CommonArgs,
@@ -57,10 +50,10 @@ struct Args {
 
 #[derive(Debug, clap::Args)]
 struct CommonArgs {
-    #[clap(short, long, parse(from_os_str))]
+    #[clap(short, long, value_parser)]
     path: PathBuf,
 
-    #[clap(short, long, arg_enum, default_value_t = FileFormat::EdgeList)]
+    #[clap(short, long, value_enum, default_value_t = FileFormat::EdgeList)]
     format: FileFormat,
 
     #[clap(long)]
@@ -73,7 +66,7 @@ struct CommonArgs {
     warmup_runs: usize,
 }
 
-#[derive(clap::ArgEnum, Debug, Clone)]
+#[derive(clap::ValueEnum, Debug, Clone)]
 enum FileFormat {
     EdgeList,
     Graph500,
@@ -108,7 +101,7 @@ enum Algorithm {
     },
     Serialize {
         /// Path to serialize graph to.
-        #[clap(short, long, parse(from_os_str))]
+        #[clap(short, long, value_parser)]
         output: PathBuf,
         /// Load the graph as undirected.
         #[clap(long)]
