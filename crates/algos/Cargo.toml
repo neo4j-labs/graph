@@ -14,15 +14,15 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ahash = "0.8.0"
-atomic_float = "0.1.0"
-clap = { version = "3.1.6", features = ["derive"], optional = true }
+ahash.workspace = true
+atomic_float.workspace = true
+clap = { workspace = true, optional = true }
 graph_builder = { path = "../builder", version = "^0.2.0" }
-log = "0.4.14"
-num-format = "0.4.0"
-nanorand = "0.7.0"
-rayon = "1.5.1"
-serde = { version = "1.0.136", features = ["derive"], optional = true }
+log.workspace = true
+num-format.workspace = true
+nanorand.workspace = true
+rayon.workspace = true
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 graph_builder = { path = "../builder", version = "^0.2.0", features = ["gdl"] }

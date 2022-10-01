@@ -23,12 +23,12 @@ extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 graph = { path = "../algos", version = "^0.2.0" }
-log = "0.4.14"
-numpy = "0.16.0"
-pyo3-log = "0.6.0"
-rayon = "1.5.1"
+log.workspace = true
+numpy.workspace = true
+pyo3-log.workspace = true
+rayon.workspace = true
 
 [dependencies.pyo3]
-version = "0.16.0"
+workspace = true
 features = ["macros", "pyproto", "auto-initialize"]
 default-features = false
