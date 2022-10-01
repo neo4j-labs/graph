@@ -12,28 +12,28 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-atoi = "1.0.0"
-atomic = "0.5.1"
-byte-slice-cast = "1.2.1"
-delegate = "0.7.0"
-fast-float = "0.2.0"
-fxhash = "0.2.1"
-gdl = { version = "0.2.6", optional = true }
-linereader = "0.4.0"
-log = "0.4.14"
-memmap2 = "0.5.3"
-num = "0.4.0"
-num-format = "0.4.0"
-num_cpus = "1.13.1"
-page_size = "0.4.2"
-parking_lot = "0.12.0"
-rayon = "1.5.1"
-thiserror = "1.0.30"
+atoi.workspace = true
+atomic.workspace = true
+byte-slice-cast.workspace = true
+delegate.workspace = true
+fast-float.workspace = true
+fxhash.workspace = true
+gdl = { workspace = true, optional = true }
+linereader.workspace = true
+log.workspace = true
+memmap2.workspace = true
+num.workspace = true
+num-format.workspace = true
+num_cpus.workspace = true
+page_size.workspace = true
+parking_lot.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
-criterion = { version = "0.3.5", features = ["html_reports"] }
-rand = "0.8.5"
-tempfile = "3.3.0"
+criterion.workspace = true
+rand.workspace = true
+tempfile.workspace = true
 
 [[bench]]
 name = "edgelist"
