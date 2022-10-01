@@ -48,10 +48,6 @@ jobs:
         with:
           command: test
           args: --all-features
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --examples --features gdl
 
   test_careful:
     name: Test Suite (cargo careful)
@@ -67,7 +63,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: install
-          args: careful
+          args: cargo-careful
       - uses: actions-rs/cargo@v1
         with:
           command: careful
@@ -76,10 +72,6 @@ jobs:
         with:
           command: careful
           args: test --all-features
-      - uses: actions-rs/cargo@v1
-        with:
-          command: careful
-          args: test --examples --features gdl
 
   fmt:
     name: Rustfmt
