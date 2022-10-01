@@ -4,7 +4,7 @@ use numpy::{
     PyArray, PyArray1, PY_ARRAY_API,
 };
 use pyo3::{prelude::*, types::PyCapsule};
-use std::{ffi::CStr, fmt::Debug, os::raw::c_void, sync::Arc};
+use std::{ffi::CString, fmt::Debug, os::raw::c_void, sync::Arc};
 
 pub trait NumpyType {
     const NP_TYPE: NPY_TYPES;
@@ -148,8 +148,7 @@ impl SharedSlice {
         let capsule = PyCapsule::new_with_destructor(
             py,
             self,
-            // SAFETY: byte string literal ends in a NULL byte
-            unsafe { CStr::from_bytes_with_nul_unchecked(b"__graph_neighbors_buf__\0") },
+            Some(CString::new("__graph_neighbors_buf__").expect("CString::new failed")),
             |b, _| drop(b),
         )?;
 
