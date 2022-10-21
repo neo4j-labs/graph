@@ -7,16 +7,21 @@ use graph::prelude::*;
 
 pub enum FlightAction {
     Create(CreateGraphFromFileConfig),
+    List,
     Compute(ComputeConfig),
     Relabel(RelabelConfig),
 }
 
 impl FlightAction {
-    pub fn action_types() -> [ActionType; 3] {
+    pub fn action_types() -> [ActionType; 4] {
         [
             ActionType {
                 r#type: "create".into(),
                 description: "Create an in-memory graph.".into(),
+            },
+            ActionType {
+                r#type: "list".into(),
+                description: "List in-memory graphs.".into(),
             },
             ActionType {
                 r#type: "compute".into(),
@@ -40,6 +45,7 @@ impl TryFrom<Action> for FlightAction {
                 let create_action = action.try_into()?;
                 Ok(FlightAction::Create(create_action))
             }
+            "list" => Ok(FlightAction::List),
             "compute" => {
                 let compute_action = action.try_into()?;
                 Ok(FlightAction::Compute(compute_action))
@@ -146,6 +152,36 @@ impl CreateActionResult {
             node_count,
             edge_count,
             create_millis,
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct ListActionResult {
+    graph_infos: Vec<GraphInfo>,
+}
+
+impl ListActionResult {
+    pub fn new(graph_infos: Vec<GraphInfo>) -> Self {
+        Self { graph_infos }
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct GraphInfo {
+    graph_name: String,
+    graph_type: String,
+    node_count: u64,
+    edge_count: u64,
+}
+
+impl GraphInfo {
+    pub fn new(graph_name: String, graph_type: String, node_count: u64, edge_count: u64) -> Self {
+        Self {
+            graph_name,
+            graph_type,
+            node_count,
+            edge_count,
         }
     }
 }
