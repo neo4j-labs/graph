@@ -119,6 +119,7 @@ fn directed_u32_graph_from_edge_list() {
 #[test]
 fn directed_usize_graph_from_edge_list_with_values() {
     let graph: DirectedCsrGraph<usize, (), f32> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
         .edges_with_values([
             (0, 1, 0.1),
             (0, 2, 0.2),
