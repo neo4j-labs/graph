@@ -453,7 +453,7 @@ where
 
     type EV = EV;
 
-    type EdgeIter<'a> = impl ParallelIterator<Item = (Self::NI, Self::NI, Self::EV)>
+    type EdgeIter<'a> = impl ParallelIterator<Item = (Self::NI, Self::NI, Self::EV)> + 'a
     where
         Self: 'a;
 
