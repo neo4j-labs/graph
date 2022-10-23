@@ -689,7 +689,7 @@ mod tests {
 
     #[test]
     fn greedy_node_map_partition_6_parts() {
-        let partitions = greedy_node_map_partition::<usize, _>(|x| x as usize, 10, 6, 99999);
+        let partitions = greedy_node_map_partition::<usize, _>(|x| x, 10, 6, 99999);
         assert_eq!(partitions.len(), 6);
         assert_eq!(partitions[0], 0..4);
         assert_eq!(partitions[1], 4..6);
@@ -701,7 +701,7 @@ mod tests {
 
     #[test]
     fn greedy_node_map_partition_max_batches() {
-        let partitions = greedy_node_map_partition::<usize, _>(|x| x as usize, 10, 6, 3);
+        let partitions = greedy_node_map_partition::<usize, _>(|x| x, 10, 6, 3);
         assert_eq!(partitions.len(), 3);
         assert_eq!(partitions[0], 0..4);
         assert_eq!(partitions[1], 4..6);
