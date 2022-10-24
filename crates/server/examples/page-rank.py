@@ -1,5 +1,4 @@
 import json
-import pyarrow as pa
 import pyarrow.flight as flight
 import sys
 
@@ -9,7 +8,7 @@ graph_name = sys.argv[1]
 file_format = sys.argv[2]
 graph_path = sys.argv[3]
 
-# Create directed graph on server
+# Create graph on server and store in catalog
 create_action = {
     "graph_name": graph_name,
     "file_format": file_format,
@@ -21,7 +20,13 @@ create_action = {
 result = client.do_action(flight.Action("create", json.dumps(create_action).encode('utf-8')))
 obj = json.loads(next(result).body.to_pybytes().decode())
 print("graph create result")
-print(json.dumps(obj, indent = 4))
+print(json.dumps(obj, indent=4))
+
+# List graphs already in the catalog
+result = client.do_action("list")
+obj = json.loads(next(result).body.to_pybytes().decode())
+print("graph list result")
+print(json.dumps(obj, indent=4))
 
 # Compute Page Rank
 compute_action = {
@@ -39,7 +44,7 @@ compute_action = {
 result = client.do_action(flight.Action("compute", json.dumps(compute_action).encode('utf-8')))
 obj = json.loads(next(result).body.to_pybytes().decode())
 print("page rank result")
-print(json.dumps(obj, indent = 4))
+print(json.dumps(obj, indent=4))
 
 ticket = obj['property_id']
 
@@ -47,5 +52,5 @@ ticket = obj['property_id']
 reader = client.do_get(flight.Ticket(json.dumps(ticket).encode('utf-8')))
 scores = reader.read_all().to_pandas()
 print(scores.head())
-print("count = " + str(scores.count(axis = 0)['page_rank']))
-print("sum = " + str(scores.sum(axis = 0)['page_rank']))
+print("count = " + str(scores.count(axis=0)['page_rank']))
+print("sum = " + str(scores.sum(axis=0)['page_rank']))

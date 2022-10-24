@@ -9,13 +9,28 @@ use graph::prelude::*;
 use serde::{Deserialize, Serialize};
 use tonic::Status;
 
-use crate::actions::{from_json_error, FileFormat, Orientation};
+use crate::actions::{from_json_error, FileFormat, GraphInfo, Orientation};
 
 pub enum GraphType {
     Directed(DirectedCsrGraph<u64>),
     Undirected(UndirectedCsrGraph<u64>),
     DirectedWeighted(DirectedCsrGraph<u64, (), f32>),
     UndirectedWeighted(UndirectedCsrGraph<u64, (), f32>),
+}
+
+impl std::fmt::Display for GraphType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self {
+                GraphType::Directed(_) => "directed",
+                GraphType::Undirected(_) => "undirected",
+                GraphType::DirectedWeighted(_) => "directed+weighted",
+                GraphType::UndirectedWeighted(_) => "undirected+weighted",
+            }
+        )
+    }
 }
 
 impl GraphType {
@@ -155,6 +170,22 @@ impl GraphCatalog {
 
     pub fn insert(&mut self, graph_name: String, graph: GraphType) {
         self.graphs.insert(graph_name, graph);
+    }
+
+    pub fn list(&self) -> Vec<GraphInfo> {
+        self.graphs
+            .iter()
+            .map(|(graph_name, graph_type)| {
+                let graph_name = graph_name.clone();
+                let (node_count, edge_count) = match graph_type {
+                    GraphType::Directed(g) => (g.node_count(), g.edge_count()),
+                    GraphType::Undirected(g) => (g.node_count(), g.edge_count()),
+                    GraphType::DirectedWeighted(g) => (g.node_count(), g.edge_count()),
+                    GraphType::UndirectedWeighted(g) => (g.node_count(), g.edge_count()),
+                };
+                GraphInfo::new(graph_name, graph_type.to_string(), node_count, edge_count)
+            })
+            .collect::<Vec<_>>()
     }
 }
 
