@@ -18,23 +18,23 @@ impl FlightAction {
         [
             ActionType {
                 r#type: "create".into(),
-                description: "Create an in-memory graph.".into(),
+                description: "Create a new graph.".into(),
             },
             ActionType {
                 r#type: "list".into(),
-                description: "List in-memory graphs.".into(),
+                description: "List all graphs.".into(),
             },
             ActionType {
                 r#type: "remove".into(),
-                description: "Remove an in-memory graph.".into(),
+                description: "Remove a graph.".into(),
             },
             ActionType {
                 r#type: "compute".into(),
-                description: "Compute a graph algorithm on an in-memory graph.".into(),
+                description: "Compute a graph algorithm on a graph.".into(),
             },
             ActionType {
                 r#type: "relabel".into(),
-                description: "Relabel an in-memory graph".into(),
+                description: "Relabel a graph".into(),
             },
         ]
     }
