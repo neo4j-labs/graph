@@ -187,6 +187,24 @@ impl GraphCatalog {
             })
             .collect::<Vec<_>>()
     }
+
+    pub fn remove<K: AsRef<str>>(&mut self, graph_name: K) -> Result<GraphInfo, Status> {
+        self.graphs.remove(graph_name.as_ref()).map_or_else(
+            || {
+                Err(Status::not_found(
+                    "Graph with name '{graph_name}' not found",
+                ))
+            },
+            |g| {
+                Ok(GraphInfo::new(
+                    graph_name.as_ref().to_string(),
+                    g.to_string(),
+                    g.node_count(),
+                    g.edge_count(),
+                ))
+            },
+        )
+    }
 }
 
 #[derive(Hash, Eq, PartialEq, Serialize, Deserialize, Debug, Clone)]

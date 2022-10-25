@@ -185,6 +185,9 @@ impl FlightService for FlightServiceImpl {
                 create_graph(config, Arc::clone(&self.graph_catalog)).await?
             }
             FlightAction::List => list_graphs(Arc::clone(&self.graph_catalog)).await?,
+            FlightAction::Remove(config) => {
+                remove_graph(config, Arc::clone(&self.graph_catalog)).await?
+            }
             FlightAction::Relabel(config) => {
                 relabel_graph(config, Arc::clone(&self.graph_catalog)).await?
             }
@@ -313,6 +316,15 @@ async fn list_graphs(
 ) -> FlightResult<arrow_flight::Result> {
     let graph_infos = graph_catalog.read().list();
     let result = ListActionResult::new(graph_infos);
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
+}
+
+async fn remove_graph(
+    config: RemoveGraphConfig,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+) -> FlightResult<arrow_flight::Result> {
+    let result = graph_catalog.write().remove(config.graph_name)?;
     let result = serde_json::to_vec(&result).map_err(from_json_error)?;
     Ok(arrow_flight::Result { body: result })
 }
