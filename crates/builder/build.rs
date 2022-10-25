@@ -20,10 +20,18 @@ pub fn test() {
 "#;
 
 fn main() {
-    match compile_probe(MAYBE_UNINIT_WRITE_SLICE_PROBE) {
+    test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE)
+}
+
+fn test_for_feature(feature_name: &str, probe: &str) {
+    match compile_probe(probe) {
         Some(status) if status.success() => {}
-        _ => println!("cargo:rustc-cfg=no_maybe_uninit_write_slice"),
+        _ => enable_compat_for_feature(feature_name),
     }
+}
+
+fn enable_compat_for_feature(feature_name: &str) {
+    println!("cargo:rust-cfg=no_{feature_name}");
 }
 
 // Checks if some code can be compiled with the current toolchain
