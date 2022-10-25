@@ -54,3 +54,12 @@ scores = reader.read_all().to_pandas()
 print(scores.head())
 print("count = " + str(scores.count(axis=0)['page_rank']))
 print("sum = " + str(scores.sum(axis=0)['page_rank']))
+
+# Remove graph on the server
+remove_action = {
+    "graph_name": graph_name,
+}
+result = client.do_action(flight.Action("remove", json.dumps(remove_action).encode('utf-8')))
+obj = json.loads(next(result).body.to_pybytes().decode())
+print("graph remove result")
+print(json.dumps(obj, indent=4))

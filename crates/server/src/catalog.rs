@@ -159,13 +159,13 @@ impl GraphCatalog {
     pub fn get<K: AsRef<str>>(&self, graph_name: K) -> Result<&GraphType, Status> {
         self.graphs
             .get(graph_name.as_ref())
-            .ok_or_else(|| Status::not_found("Graph with name '{graph_name}' not found"))
+            .ok_or_else(|| GraphCatalog::graph_not_found(graph_name))
     }
 
     pub fn get_mut<K: AsRef<str>>(&mut self, graph_name: K) -> Result<&mut GraphType, Status> {
         self.graphs
             .get_mut(graph_name.as_ref())
-            .ok_or_else(|| Status::not_found("Graph with name '{graph_name}' not found"))
+            .ok_or_else(|| GraphCatalog::graph_not_found(graph_name))
     }
 
     pub fn insert(&mut self, graph_name: String, graph: GraphType) {
@@ -186,6 +186,28 @@ impl GraphCatalog {
                 GraphInfo::new(graph_name, graph_type.to_string(), node_count, edge_count)
             })
             .collect::<Vec<_>>()
+    }
+
+    pub fn remove<K: AsRef<str>>(&mut self, graph_name: K) -> Result<GraphInfo, Status> {
+        let graph_name = graph_name.as_ref();
+        self.graphs.remove(graph_name).map_or_else(
+            || Err(GraphCatalog::graph_not_found(graph_name)),
+            |g| {
+                Ok(GraphInfo::new(
+                    graph_name.to_string(),
+                    g.to_string(),
+                    g.node_count(),
+                    g.edge_count(),
+                ))
+            },
+        )
+    }
+
+    fn graph_not_found<K: AsRef<str>>(graph_name: K) -> Status {
+        Status::not_found(format!(
+            "Graph with name '{}' not found",
+            graph_name.as_ref()
+        ))
     }
 }
 

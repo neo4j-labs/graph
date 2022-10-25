@@ -8,28 +8,33 @@ use graph::prelude::*;
 pub enum FlightAction {
     Create(CreateGraphFromFileConfig),
     List,
+    Remove(RemoveGraphConfig),
     Compute(ComputeConfig),
     Relabel(RelabelConfig),
 }
 
 impl FlightAction {
-    pub fn action_types() -> [ActionType; 4] {
+    pub fn action_types() -> [ActionType; 5] {
         [
             ActionType {
                 r#type: "create".into(),
-                description: "Create an in-memory graph.".into(),
+                description: "Create a new graph.".into(),
             },
             ActionType {
                 r#type: "list".into(),
-                description: "List in-memory graphs.".into(),
+                description: "List all graphs.".into(),
+            },
+            ActionType {
+                r#type: "remove".into(),
+                description: "Remove a graph.".into(),
             },
             ActionType {
                 r#type: "compute".into(),
-                description: "Compute a graph algorithm on an in-memory graph.".into(),
+                description: "Compute a graph algorithm on a graph.".into(),
             },
             ActionType {
                 r#type: "relabel".into(),
-                description: "Relabel an in-memory graph".into(),
+                description: "Relabel a graph".into(),
             },
         ]
     }
@@ -46,6 +51,10 @@ impl TryFrom<Action> for FlightAction {
                 Ok(FlightAction::Create(create_action))
             }
             "list" => Ok(FlightAction::List),
+            "remove" => {
+                let remove_action = action.try_into()?;
+                Ok(FlightAction::Remove(remove_action))
+            }
             "compute" => {
                 let compute_action = action.try_into()?;
                 Ok(FlightAction::Compute(compute_action))
@@ -183,6 +192,19 @@ impl GraphInfo {
             node_count,
             edge_count,
         }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RemoveGraphConfig {
+    pub graph_name: String,
+}
+
+impl TryFrom<Action> for RemoveGraphConfig {
+    type Error = Status;
+
+    fn try_from(action: Action) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<Self>(action.body.as_slice()).map_err(from_json_error)
     }
 }
 
