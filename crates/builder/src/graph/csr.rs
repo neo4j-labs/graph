@@ -329,20 +329,20 @@ where
 
         let [node_count, edge_count] = meta;
 
-        let mut offsets = Box::<[NI]>::new_uninit_slice(node_count.index() + 1);
+        let mut offsets = Box::new_uninit_slice_compat(node_count.index() + 1);
         let offsets_ptr = offsets.as_mut_ptr() as *mut NI;
         let offsets_ptr =
             unsafe { std::slice::from_raw_parts_mut(offsets_ptr, node_count.index() + 1) };
         read.read_exact(offsets_ptr.as_mut_byte_slice())?;
 
-        let mut targets = Box::<[Target<NI, EV>]>::new_uninit_slice(edge_count.index());
+        let mut targets = Box::new_uninit_slice_compat(edge_count.index());
         let targets_ptr = targets.as_mut_ptr() as *mut Target<NI, EV>;
         let targets_ptr =
             unsafe { std::slice::from_raw_parts_mut(targets_ptr, edge_count.index()) };
         read.read_exact(targets_ptr.as_mut_byte_slice())?;
 
-        let offsets = unsafe { offsets.assume_init() };
-        let targets = unsafe { targets.assume_init() };
+        let offsets = unsafe { offsets.assume_init_compat() };
+        let targets = unsafe { targets.assume_init_compat() };
 
         Ok(Csr::new(offsets, targets))
     }
@@ -384,13 +384,13 @@ where
         read.read_exact(meta.as_mut_byte_slice())?;
         let [node_count] = meta;
 
-        let mut node_values = Box::<[NV]>::new_uninit_slice(node_count);
+        let mut node_values = Box::new_uninit_slice_compat(node_count);
         let node_values_ptr = node_values.as_mut_ptr() as *mut NV;
         let node_values_slice =
             unsafe { std::slice::from_raw_parts_mut(node_values_ptr, node_count.index()) };
         read.read_exact(node_values_slice.as_mut_byte_slice())?;
 
-        let offsets = unsafe { node_values.assume_init() };
+        let offsets = unsafe { node_values.assume_init_compat() };
 
         Ok(NodeValues(offsets))
     }

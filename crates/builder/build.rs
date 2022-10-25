@@ -19,8 +19,21 @@ pub fn test() {
 }
 "#;
 
+// Checks if the new_uninit feature can be enabled
+const NEW_UNINIT_PROBE: &str = r#"
+#![feature(new_uninit)]
+#![allow(dead_code)]
+
+use std::mem::MaybeUninit;
+
+pub fn test() -> Box<[MaybeUninit<usize>]> {
+    Box::<[usize]>::new_uninit_slice(42)
+}
+"#;
+
 fn main() {
     test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE);
+    test_for_feature("new_uninit", NEW_UNINIT_PROBE);
 }
 
 fn test_for_feature(feature_name: &str, probe: &str) {
