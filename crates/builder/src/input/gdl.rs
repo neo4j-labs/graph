@@ -100,7 +100,7 @@ where
             let id = node.id();
             let label = node.labels().next().expect("Single label expected");
             let degree = degree(gdl_graph, node);
-            let _ = writeln!(nodes_string, "v {} {} {}", id, &label[1..], degree);
+            let _ = writeln!(nodes_string, "v {id} {} {degree}", &label[1..]);
         }
 
         let mut rels_string = String::from("");
@@ -117,10 +117,10 @@ where
                 .get_node(rel.target())
                 .expect("Target expected")
                 .id();
-            let _ = writeln!(rels_string, "e {} {}", source_id, target_id);
+            let _ = writeln!(rels_string, "e {source_id} {target_id}");
         }
 
-        let input = format!("{}\n{}{}", header, nodes_string, rels_string);
+        let input = format!("{header}\n{nodes_string}{rels_string}");
         let reader = LineReader::new(input.as_bytes());
 
         DotGraph::<NI, Label>::try_from(reader).expect("GDL to .graph conversion failed")

@@ -526,5 +526,5 @@ async fn compute_wcc(
 }
 
 fn from_arrow_err(e: ArrowError) -> Status {
-    Status::internal(format!("ArrowError: {:?}", e))
+    Status::internal(format!("ArrowError: {e:?}"))
 }
