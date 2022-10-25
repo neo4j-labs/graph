@@ -15,7 +15,6 @@ use std::{
 
 use rayon::prelude::*;
 
-#[cfg(no_maybe_uninit_write_slice)]
 use crate::compat::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
@@ -957,7 +956,7 @@ where
         .into_par_iter()
         .zip(new_target_slices.into_par_iter())
         .for_each(|(old_slice, new_slice)| {
-            MaybeUninit::write_slice(new_slice, &old_slice[..new_slice.len()]);
+            MaybeUninit::write_slice_compat(new_slice, &old_slice[..new_slice.len()]);
         });
 
     // SAFETY: We copied all (potentially shortened) target ids from the old

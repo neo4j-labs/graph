@@ -20,7 +20,7 @@ pub fn test() {
 "#;
 
 fn main() {
-    test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE)
+    test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE);
 }
 
 fn test_for_feature(feature_name: &str, probe: &str) {
