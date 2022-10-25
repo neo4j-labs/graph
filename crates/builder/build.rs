@@ -25,13 +25,13 @@ fn main() {
 
 fn test_for_feature(feature_name: &str, probe: &str) {
     match compile_probe(probe) {
-        Some(status) if status.success() => {}
-        _ => enable_compat_for_feature(feature_name),
+        Some(status) if status.success() => enable_feature(feature_name),
+        _ => {}
     }
 }
 
-fn enable_compat_for_feature(feature_name: &str) {
-    println!("cargo:rust-cfg=no_{feature_name}");
+fn enable_feature(feature_name: &str) {
+    println!("cargo:rustc-cfg=has_{feature_name}");
 }
 
 // Checks if some code can be compiled with the current toolchain

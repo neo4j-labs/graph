@@ -6,7 +6,7 @@ pub(crate) trait MaybeUninitWriteSliceExt<T> {
         T: Copy;
 }
 
-#[cfg(no_maybe_uninit_write_slice)]
+#[cfg(not(has_maybe_uninit_write_slice))]
 impl<T> MaybeUninitWriteSliceExt<T> for MaybeUninit<T> {
     fn write_slice_compat<'a>(this: &'a mut [MaybeUninit<T>], src: &[T]) -> &'a mut [T]
     where
@@ -24,7 +24,7 @@ impl<T> MaybeUninitWriteSliceExt<T> for MaybeUninit<T> {
     }
 }
 
-#[cfg(not(no_maybe_uninit_write_slice))]
+#[cfg(has_maybe_uninit_write_slice)]
 impl<T> MaybeUninitWriteSliceExt<T> for MaybeUninit<T> {
     fn write_slice_compat<'a>(this: &'a mut [MaybeUninit<T>], src: &[T]) -> &'a mut [T]
     where

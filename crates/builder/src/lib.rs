@@ -1,4 +1,4 @@
-#![cfg_attr(not(no_maybe_uninit_write_slice), feature(maybe_uninit_write_slice))]
+#![cfg_attr(has_maybe_uninit_write_slice, feature(maybe_uninit_write_slice))]
 #![feature(doc_cfg)]
 #![feature(new_uninit)]
 #![feature(slice_partition_dedup)]
