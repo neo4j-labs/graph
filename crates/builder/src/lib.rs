@@ -1,5 +1,5 @@
+#![cfg_attr(not(no_maybe_uninit_write_slice), feature(maybe_uninit_write_slice))]
 #![feature(doc_cfg)]
-#![feature(maybe_uninit_write_slice)]
 #![feature(new_uninit)]
 #![feature(slice_partition_dedup)]
 #![feature(step_trait)]
@@ -168,6 +168,7 @@
 //! ```
 
 pub mod builder;
+mod compat;
 pub mod graph;
 pub mod graph_ops;
 pub mod index;

@@ -15,6 +15,8 @@ use std::{
 
 use rayon::prelude::*;
 
+#[cfg(no_maybe_uninit_write_slice)]
+use crate::compat::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
