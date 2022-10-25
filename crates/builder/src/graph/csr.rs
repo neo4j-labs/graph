@@ -669,7 +669,7 @@ where
     type Error = Error;
 
     fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
-        let reader = BufReader::new(File::open(&path)?);
+        let reader = BufReader::new(File::open(path)?);
         let graph = DirectedCsrGraph::deserialize(reader)?;
 
         Ok(graph)
@@ -866,7 +866,7 @@ where
     type Error = Error;
 
     fn try_from((path, _): (PathBuf, CsrLayout)) -> Result<Self, Self::Error> {
-        let reader = BufReader::new(File::open(&path)?);
+        let reader = BufReader::new(File::open(path)?);
         UndirectedCsrGraph::deserialize(reader)
     }
 }
