@@ -88,11 +88,12 @@ impl<T: PartialEq> SlicePartitionDedupExt<T> for [T] {
         let mut next_write: usize = 1;
 
         unsafe {
-            // Avoid bounds checks by using raw pointers.
             while next_read < len {
                 let ptr_read = ptr.add(next_read);
                 let prev_ptr_write = ptr.add(next_write - 1);
-                if *ptr_read != *prev_ptr_write {
+                // Changed from if `!same_bucket(&mut *ptr_read, &mut *prev_ptr_write)`
+                // as the original implementation is copied from `partition_dedup_by`.
+                if &mut *ptr_read != &mut *prev_ptr_write {
                     if next_read != next_write {
                         let ptr_write = prev_ptr_write.offset(1);
                         std::mem::swap(&mut *ptr_read, &mut *ptr_write);
