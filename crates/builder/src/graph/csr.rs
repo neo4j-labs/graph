@@ -426,7 +426,7 @@ impl<NI: Idx, NV, EV> DirectedCsrGraph<NI, NV, EV> {
 impl<NI, NV, EV> ToUndirectedOp for DirectedCsrGraph<NI, NV, EV>
 where
     NI: Idx,
-    NV: Clone + Sync,
+    NV: Clone + Send + Sync,
     EV: Copy + Send + Sync,
 {
     type Undirected = UndirectedCsrGraph<NI, NV, EV>;
@@ -447,26 +447,19 @@ struct ToUndirectedEdges<'g, NI: Idx, NV, EV> {
 impl<'g, NI, NV, EV> Edges for ToUndirectedEdges<'g, NI, NV, EV>
 where
     NI: Idx,
-    NV: Sync,
+    NV: Send + Sync,
     EV: Copy + Send + Sync,
 {
     type NI = NI;
 
     type EV = EV;
 
-    type EdgeIter<'a> = impl ParallelIterator<Item = (Self::NI, Self::NI, Self::EV)> + 'a
+    type EdgeIter<'a> = ToUndirectedEdgesIter<'a, NI, NV, EV>
     where
         Self: 'a;
 
     fn edges(&self) -> Self::EdgeIter<'_> {
-        (0..self.g.node_count().index())
-            .into_par_iter()
-            .flat_map_iter(|n| {
-                let n = NI::new(n);
-                self.g
-                    .out_neighbors_with_values(n)
-                    .map(move |t| (n, t.target, t.value))
-            })
+        ToUndirectedEdgesIter { g: self.g }
     }
 
     fn max_node_id(&self) -> Self::NI {
@@ -476,6 +469,31 @@ where
     #[cfg(test)]
     fn len(&self) -> usize {
         unimplemented!("This type is not used in tests")
+    }
+}
+
+struct ToUndirectedEdgesIter<'g, NI: Idx, NV, EV> {
+    g: &'g DirectedCsrGraph<NI, NV, EV>,
+}
+
+impl<'g, NI: Idx, NV: Send + Sync, EV: Copy + Send + Sync> ParallelIterator
+    for ToUndirectedEdgesIter<'g, NI, NV, EV>
+{
+    type Item = (NI, NI, EV);
+
+    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+    where
+        C: rayon::iter::plumbing::UnindexedConsumer<Self::Item>,
+    {
+        let par_iter = (0..self.g.node_count().index())
+            .into_par_iter()
+            .flat_map_iter(|n| {
+                let n = NI::new(n);
+                self.g
+                    .out_neighbors_with_values(n)
+                    .map(move |t| (n, t.target, t.value))
+            });
+        par_iter.drive_unindexed(consumer)
     }
 }
 
