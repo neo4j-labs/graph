@@ -44,7 +44,7 @@ where
 
                     let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
-                    for u in start..end {
+                    for u in start.range(end) {
                         for &v in graph.neighbors(u) {
                             if v > u {
                                 break;
