@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     convert::TryFrom, fs::File, hash::Hash, io::Read, marker::PhantomData, mem::ManuallyDrop,
     path::Path, sync::atomic::Ordering::Acquire,

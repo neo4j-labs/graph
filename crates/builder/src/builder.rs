@@ -72,9 +72,9 @@ where
     Format::GraphInput: TryFrom<InputPath<P>>,
 {
     csr_layout: CsrLayout,
-    format: Format,
     _idx: PhantomData<NI>,
     _path: PhantomData<P>,
+    _format: PhantomData<Format>,
 }
 
 pub struct FromPath<NI, P, Format>
@@ -85,9 +85,9 @@ where
     Format::GraphInput: TryFrom<InputPath<P>>,
 {
     csr_layout: CsrLayout,
-    format: Format,
     path: P,
     _idx: PhantomData<NI>,
+    _format: PhantomData<Format>,
 }
 
 /// A builder to create graphs in a type-safe way.
@@ -382,7 +382,7 @@ impl GraphBuilder<Uninitialized> {
     /// ```
     pub fn file_format<Format, Path, NI>(
         self,
-        format: Format,
+        _format: Format,
     ) -> GraphBuilder<FromInput<NI, Path, Format>>
     where
         Path: AsRef<StdPath>,
@@ -393,9 +393,9 @@ impl GraphBuilder<Uninitialized> {
         GraphBuilder {
             state: FromInput {
                 csr_layout: self.state.csr_layout,
-                format,
                 _idx: PhantomData,
                 _path: PhantomData,
+                _format: PhantomData,
             },
         }
     }
@@ -531,9 +531,9 @@ where
         GraphBuilder {
             state: FromPath {
                 csr_layout: self.state.csr_layout,
-                format: self.state.format,
                 path,
                 _idx: PhantomData,
+                _format: PhantomData,
             },
         }
     }

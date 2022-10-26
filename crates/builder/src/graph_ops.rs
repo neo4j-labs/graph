@@ -645,10 +645,6 @@ mod tests {
 
     use super::*;
 
-    fn t<T>(t: T) -> Target<T, ()> {
-        Target::new(t, ())
-    }
-
     #[test]
     fn split_by_partition_3_parts() {
         let partition = vec![0..2, 2..5, 5..10];
