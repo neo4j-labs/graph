@@ -120,7 +120,7 @@ where
         offsets.push(Label::zero());
 
         let mut total = Label::zero();
-        for label in Label::zero()..=self.max_label {
+        for label in Label::zero().range_inclusive(self.max_label) {
             offsets.push(total);
             total += Label::new(*self.label_frequencies.get(&label).unwrap_or(&0));
         }

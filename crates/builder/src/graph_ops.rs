@@ -317,7 +317,8 @@ where
             .into_par_iter()
             .zip(partition.into_par_iter())
             .for_each_with(node_fn, |node_fn, (mutable_chunk, range)| {
-                for (node_state, node) in mutable_chunk.iter_mut().zip(range.start..range.end) {
+                for (node_state, node) in mutable_chunk.iter_mut().zip(range.start.range(range.end))
+                {
                     node_fn(self, node, node_state);
                 }
             });
@@ -490,7 +491,7 @@ where
     let mut partition_start = NI::zero();
     let upper_bound = node_count - NI::new(1);
 
-    for node in NI::zero()..node_count {
+    for node in NI::zero().range(node_count) {
         partition_size += node_map(node);
 
         if (partitions.len() < max_batches - 1 && partition_size >= batch_size)

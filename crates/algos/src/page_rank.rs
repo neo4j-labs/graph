@@ -139,7 +139,7 @@ where
 
                     let end = (start + NI::new(CHUNK_SIZE)).min(graph.node_count());
 
-                    for u in start..end {
+                    for u in start.range(end) {
                         let incoming_total = graph
                             .in_neighbors(u)
                             .map(|v| unsafe { out_scores.add(v.index()).read() })

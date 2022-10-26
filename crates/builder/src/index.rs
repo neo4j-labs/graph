@@ -1,5 +1,6 @@
 use std::fmt::Debug;
-use std::iter::{Step, Sum};
+use std::iter::Sum;
+use std::ops::{Range, RangeInclusive};
 use std::sync::atomic::Ordering;
 
 use atoi::FromRadix10;
@@ -18,7 +19,6 @@ pub trait Idx:
     + Sum
     + Sync
     + Sized
-    + Step
     + 'static
 {
     fn new(idx: usize) -> Self;
@@ -26,6 +26,14 @@ pub trait Idx:
     fn zero() -> Self;
 
     fn index(self) -> usize;
+
+    type RangeIter: Iterator<Item = Self>;
+
+    fn range(self, end: Self) -> Self::RangeIter;
+
+    type RangeInclusiveIter: Iterator<Item = Self>;
+
+    fn range_inclusive(self, end: Self) -> Self::RangeInclusiveIter;
 
     fn parse(bytes: &[u8]) -> (Self, usize);
 
@@ -53,6 +61,20 @@ macro_rules! impl_idx {
             #[inline]
             fn index(self) -> usize {
                 self as usize
+            }
+
+            type RangeIter = Range<Self>;
+
+            #[inline]
+            fn range(self, end: Self) -> Self::RangeIter {
+                self..end
+            }
+
+            type RangeInclusiveIter = RangeInclusive<Self>;
+
+            #[inline]
+            fn range_inclusive(self, end: Self) -> Self::RangeInclusiveIter {
+                self..=end
             }
 
             #[inline]
