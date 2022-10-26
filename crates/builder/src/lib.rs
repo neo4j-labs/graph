@@ -3,7 +3,6 @@
 #![feature(doc_cfg)]
 #![feature(slice_partition_dedup)]
 #![feature(step_trait)]
-#![feature(type_alias_impl_trait)]
 #![allow(dead_code)]
 
 //! A library that can be used as a building block for high-performant graph
