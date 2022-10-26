@@ -31,9 +31,24 @@ pub fn test() -> Box<[MaybeUninit<usize>]> {
 }
 "#;
 
+// Checks if the slice_partition_dedup feature can be enabled
+const SLICE_PARTITION_DEDUP_PROBE: &str = r#"
+#![feature(slice_partition_dedup)]
+#![allow(dead_code)]
+
+pub fn test() {
+    let mut slice = [1, 2, 2, 3, 3, 2, 1, 1];
+    let (dedup, duplicates) = slice.partition_dedup();
+
+    assert_eq!(dedup, [1, 2, 3, 2, 1]);
+    assert_eq!(duplicates, [2, 3, 1]);
+}
+"#;
+
 fn main() {
     test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE);
     test_for_feature("new_uninit", NEW_UNINIT_PROBE);
+    test_for_feature("slice_partition_dedup", SLICE_PARTITION_DEDUP_PROBE);
 }
 
 fn test_for_feature(feature_name: &str, probe: &str) {

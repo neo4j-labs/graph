@@ -1,7 +1,7 @@
 #![cfg_attr(has_maybe_uninit_write_slice, feature(maybe_uninit_write_slice))]
 #![cfg_attr(has_new_uninit, feature(new_uninit))]
 #![feature(doc_cfg)]
-#![feature(slice_partition_dedup)]
+#![cfg_attr(has_slice_partition_dedup, feature(slice_partition_dedup))]
 
 //! A library that can be used as a building block for high-performant graph
 //! algorithms.

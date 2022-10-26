@@ -952,7 +952,7 @@ where
         .map(|(node, slice)| {
             slice.sort_unstable();
             // deduplicate
-            let (dedup, _) = slice.partition_dedup();
+            let (dedup, _) = slice.partition_dedup_compat();
             let mut new_degree = dedup.len();
             // remove self loops .. there is at most once occurence of node inside dedup
             if let Ok(idx) = dedup.binary_search_by_key(&NI::new(node), |t| t.target) {
