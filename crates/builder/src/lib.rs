@@ -1,6 +1,6 @@
 #![cfg_attr(has_maybe_uninit_write_slice, feature(maybe_uninit_write_slice))]
+#![cfg_attr(has_new_uninit, feature(new_uninit))]
 #![feature(doc_cfg)]
-#![feature(new_uninit)]
 #![feature(slice_partition_dedup)]
 #![feature(step_trait)]
 #![feature(type_alias_impl_trait)]

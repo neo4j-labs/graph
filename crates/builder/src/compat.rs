@@ -33,3 +33,40 @@ impl<T> MaybeUninitWriteSliceExt<T> for MaybeUninit<T> {
         MaybeUninit::write_slice(this, src)
     }
 }
+
+pub(crate) trait NewUninitExt<T> {
+    fn new_uninit_slice_compat(len: usize) -> Box<[MaybeUninit<T>]>;
+
+    unsafe fn assume_init_compat(self) -> Box<[T]>;
+}
+
+#[cfg(not(has_new_uninit))]
+impl<T> NewUninitExt<T> for Box<[MaybeUninit<T>]> {
+    fn new_uninit_slice_compat(len: usize) -> Box<[MaybeUninit<T>]> {
+        use std::mem::ManuallyDrop;
+        use std::slice::from_raw_parts_mut;
+
+        let vec = Vec::<T>::with_capacity(len);
+        let mut vec = ManuallyDrop::new(vec);
+
+        unsafe {
+            let slice = from_raw_parts_mut(vec.as_mut_ptr() as *mut MaybeUninit<T>, len);
+            Box::from_raw(slice)
+        }
+    }
+
+    unsafe fn assume_init_compat(self) -> Box<[T]> {
+        unsafe { Box::from_raw(Box::into_raw(self) as *mut [T]) }
+    }
+}
+
+#[cfg(has_new_uninit)]
+impl<T> NewUninitExt<T> for Box<[MaybeUninit<T>]> {
+    fn new_uninit_slice_compat(len: usize) -> Box<[MaybeUninit<T>]> {
+        Box::<[T]>::new_uninit_slice(len)
+    }
+
+    unsafe fn assume_init_compat(self) -> Box<[T]> {
+        unsafe { self.assume_init() }
+    }
+}
