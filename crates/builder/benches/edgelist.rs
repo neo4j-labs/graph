@@ -42,13 +42,13 @@ fn degrees(c: &mut Criterion) {
         Direction::Incoming,
         Direction::Undirected,
     ] {
-        group.bench_function(format!("{}_{:?}", SMALL.name, direction), |b| {
+        group.bench_function(format!("{}_{direction:?}", SMALL.name), |b| {
             bench_degrees(b, SMALL, direction)
         });
-        group.bench_function(format!("{}_{:?}", MEDIUM.name, direction), |b| {
+        group.bench_function(format!("{}_{direction:?}", MEDIUM.name), |b| {
             bench_degrees(b, MEDIUM, direction)
         });
-        group.bench_function(format!("{}_{:?}", LARGE.name, direction), |b| {
+        group.bench_function(format!("{}_{direction:?}", LARGE.name), |b| {
             bench_degrees(b, LARGE, direction)
         });
     }
