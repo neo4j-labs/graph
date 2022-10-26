@@ -70,3 +70,47 @@ impl<T> NewUninitExt<T> for Box<[MaybeUninit<T>]> {
         unsafe { self.assume_init() }
     }
 }
+
+pub(crate) trait SlicePartitionDedupExt<T: PartialEq> {
+    fn partition_dedup_compat(&mut self) -> (&mut [T], &mut [T]);
+}
+
+#[cfg(not(has_slice_partition_dedup))]
+impl<T: PartialEq> SlicePartitionDedupExt<T> for [T] {
+    fn partition_dedup_compat(&mut self) -> (&mut [T], &mut [T]) {
+        let len = self.len();
+        if len <= 1 {
+            return (self, &mut []);
+        }
+
+        let ptr = self.as_mut_ptr();
+        let mut next_read: usize = 1;
+        let mut next_write: usize = 1;
+
+        unsafe {
+            while next_read < len {
+                let ptr_read = ptr.add(next_read);
+                let prev_ptr_write = ptr.add(next_write - 1);
+                // Changed from if `!same_bucket(&mut *ptr_read, &mut *prev_ptr_write)`
+                // as the original implementation is copied from `partition_dedup_by`.
+                if &mut *ptr_read != &mut *prev_ptr_write {
+                    if next_read != next_write {
+                        let ptr_write = prev_ptr_write.offset(1);
+                        std::mem::swap(&mut *ptr_read, &mut *ptr_write);
+                    }
+                    next_write += 1;
+                }
+                next_read += 1;
+            }
+        }
+
+        self.split_at_mut(next_write)
+    }
+}
+
+#[cfg(has_slice_partition_dedup)]
+impl<T: PartialEq> SlicePartitionDedupExt<T> for [T] {
+    fn partition_dedup_compat(&mut self) -> (&mut [T], &mut [T]) {
+        self.partition_dedup()
+    }
+}
