@@ -22,15 +22,15 @@ fn from_edge_list(c: &mut Criterion) {
             CsrLayout::Deduplicated,
         ] {
             group.bench_function(
-                format!("{}_{:?}_{:?}", SMALL.name, direction, csr_layout),
+                format!("{}_{direction:?}_{csr_layout:?}", SMALL.name),
                 |b| bench_from_edge_list(b, SMALL, direction, csr_layout),
             );
             group.bench_function(
-                format!("{}_{:?}_{:?}", MEDIUM.name, direction, csr_layout),
+                format!("{}_{direction:?}_{csr_layout:?}", MEDIUM.name),
                 |b| bench_from_edge_list(b, MEDIUM, direction, csr_layout),
             );
             group.bench_function(
-                format!("{}_{:?}_{:?}", LARGE.name, direction, csr_layout),
+                format!("{}_{direction:?}_{csr_layout:?}", LARGE.name),
                 |b| bench_from_edge_list(b, LARGE, direction, csr_layout),
             );
         }
