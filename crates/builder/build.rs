@@ -45,10 +45,20 @@ pub fn test() {
 }
 "#;
 
+// Checks if the doc_cfg feature can be enabled
+const DOC_CFG_PROBE: &str = r#"
+#![feature(doc_cfg)]
+#![allow(dead_code)]
+
+#[doc(cfg(feature = "some_feature"))]
+pub struct Foobar;
+"#;
+
 fn main() {
     test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE);
     test_for_feature("new_uninit", NEW_UNINIT_PROBE);
     test_for_feature("slice_partition_dedup", SLICE_PARTITION_DEDUP_PROBE);
+    test_for_feature("doc_cfg", DOC_CFG_PROBE);
 }
 
 fn test_for_feature(feature_name: &str, probe: &str) {
