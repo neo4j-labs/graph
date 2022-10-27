@@ -43,7 +43,7 @@ where
 }
 
 #[cfg(feature = "gdl")]
-#[doc(cfg(feature = "gdl"))]
+#[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
 pub struct FromGdlString<NI>
 where
     NI: Idx,
@@ -54,7 +54,7 @@ where
 }
 
 #[cfg(feature = "gdl")]
-#[doc(cfg(feature = "gdl"))]
+#[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
 pub struct FromGdlGraph<'a, NI>
 where
     NI: Idx,
@@ -278,7 +278,7 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(neighbors.next(), None);
     /// ```
     #[cfg(feature = "gdl")]
-    #[doc(cfg(feature = "gdl"))]
+    #[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
     pub fn gdl_str<NI, S>(self, gdl: S) -> GraphBuilder<FromGdlString<NI>>
     where
         NI: Idx,
@@ -321,7 +321,7 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(g.out_neighbors(id_a).len(), 2);
     /// ```
     #[cfg(feature = "gdl")]
-    #[doc(cfg(feature = "gdl"))]
+    #[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
     pub fn gdl_graph<NI>(self, gdl_graph: &::gdl::Graph) -> GraphBuilder<FromGdlGraph<NI>>
     where
         NI: Idx,
@@ -488,7 +488,7 @@ impl<NI: Idx, NV, EV> GraphBuilder<FromEdgeListAndNodeValues<NI, NV, EV>> {
 }
 
 #[cfg(feature = "gdl")]
-#[doc(cfg(feature = "gdl"))]
+#[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
 impl<NI> GraphBuilder<FromGdlString<NI>>
 where
     NI: Idx,
@@ -505,7 +505,7 @@ where
 }
 
 #[cfg(feature = "gdl")]
-#[doc(cfg(feature = "gdl"))]
+#[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
 impl<'a, NI> GraphBuilder<FromGdlGraph<'a, NI>>
 where
     NI: Idx,

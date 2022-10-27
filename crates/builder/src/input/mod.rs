@@ -2,7 +2,7 @@ pub mod binary;
 pub mod dotgraph;
 pub mod edgelist;
 #[cfg(feature = "gdl")]
-#[doc(cfg(feature = "gdl"))]
+#[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
 pub mod gdl;
 pub mod graph500;
 

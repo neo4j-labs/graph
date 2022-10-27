@@ -1,6 +1,6 @@
 #![cfg_attr(has_maybe_uninit_write_slice, feature(maybe_uninit_write_slice))]
 #![cfg_attr(has_new_uninit, feature(new_uninit))]
-#![feature(doc_cfg)]
+#![cfg_attr(has_doc_cfg, feature(doc_cfg))]
 #![cfg_attr(has_slice_partition_dedup, feature(slice_partition_dedup))]
 
 //! A library that can be used as a building block for high-performant graph
@@ -196,7 +196,7 @@ pub enum Error {
         source: std::num::TryFromIntError,
     },
     #[cfg(feature = "gdl")]
-    #[doc(cfg(feature = "gdl"))]
+    #[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
     #[error("error while parsing GDL input")]
     GdlError {
         #[from]
