@@ -1,5 +1,3 @@
-#![feature(vec_into_raw_parts)]
-
 //! An [Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) server
 //! implementation that allows clients to create and manage graphs in memory,
 //! run algorithms on them and stream results back to the client.

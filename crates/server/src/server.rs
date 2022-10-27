@@ -458,13 +458,10 @@ async fn compute_sssp(
                 compute_millis: start.elapsed().as_millis(),
             };
 
-            let (ptr, len, cap) = distances.into_raw_parts();
-            // Safety: AtomicF32 and f32 have the same memory layout
-            // which makes the conversion safe.
-            let distances = unsafe {
-                let ptr = ptr as *mut _;
-                Vec::from_raw_parts(ptr, len, cap)
-            };
+            let distances = distances
+                .into_iter()
+                .map(|d| d.into_inner())
+                .collect::<Vec<_>>();
 
             Ok((distances, result))
         } else {
