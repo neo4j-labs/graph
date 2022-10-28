@@ -93,10 +93,10 @@ impl<T: PartialEq> SlicePartitionDedupExt<T> for [T] {
                 let prev_ptr_write = ptr.add(next_write - 1);
                 // Changed from if `!same_bucket(&mut *ptr_read, &mut *prev_ptr_write)`
                 // as the original implementation is copied from `partition_dedup_by`.
-                if &mut *ptr_read != &mut *prev_ptr_write {
+                if *ptr_read != *prev_ptr_write {
                     if next_read != next_write {
                         let ptr_write = prev_ptr_write.offset(1);
-                        std::mem::swap(&mut *ptr_read, &mut *ptr_write);
+                        core::ptr::swap(ptr_read, ptr_write);
                     }
                     next_write += 1;
                 }
@@ -112,5 +112,75 @@ impl<T: PartialEq> SlicePartitionDedupExt<T> for [T] {
 impl<T: PartialEq> SlicePartitionDedupExt<T> for [T] {
     fn partition_dedup_compat(&mut self) -> (&mut [T], &mut [T]) {
         self.partition_dedup()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_partition_dedup_compat() {
+        let mut slice = [1, 2, 2, 3, 3, 2, 1, 1];
+        let (dedup, duplicates) = slice.partition_dedup_compat();
+
+        assert_eq!(dedup, [1, 2, 3, 2, 1]);
+        assert_eq!(duplicates, [2, 3, 1]);
+    }
+
+    #[test]
+    fn test_partition_dedup_compat_drop_type() {
+        use std::sync::atomic::AtomicUsize;
+
+        #[derive(Debug)]
+        struct Foo<'a> {
+            i: usize,
+            c: &'a AtomicUsize,
+        }
+
+        impl<'a> Foo<'a> {
+            fn new(i: usize, c: &'a AtomicUsize) -> Self {
+                Self { i, c }
+            }
+        }
+
+        impl<'a> PartialEq for Foo<'a> {
+            fn eq(&self, other: &Self) -> bool {
+                self.i.eq(&other.i)
+            }
+        }
+
+        impl<'a> Drop for Foo<'a> {
+            fn drop(&mut self) {
+                self.c.fetch_add(1, atomic::Ordering::SeqCst);
+            }
+        }
+
+        let c = AtomicUsize::new(0);
+        let mut slice = [1, 2, 2, 3, 3, 2, 1, 1]
+            .into_iter()
+            .map(|n| Foo::new(n, &c))
+            .collect::<Vec<_>>();
+        let (dedup, duplicates) = slice.partition_dedup_compat();
+
+        assert_eq!(
+            dedup,
+            [
+                Foo::new(1, &c),
+                Foo::new(2, &c),
+                Foo::new(3, &c),
+                Foo::new(2, &c),
+                Foo::new(1, &c)
+            ]
+        );
+        assert_eq!(
+            duplicates,
+            [Foo::new(2, &c), Foo::new(3, &c), Foo::new(1, &c)]
+        );
+        // drop impl is alled for the 8 instances created in assert_eq!
+        assert_eq!(8, c.load(atomic::Ordering::SeqCst));
+        // drop the input data
+        drop(slice);
+        assert_eq!(16, c.load(atomic::Ordering::SeqCst));
     }
 }
