@@ -1,15 +1,13 @@
 [package]
 name = "graph_builder"
 version = "0.2.1"
-authors = [
-    "Martin Junghanns <github@s1ck.dev>",
-    "Paul Horn <developer@knutwalker.de>",
-]
 description = "A building block for high-performant graph algorithms."
 keywords = ["graph", "builder", "csr", "algorithms"]
-repository = "https://github.com/s1ck/graph"
-edition = "2021"
-license = "MIT"
+authors.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 atoi.workspace = true

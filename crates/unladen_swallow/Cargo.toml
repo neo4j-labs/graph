@@ -1,17 +1,15 @@
 [package]
 name = "graph-mate"
 version = "0.2.1"
-authors = [
-    "Martin Junghanns <github@s1ck.dev>",
-    "Paul Horn <developer@knutwalker.de>",
-]
 description = "A library of high-performant graph algorithms."
 keywords = ["graph", "algorithms", "parallel"]
-repository = "https://github.com/s1ck/graph"
-edition = "2021"
-license = "MIT"
 publish = false
 readme = "../../README.md"
+authors.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+edition.workspace = true
+license.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
