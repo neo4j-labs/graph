@@ -78,7 +78,7 @@ def load_page_rank_result(client, ticket):
 def print_page_rank_stats(scores):
     print_step("print_page_rank_stats")
     start = time.time()
-    print("size = {}".format(scores.size()))
+    print("size = {:,}".format(scores.size))
     print("min = {}".format(scores.min()["page_rank"]))
     print("max = {}".format(scores.max()["page_rank"]))
     print("mean = {}".format(scores.mean()["page_rank"]))
