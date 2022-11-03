@@ -1,4 +1,4 @@
-from unladen_swallow import DiGraph, Graph
+from graph import DiGraph, Graph
 
 
 def test_load_graph(g: DiGraph):

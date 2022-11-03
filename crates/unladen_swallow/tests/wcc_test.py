@@ -1,6 +1,6 @@
 import pytest
 
-from unladen_swallow import DiGraph
+from graph import DiGraph
 
 
 def test_wcc(g: DiGraph):

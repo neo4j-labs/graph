@@ -1,6 +1,6 @@
 #![allow(clippy::borrow_deref_ref)]
 
-use graph::prelude::Error as GError;
+use ::graph::prelude::Error as GError;
 use pyo3::{
     exceptions::PyValueError,
     prelude::{pymodule, IntoPy, PyErr, PyModule, PyObject, PyResult, Python},
@@ -30,7 +30,7 @@ impl From<GraphError> for PyErr {
 
 /// Python API for the graph crate
 #[pymodule]
-fn unladen_swallow(py: Python, m: &PyModule) -> PyResult<()> {
+fn graph(py: Python, m: &PyModule) -> PyResult<()> {
     Logger::new(py, Caching::LoggersAndLevels)?
         .install()
         .unwrap();
