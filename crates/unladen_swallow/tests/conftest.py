@@ -1,6 +1,6 @@
 from pytest import fixture
 
-from unladen_swallow import DiGraph, Graph
+from graph_mate import DiGraph, Graph
 
 FILE = "../builder/resources/scale_8.graph500"
 

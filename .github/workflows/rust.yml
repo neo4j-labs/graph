@@ -73,6 +73,48 @@ jobs:
           command: careful
           args: test --all-features
 
+  build_python:
+    name: Build graph-mate with maturin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: beta
+          override: true
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - run: pip install maturin
+        working-directory: crates/unladen_swallow
+      - run: maturin build --features extension-module
+        working-directory: crates/unladen_swallow
+
+  test_python:
+    name: Run python tests
+    runs-on: ubuntu-latest
+    needs: build_python
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: beta
+          override: true
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - run: pip install maturin
+        working-directory: crates/unladen_swallow
+      - run: pip install -r requirements/dev.txt
+        working-directory: crates/unladen_swallow
+      - run: maturin build --features extension-module
+        working-directory: crates/unladen_swallow
+      - run: pip install target/wheels/*.whl --force-reinstall
+      - run: pytest tests
+        working-directory: crates/unladen_swallow
+
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest

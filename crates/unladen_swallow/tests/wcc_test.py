@@ -1,6 +1,6 @@
 import pytest
 
-from unladen_swallow import DiGraph
+from graph_mate import DiGraph
 
 
 def test_wcc(g: DiGraph):
@@ -14,6 +14,7 @@ def test_wcc(g: DiGraph):
     for component in components:
         assert component >= 0
         assert component < g.node_count()
+
 
 def test_config_must_be_kwargs(g: DiGraph):
     with pytest.raises(TypeError):
