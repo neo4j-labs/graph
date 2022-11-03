@@ -30,7 +30,7 @@ impl From<GraphError> for PyErr {
 
 /// Python API for the graph crate
 #[pymodule]
-fn graph(py: Python, m: &PyModule) -> PyResult<()> {
+fn graph_mate(py: Python, m: &PyModule) -> PyResult<()> {
     Logger::new(py, Caching::LoggersAndLevels)?
         .install()
         .unwrap();

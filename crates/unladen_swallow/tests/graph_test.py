@@ -1,4 +1,4 @@
-from graph import DiGraph, Graph
+from graph_mate import DiGraph, Graph
 
 
 def test_load_graph(g: DiGraph):

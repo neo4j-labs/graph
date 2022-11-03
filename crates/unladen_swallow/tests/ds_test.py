@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from graph import DiGraph, Graph
+from graph_mate import DiGraph, Graph
 
 
 def test_numpy_graph():
