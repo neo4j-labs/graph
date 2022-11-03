@@ -71,6 +71,10 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: careful
+          args: test --features force_fallback_impl
+      - uses: actions-rs/cargo@v1
+        with:
+          command: careful
           args: test --all-features
 
   build_python:

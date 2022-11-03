@@ -55,10 +55,14 @@ pub struct Foobar;
 "#;
 
 fn main() {
-    test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE);
-    test_for_feature("new_uninit", NEW_UNINIT_PROBE);
-    test_for_feature("slice_partition_dedup", SLICE_PARTITION_DEDUP_PROBE);
-    test_for_feature("doc_cfg", DOC_CFG_PROBE);
+    let force_fallback_impl = env::var_os("CARGO_FEATURE_FORCE_FALLBACK_IMPL").is_some();
+
+    if !force_fallback_impl {
+        test_for_feature("maybe_uninit_write_slice", MAYBE_UNINIT_WRITE_SLICE_PROBE);
+        test_for_feature("new_uninit", NEW_UNINIT_PROBE);
+        test_for_feature("slice_partition_dedup", SLICE_PARTITION_DEDUP_PROBE);
+        test_for_feature("doc_cfg", DOC_CFG_PROBE);
+    }
 }
 
 fn test_for_feature(feature_name: &str, probe: &str) {

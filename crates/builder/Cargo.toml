@@ -35,6 +35,9 @@ criterion.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 
+[features]
+force_fallback_impl = []
+
 [[bench]]
 name = "edgelist"
 harness = false
