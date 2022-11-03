@@ -15,6 +15,7 @@ def test_wcc(g: DiGraph):
         assert component >= 0
         assert component < g.node_count()
 
+
 def test_config_must_be_kwargs(g: DiGraph):
     with pytest.raises(TypeError):
         g.wcc(42, 1.0, 0.1)
