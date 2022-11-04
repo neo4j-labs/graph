@@ -15,12 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PACKAGE_NAME: graph-mate
+  PACKAGE_NAME: "graph_mate"
   PYTHON_VERSION: "3.7" # to build abi3 wheels
-
-defaults:
-  run:
-    working-directory: crates/unladen_swallow
+  MATURIN_ARGS: "--features extension-module --manifest-path crates/unladen_swallow/Cargo.toml --release --out dist"
 
 jobs:
   macos-x86_64:
@@ -38,14 +35,15 @@ jobs:
           profile: minimal
           default: true
       - name: Build wheels - x86_64
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out dist --sdist
+          args: ${{ env.MATURIN_ARGS }} --sdist
           maturin-version: "v0.13.5"
       - name: Install built wheel - x86_64
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
+          python -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -66,13 +64,14 @@ jobs:
           profile: minimal
           default: true
       - name: Build wheels - universal2
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
-          args: --release --universal2 --out dist
+          args: ${{ env.MATURIN_ARGS }} --universal2
           maturin-version: "v0.13.5"
       - name: Install built wheel - universal2
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*universal2.whl --force-reinstall
+          python -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -97,15 +96,16 @@ jobs:
           profile: minimal
           default: true
       - name: Build wheels
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: ${{ env.MATURIN_ARGS }}
           maturin-version: "v0.13.5"
       - name: Install built wheel
         shell: bash
         run: |
           python -m pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
+          python -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -124,16 +124,17 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
       - name: Build wheels
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           manylinux: auto
-          args: --release --out dist
+          args: ${{ env.MATURIN_ARGS }}
           maturin-version: "v0.13.5"
       - name: Install built wheel
         if: matrix.target == 'x86_64'
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
+          python -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -151,11 +152,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Build wheels
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           manylinux: auto
-          args: --no-default-features --release --out dist
+          args: ${{ env.MATURIN_ARGS }}
           maturin-version: "v0.13.5"
       - uses: uraimo/run-on-arch-action@v2.0.5
         if: matrix.target != 'ppc64'
@@ -170,6 +171,7 @@ jobs:
             pip3 install -U pip
           run: |
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
+            python3 -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -190,11 +192,11 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
       - name: Build wheels
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           manylinux: musllinux_1_2
-          args: --release --out dist
+          args: ${{ env.MATURIN_ARGS }}
           maturin-version: "v0.13.5"
       - name: Install built wheel
         if: matrix.target == 'x86_64-unknown-linux-musl'
@@ -205,6 +207,7 @@ jobs:
           run: |
             apk add py3-pip
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links /io/dist/ --force-reinstall
+            python3 -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -226,11 +229,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Build wheels
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           manylinux: musllinux_1_2
-          args: --release --out dist
+          args: ${{ env.MATURIN_ARGS }}
           maturin-version: "v0.13.5"
       - uses: uraimo/run-on-arch-action@master
         name: Install built wheel
@@ -242,6 +245,7 @@ jobs:
             apk add py3-pip
           run: |
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
+            python3 -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -267,16 +271,17 @@ jobs:
         with:
           python-version: pypy${{ matrix.python-version }}
       - name: Build wheels
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           maturin-version: "v0.13.5"
           target: ${{ matrix.target }}
           manylinux: auto
-          args: --release --out dist -i pypy${{ matrix.python-version }}
+          args: ${{ env.MATURIN_ARGS }} -i pypy${{ matrix.python-version }}
       - name: Install built wheel
         if: matrix.target == 'x86_64'
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
+          python -c "import ${{ env.PACKAGE_NAME }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
