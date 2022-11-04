@@ -180,6 +180,7 @@ jobs:
             apt-get update
             apt-get install -y --no-install-recommends python3 python3-pip
             pip3 install -U pip
+            pip3 install numpy
           run: |
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
             python3 -c "import ${{ env.PACKAGE_NAME }}"
