@@ -29,5 +29,5 @@ rayon.workspace = true
 
 [dependencies.pyo3]
 workspace = true
-features = ["macros", "pyproto", "auto-initialize", "abi3", "abi3-py37"]
+features = ["macros", "pyproto", "auto-initialize", "abi3", "abi3-py38"]
 default-features = false
