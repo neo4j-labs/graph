@@ -16,7 +16,7 @@ concurrency:
 
 env:
   PACKAGE_NAME: "graph_mate"
-  PYTHON_VERSION: "3.7" # to build abi3 wheels
+  PYTHON_VERSION: "3.8" # to build abi3 wheels
   MATURIN_ARGS: "--features extension-module --manifest-path crates/unladen_swallow/Cargo.toml --release --out dist"
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-          default: true
+          override: true
       - name: Build wheels - x86_64
         uses: PyO3/maturin-action@v1
         with:
@@ -62,7 +62,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-          default: true
+          override: true
       - name: Build wheels - universal2
         uses: PyO3/maturin-action@v1
         with:
@@ -94,7 +94,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-          default: true
+          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -123,6 +123,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -151,6 +157,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -191,6 +203,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -226,6 +244,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -257,9 +281,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         target: [x86_64, aarch64]
         python-version:
-          - "3.7"
           - "3.8"
           - "3.9"
+          - "3.10"
+          - "3.11"
         exclude:
           - os: macos-latest
             target: aarch64
@@ -268,6 +293,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: pypy${{ matrix.python-version }}
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
