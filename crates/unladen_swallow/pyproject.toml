@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries",
 ]
-dependencies = ["numpy>=1.13"]
+dependencies = ["numpy >= 1.16.0"]
 
 [project.urls]
 "Homepage" = "https://github.com/s1ck/graph"
