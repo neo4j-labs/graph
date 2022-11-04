@@ -2,12 +2,12 @@
 # https://github.com/charliermarsh/ruff/blob/e00bcd19f51f33a399751d2a7b854d59024473ca/.github/workflows/ruff.yaml
 # Their license: https://raw.githubusercontent.com/charliermarsh/ruff/e00bcd19f51f33a399751d2a7b854d59024473ca/LICENSE
 
-name: "graph-mate release"
+name: "graph_mate release"
 
 on:
   create:
     tags:
-      - graph-mate-v*
+      - graph_mate-v*
   workflow_dispatch:
 
 concurrency:
