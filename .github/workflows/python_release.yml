@@ -147,49 +147,6 @@ jobs:
           name: wheels
           path: dist
 
-  linux-cross:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [aarch64]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          manylinux: auto
-          args: ${{ env.MATURIN_ARGS }}
-          maturin-version: "v0.13.5"
-      - uses: uraimo/run-on-arch-action@v2.0.5
-        name: Install built wheel
-        with:
-          arch: ${{ matrix.target }}
-          distro: ubuntu20.04
-          githubToken: ${{ github.token }}
-          install: |
-            apt-get update
-            apt-get install -y --no-install-recommends python3 python3-pip
-            pip3 install -U pip
-            pip3 install numpy
-          run: |
-            pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall --verbose --verbose --verbose
-            python3 -c "import ${{ env.PACKAGE_NAME }}"
-      - name: Upload wheels
-        uses: actions/upload-artifact@v2
-        with:
-          name: wheels
-          path: dist
-
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -198,7 +155,6 @@ jobs:
       - macos-x86_64
       - windows
       - linux
-      - linux-cross
     if: "startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/download-artifact@v2
