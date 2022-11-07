@@ -581,7 +581,7 @@ where
         let node_count = edge_list.max_node_id() + NI::new(1);
 
         assert!(
-            node_values.0.len() == node_count.index(),
+            node_values.0.len() >= node_count.index(),
             "number of node values ({}) does not match node count of edge list ({})",
             node_values.0.len(),
             node_count.index()

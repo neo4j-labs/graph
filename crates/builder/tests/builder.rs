@@ -199,6 +199,47 @@ fn directed_usize_graph_from_gdl_with_i64_edge_values() {
 
 #[cfg(feature = "gdl")]
 #[test]
+fn directed_usize_graph_from_gdl_with_node_values() {
+    let g: DirectedCsrGraph<usize, i64, ()> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
+        .gdl_str::<usize, _>("(n0 { p: 42 }), (n1 { p: 1337 }), (n2 { p: 1984 }), (n3 { p: -42 })")
+        .build()
+        .unwrap();
+
+    assert_eq!(g.node_value(0), &42);
+    assert_eq!(g.node_value(1), &1337);
+    assert_eq!(g.node_value(2), &1984);
+    assert_eq!(g.node_value(3), &-42);
+}
+
+#[cfg(feature = "gdl")]
+#[test]
+fn directed_usize_graph_from_gdl_with_node_and_edge_values() {
+    let g: DirectedCsrGraph<usize, i64, f32> = GraphBuilder::new()
+        .csr_layout(CsrLayout::Sorted)
+        .gdl_str::<usize, _>(
+            "(n0 { p: 42 }),
+             (n1 { p: 1337 }),
+             (n2 { p: 1984 }),
+             (n3 { p: -42 }),
+             (n0)-[{f: 13.37}]->(n1)",
+        )
+        .build()
+        .unwrap();
+
+    assert_eq!(g.node_value(0), &42);
+    assert_eq!(g.node_value(1), &1337);
+    assert_eq!(g.node_value(2), &1984);
+    assert_eq!(g.node_value(3), &-42);
+
+    assert_eq!(
+        g.out_neighbors_with_values(0).as_slice(),
+        &[Target::new(1, 13.37)]
+    );
+}
+
+#[cfg(feature = "gdl")]
+#[test]
 fn undirected_usize_graph_from_gdl() {
     assert_undirected_graph::<usize, ()>(
         GraphBuilder::new()

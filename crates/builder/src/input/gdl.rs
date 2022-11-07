@@ -1,4 +1,4 @@
-use crate::graph::csr::{CsrLayout, DirectedCsrGraph, UndirectedCsrGraph};
+use crate::graph::csr::{CsrLayout, DirectedCsrGraph, NodeValues, UndirectedCsrGraph};
 use crate::index::Idx;
 use crate::input::{DotGraph, EdgeList};
 
@@ -57,6 +57,24 @@ where
             .collect::<Vec<_>>();
 
         EdgeList::new(edges)
+    }
+}
+
+impl<'gdl, NV> From<&'gdl gdl::Graph> for NodeValues<NV>
+where
+    NV: From<MyCypherValue<'gdl>> + Default + Send + Sync,
+{
+    fn from(gdl_graph: &'gdl gdl::Graph) -> Self {
+        let mut node_values = Vec::with_capacity(gdl_graph.node_count());
+        node_values.resize_with(gdl_graph.node_count(), || NV::default());
+
+        gdl_graph.nodes().into_iter().for_each(|n| {
+            if let Some(k) = n.property_keys().next() {
+                node_values[n.id()] = NV::from(MyCypherValue(n.property_value(k).unwrap()));
+            }
+        });
+
+        NodeValues::new(node_values)
     }
 }
 
@@ -127,42 +145,54 @@ where
     }
 }
 
-impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, (), EV>
+impl<'a, NI, NV, EV> From<(&'a gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, NV, EV>
 where
     NI: Idx,
+    NV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
     EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
 {
     fn from((gdl_graph, csr_layout): (&'a gdl::Graph, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
+        let node_values = NodeValues::from(gdl_graph);
+        let edge_list = EdgeList::from(gdl_graph);
+        DirectedCsrGraph::from((node_values, edge_list, csr_layout))
     }
 }
 
-impl<NI, EV> From<(gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, (), EV>
+impl<NI, NV, EV> From<(gdl::Graph, CsrLayout)> for DirectedCsrGraph<NI, NV, EV>
 where
     NI: Idx,
+    for<'a> NV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
     for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
 {
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
+        let node_values = NodeValues::from(&gdl_graph);
+        let edge_list = EdgeList::from(&gdl_graph);
+        DirectedCsrGraph::from((node_values, edge_list, csr_layout))
     }
 }
 
-impl<'a, NI, EV> From<(&'a gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
+impl<'a, NI, NV, EV> From<(&'a gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, NV, EV>
 where
     NI: Idx,
+    NV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
     EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
 {
     fn from((gdl_graph, csr_layout): (&'a gdl::Graph, CsrLayout)) -> Self {
-        UndirectedCsrGraph::from((EdgeList::from(gdl_graph), csr_layout))
+        let node_values = NodeValues::from(gdl_graph);
+        let edge_list = EdgeList::from(gdl_graph);
+        UndirectedCsrGraph::from((node_values, edge_list, csr_layout))
     }
 }
 
-impl<NI, EV> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, (), EV>
+impl<NI, NV, EV> From<(gdl::Graph, CsrLayout)> for UndirectedCsrGraph<NI, NV, EV>
 where
     NI: Idx,
+    for<'a> NV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
     for<'a> EV: From<MyCypherValue<'a>> + Default + Copy + Send + Sync,
 {
     fn from((gdl_graph, csr_layout): (gdl::Graph, CsrLayout)) -> Self {
-        UndirectedCsrGraph::from((EdgeList::from(&gdl_graph), csr_layout))
+        let node_values = NodeValues::from(&gdl_graph);
+        let edge_list = EdgeList::from(&gdl_graph);
+        UndirectedCsrGraph::from((node_values, edge_list, csr_layout))
     }
 }
