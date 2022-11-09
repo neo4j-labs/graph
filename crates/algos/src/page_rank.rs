@@ -182,10 +182,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let actual = page_rank(&graph, PageRankConfig::default())
-            .0
-            .into_iter()
-            .collect::<Vec<_>>();
+        let (scores, _, _) = page_rank(&graph, PageRankConfig::default());
 
         let expected: Vec<f32> = vec![
             0.024999997,
@@ -196,6 +193,6 @@ mod tests {
             0.06590624,
         ];
 
-        assert_eq!(actual, expected);
+        assert_eq!(scores, expected);
     }
 }
