@@ -132,15 +132,17 @@ class Graph:
         """
     def reorder_by_degree(self):
         """
-        Creates a new graph by relabeling the node ids of the given graph.
+        Converts this graph by relabeling the node ids based on their degree.
 
         Ids are relabaled using descending degree-order, i.e., given `n` nodes,
         the node with the largest degree will become node id `0`, the node with
         the smallest degree will become node id `n - 1`.
 
-        Note, that this method creates a new graph with the same space
-        requirements as the input graph.
+        This modifies the graph in-place.
+        The operation can only be done when there are no `neighbors` referenced somewhere.
         """
+    def global_triangle_count(self) -> TriangleCountResult:
+        """Count the number of global triangles of this graph."""
 
 class PageRankResult:
     def scores(self) -> npt.NDArray[np.float32]:
@@ -159,6 +161,16 @@ class PageRankResult:
 
 class WccResult:
     def components(self) -> npt.NDArray[np.uint32]:
+        pass
+    @property
+    def micros(self) -> int:
+        pass
+    def __repr__(self) -> str:
+        pass
+
+class TriangleCountResult:
+    @property
+    def triangles(self) -> int:
         pass
     @property
     def micros(self) -> int:

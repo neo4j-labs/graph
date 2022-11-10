@@ -1,4 +1,5 @@
 use super::{Layout, PyGraph};
+use crate::triangle_count::TriangleCountResult;
 use graph::prelude::UndirectedCsrGraph;
 use numpy::{PyArray1, PyArray2};
 use pyo3::{prelude::*, types::PyList};
@@ -83,16 +84,21 @@ impl Graph {
         self.inner.__repr__()
     }
 
-    /// Creates a new graph by relabeling the node ids of the given graph.
+    /// Converts this graph by relabeling the node ids based on their degree.
     ///
     /// Ids are relabaled using descending degree-order, i.e., given `n` nodes,
     /// the node with the largest degree will become node id `0`, the node with
     /// the smallest degree will become node id `n - 1`.
     ///
-    /// Note, that this method creates a new graph with the same space
-    /// requirements as the input graph.
-    fn reorder_by_degree(&mut self) -> PyResult<()> {
+    /// This modifies the graph in-place.
+    /// The operation can only be done when there are no `neighbors` referenced somewhere.
+    pub fn reorder_by_degree(&mut self) -> PyResult<()> {
         self.inner.reorder_by_degree()
+    }
+
+    /// Count the number of global triangles of this graph.
+    pub fn global_triangle_count(&self, py: Python<'_>) -> TriangleCountResult {
+        crate::triangle_count::triangle_count(py, self.inner.g())
     }
 }
 
