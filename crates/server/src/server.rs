@@ -188,8 +188,11 @@ impl FlightService for FlightServiceImpl {
             FlightAction::Remove(config) => {
                 remove_graph(config, Arc::clone(&self.graph_catalog)).await?
             }
-            FlightAction::Relabel(config) => {
-                relabel_graph(config, Arc::clone(&self.graph_catalog)).await?
+            FlightAction::ToRelabeled(config) => {
+                to_relabeled_graph(config, Arc::clone(&self.graph_catalog)).await?
+            }
+            FlightAction::ToUndirected(config) => {
+                to_undirected_graph(config, Arc::clone(&self.graph_catalog)).await?
             }
             FlightAction::Compute(config) => {
                 let ComputeConfig {
@@ -329,12 +332,12 @@ async fn remove_graph(
     Ok(arrow_flight::Result { body: result })
 }
 
-async fn relabel_graph(
-    config: RelabelConfig,
+async fn to_relabeled_graph(
+    config: ToRelabeledConfig,
     graph_catalog: Arc<RwLock<GraphCatalog>>,
 ) -> FlightResult<arrow_flight::Result> {
     info!("Relabelling graph using config: {config:?}");
-    let RelabelConfig { graph_name } = config;
+    let ToRelabeledConfig { graph_name } = config;
 
     let result = tokio::task::spawn_blocking(move || {
         let mut catalog = graph_catalog.write();
@@ -343,14 +346,54 @@ async fn relabel_graph(
             use graph::prelude::RelabelByDegreeOp;
             let start = Instant::now();
             graph.to_degree_ordered();
-            Ok(RelabelActionResult {
-                relabel_millis: start.elapsed().as_millis(),
+            Ok(ToRelabeledResult {
+                to_relabeled_millis: start.elapsed().as_millis(),
             })
         } else {
             Err(Status::invalid_argument(
                 "Relabelling directed graphs is not supported.",
             ))
         }
+    })
+    .await
+    .unwrap()?;
+
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
+}
+
+async fn to_undirected_graph(
+    config: ToUndirectedConfig,
+    graph_catalog: Arc<RwLock<GraphCatalog>>,
+) -> FlightResult<arrow_flight::Result> {
+    info!("Converting graph to undirected using config: {config:?}");
+    let ToUndirectedConfig {
+        graph_name,
+        csr_layout,
+    } = config;
+
+    let result = tokio::task::spawn_blocking(move || -> Result<ToUndirectedResult, Status> {
+        use graph::prelude::ToUndirectedOp;
+        let mut catalog = graph_catalog.write();
+        let graph_type = catalog.get_mut(graph_name.as_str())?;
+        let csr_layout = Some(csr_layout);
+        let start = Instant::now();
+
+        match graph_type {
+            GraphType::Directed(graph) => {
+                *graph_type = GraphType::Undirected(graph.to_undirected(csr_layout))
+            }
+            GraphType::DirectedWeighted(graph) => {
+                *graph_type = GraphType::UndirectedWeighted(graph.to_undirected(csr_layout))
+            }
+            GraphType::Undirected(_) | GraphType::UndirectedWeighted(_) => {
+                info!("Graph {graph_name} is already undirected, skipping transformation.");
+            }
+        }
+
+        Ok(ToUndirectedResult {
+            to_undirected_millis: start.elapsed().as_millis(),
+        })
     })
     .await
     .unwrap()?;

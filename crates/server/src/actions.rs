@@ -10,11 +10,12 @@ pub enum FlightAction {
     List,
     Remove(RemoveGraphConfig),
     Compute(ComputeConfig),
-    Relabel(RelabelConfig),
+    ToRelabeled(ToRelabeledConfig),
+    ToUndirected(ToUndirectedConfig),
 }
 
 impl FlightAction {
-    pub fn action_types() -> [ActionType; 5] {
+    pub fn action_types() -> [ActionType; 6] {
         [
             ActionType {
                 r#type: "create".into(),
@@ -33,8 +34,12 @@ impl FlightAction {
                 description: "Compute a graph algorithm on a graph.".into(),
             },
             ActionType {
-                r#type: "relabel".into(),
-                description: "Relabel a graph".into(),
+                r#type: "to_relabeled".into(),
+                description: "Relabels the node ids of a graph in degree-descending order".into(),
+            },
+            ActionType {
+                r#type: "to_undirected".into(),
+                description: "Converts a directed graph to an undirected graph".into(),
             },
         ]
     }
@@ -59,9 +64,13 @@ impl TryFrom<Action> for FlightAction {
                 let compute_action = action.try_into()?;
                 Ok(FlightAction::Compute(compute_action))
             }
-            "relabel" => {
+            "to_relabeled" => {
                 let relabel_action = action.try_into()?;
-                Ok(FlightAction::Relabel(relabel_action))
+                Ok(FlightAction::ToRelabeled(relabel_action))
+            }
+            "to_undirected" => {
+                let to_undirected_action = action.try_into()?;
+                Ok(FlightAction::ToUndirected(to_undirected_action))
             }
             _ => Err(Status::invalid_argument(format!(
                 "Unknown action type: {action_type}"
@@ -209,11 +218,11 @@ impl TryFrom<Action> for RemoveGraphConfig {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct RelabelConfig {
+pub struct ToRelabeledConfig {
     pub graph_name: String,
 }
 
-impl TryFrom<Action> for RelabelConfig {
+impl TryFrom<Action> for ToRelabeledConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
@@ -222,8 +231,29 @@ impl TryFrom<Action> for RelabelConfig {
 }
 
 #[derive(Serialize, Debug)]
-pub struct RelabelActionResult {
-    pub relabel_millis: u128,
+pub struct ToRelabeledResult {
+    pub to_relabeled_millis: u128,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ToUndirectedConfig {
+    pub graph_name: String,
+    #[serde(with = "CsrLayoutRef")]
+    #[serde(default)]
+    pub csr_layout: CsrLayout,
+}
+
+impl TryFrom<Action> for ToUndirectedConfig {
+    type Error = Status;
+
+    fn try_from(action: Action) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<Self>(action.body.as_slice()).map_err(from_json_error)
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct ToUndirectedResult {
+    pub to_undirected_millis: u128,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
