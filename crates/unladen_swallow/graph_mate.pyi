@@ -141,8 +141,8 @@ class Graph:
         This modifies the graph in-place.
         The operation can only be done when there are no `neighbors` referenced somewhere.
         """
-    def count_triangles(self) -> TriangleCountResult:
-        """Count triangles of this graph."""
+    def global_triangle_count(self) -> TriangleCountResult:
+        """Count the number of global triangles of this graph."""
 
 class PageRankResult:
     def scores(self) -> npt.NDArray[np.float32]:

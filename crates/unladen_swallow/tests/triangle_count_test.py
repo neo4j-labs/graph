@@ -3,7 +3,7 @@ from graph_mate import Graph, Layout
 
 
 def test_triangle_count(ug: Graph):
-    tc = ug.count_triangles()
+    tc = ug.global_triangle_count()
 
     assert tc.triangles == 227874
     assert tc.micros > 0
@@ -27,7 +27,7 @@ def test_tc_two_components():
         layout=Layout.Deduplicated,
     )
 
-    tc = ug.count_triangles()
+    tc = ug.global_triangle_count()
 
     assert tc.triangles == 2
 
@@ -50,7 +50,7 @@ def test_tc_connected_triangles():
         layout=Layout.Deduplicated,
     )
 
-    tc = ug.count_triangles()
+    tc = ug.global_triangle_count()
 
     assert tc.triangles == 2
 
@@ -72,6 +72,6 @@ def test_tc_diamond():
         layout=Layout.Deduplicated,
     )
 
-    tc = ug.count_triangles()
+    tc = ug.global_triangle_count()
 
     assert tc.triangles == 2

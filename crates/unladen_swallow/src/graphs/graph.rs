@@ -96,8 +96,8 @@ impl Graph {
         self.inner.reorder_by_degree()
     }
 
-    /// Count triangles of this graph.
-    pub fn count_triangles(&self, py: Python<'_>) -> TriangleCountResult {
+    /// Count the number of global triangles of this graph.
+    pub fn global_triangle_count(&self, py: Python<'_>) -> TriangleCountResult {
         crate::triangle_count::triangle_count(py, self.inner.g())
     }
 }
