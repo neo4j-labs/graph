@@ -1,3 +1,5 @@
+# graph_mate
+
 ## Developing
 
 The Python extension is written using [PyO3](https://pyo3.rs/v0.16.2/)
@@ -7,7 +9,7 @@ together with [maturin](https://github.com/PyO3/maturin).
 
 ```
 # Run the command from the extension directory, not the git root
-# cd crates/unladen_swallow
+# cd crates/mate
 
 python -m venv .env
 source .env/bin/activate
