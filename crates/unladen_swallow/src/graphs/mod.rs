@@ -199,12 +199,12 @@ where
         self.g.degree(node)
     }
 
-    fn to_undirected(&self) -> PyGraph<NI, G::Undirected>
+    fn to_undirected(&self, layout: impl Into<Option<CsrLayout>>) -> PyGraph<NI, G::Undirected>
     where
         G: ToUndirectedOp,
         G::Undirected: GraphTrait<NI>,
     {
-        let (g, load_micros) = timed(self.load_micros, || self.g.to_undirected(None));
+        let (g, load_micros) = timed(self.load_micros, move || self.g.to_undirected(layout));
         PyGraph {
             g: Arc::new(g),
             load_micros,
