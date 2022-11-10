@@ -50,17 +50,17 @@ impl Graph {
     }
 
     /// Returns the number of nodes in the graph.
-    fn node_count(&self) -> u32 {
+    pub fn node_count(&self) -> u32 {
         self.inner.node_count()
     }
 
     /// Returns the number of edges in the graph.
-    fn edge_count(&self) -> u32 {
+    pub fn edge_count(&self) -> u32 {
         self.inner.edge_count()
     }
 
     /// Returns the number of edges connected to the given node.
-    fn degree(&self, node: u32) -> u32 {
+    pub fn degree(&self, node: u32) -> u32 {
         self.inner.degree(node)
     }
 
@@ -68,18 +68,18 @@ impl Graph {
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    fn neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
+    pub fn neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
         self.inner.neighbors(py, node)
     }
 
     /// Returns all nodes connected to the given node.
     ///
     /// This function returns a copy of the data as a Python list.
-    fn copy_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
+    pub fn copy_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
         self.inner.copy_neighbors(py, node)
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         self.inner.__repr__()
     }
 

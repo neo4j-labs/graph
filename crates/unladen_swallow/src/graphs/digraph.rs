@@ -51,22 +51,22 @@ impl DiGraph {
     }
 
     /// Returns the number of nodes in the graph.
-    fn node_count(&self) -> u32 {
+    pub fn node_count(&self) -> u32 {
         self.inner.node_count()
     }
 
     /// Returns the number of edges in the graph.
-    fn edge_count(&self) -> u32 {
+    pub fn edge_count(&self) -> u32 {
         self.inner.edge_count()
     }
 
     /// Returns the number of edges where the given node is a source node.
-    fn out_degree(&self, node: u32) -> u32 {
+    pub fn out_degree(&self, node: u32) -> u32 {
         self.inner.out_degree(node)
     }
 
     /// Returns the number of edges where the given node is a target node.
-    fn in_degree(&self, node: u32) -> u32 {
+    pub fn in_degree(&self, node: u32) -> u32 {
         self.inner.in_degree(node)
     }
 
@@ -75,7 +75,7 @@ impl DiGraph {
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    fn out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
+    pub fn out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
         self.inner.out_neighbors(py, node)
     }
 
@@ -84,7 +84,7 @@ impl DiGraph {
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    fn in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
+    pub fn in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
         self.inner.in_neighbors(py, node)
     }
 
@@ -92,7 +92,7 @@ impl DiGraph {
     /// i.e., the given node is the source node of the connecting edge.
     ///
     /// This function returns a copy of the data as a Python list.
-    fn copy_out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
+    pub fn copy_out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
         self.inner.copy_out_neighbors(py, node)
     }
 
@@ -100,11 +100,11 @@ impl DiGraph {
     /// i.e., the given node is the target node of theconnecting edge.
     ///
     /// This function returns a copy of the data as a Python list.
-    fn copy_in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
+    pub fn copy_in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
         self.inner.copy_in_neighbors(py, node)
     }
 
-    fn __repr__(&self) -> String {
+    pub fn __repr__(&self) -> String {
         self.inner.__repr__()
     }
 

@@ -152,7 +152,7 @@ class PageRankResult:
     def error(self) -> float:
         pass
     @property
-    def micros(self) -> float:
+    def micros(self) -> int:
         pass
     def __repr__(self) -> str:
         pass
@@ -161,7 +161,7 @@ class WccResult:
     def components(self) -> npt.NDArray[np.uint32]:
         pass
     @property
-    def micros(self) -> float:
+    def micros(self) -> int:
         pass
     def __repr__(self) -> str:
         pass
