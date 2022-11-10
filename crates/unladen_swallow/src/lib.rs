@@ -10,6 +10,7 @@ use pyo3_log::{Caching, Logger};
 
 mod graphs;
 mod page_rank;
+mod triangle_count;
 mod wcc;
 
 type GResult<T> = std::result::Result<T, GError>;
@@ -38,6 +39,7 @@ fn graph_mate(py: Python, m: &PyModule) -> PyResult<()> {
     graphs::register(py, m)?;
     page_rank::register(py, m)?;
     wcc::register(py, m)?;
+    triangle_count::register(py, m)?;
 
     Ok(())
 }
