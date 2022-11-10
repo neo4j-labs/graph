@@ -91,9 +91,9 @@ jobs:
         with:
           python-version: "3.10"
       - run: pip install maturin
-        working-directory: crates/unladen_swallow
+        working-directory: crates/mate
       - run: maturin build --features extension-module
-        working-directory: crates/unladen_swallow
+        working-directory: crates/mate
 
   test_python:
     name: Run python tests
@@ -110,14 +110,14 @@ jobs:
         with:
           python-version: "3.10"
       - run: pip install maturin
-        working-directory: crates/unladen_swallow
+        working-directory: crates/mate
       - run: pip install -r requirements/dev.txt
-        working-directory: crates/unladen_swallow
+        working-directory: crates/mate
       - run: maturin build --features extension-module
-        working-directory: crates/unladen_swallow
+        working-directory: crates/mate
       - run: pip install target/wheels/*.whl --force-reinstall
       - run: pytest tests
-        working-directory: crates/unladen_swallow
+        working-directory: crates/mate
 
   fmt:
     name: Rustfmt

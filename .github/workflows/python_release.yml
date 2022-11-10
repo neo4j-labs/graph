@@ -17,7 +17,7 @@ concurrency:
 env:
   PACKAGE_NAME: "graph_mate"
   PYTHON_VERSION: "3.8" # to build abi3 wheels
-  MATURIN_ARGS: "--features extension-module --manifest-path crates/unladen_swallow/Cargo.toml --release --out dist"
+  MATURIN_ARGS: "--features extension-module --manifest-path crates/mate/Cargo.toml --release --out dist"
 
 jobs:
   macos-x86_64:
