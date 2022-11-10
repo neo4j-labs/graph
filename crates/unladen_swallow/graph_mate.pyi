@@ -81,7 +81,7 @@ class DiGraph:
 
         This function returns a copy of the data as a Python list.
         """
-    def to_undirected(self) -> Graph:
+    def to_undirected(self, layout: Layout = None) -> Graph:
         """
         Convert this graph into an undirected graph.
         The new graph is unrelated to this graph and does not share any data.

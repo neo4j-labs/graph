@@ -1,6 +1,10 @@
 use super::{Graph, Layout, PyGraph};
 use crate::{page_rank::PageRankResult, wcc::WccResult};
-use graph::{page_rank::PageRankConfig, prelude::DirectedCsrGraph, wcc::WccConfig};
+use graph::{
+    page_rank::PageRankConfig,
+    prelude::{CsrLayout, DirectedCsrGraph},
+    wcc::WccConfig,
+};
 use numpy::{PyArray1, PyArray2};
 use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
@@ -108,8 +112,9 @@ impl DiGraph {
         self.inner.__repr__()
     }
 
-    pub fn to_undirected(&self) -> Graph {
-        let g = self.inner.to_undirected();
+    #[args(layout = "None")]
+    pub fn to_undirected(&self, layout: Option<Layout>) -> Graph {
+        let g = self.inner.to_undirected(layout.map(CsrLayout::from));
         Graph::new(g.load_micros, g)
     }
 
