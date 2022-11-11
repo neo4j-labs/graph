@@ -29,7 +29,7 @@ fast-float = "0.2.0"
 float-ord = "0.3.2"
 futures = "0.3.24"
 fxhash = "0.2.1"
-gdl = { version = "0.2.6" }
+gdl = "0.2.6"
 itertools = "0.10.5"
 linereader = "0.4.0"
 log = "0.4.17"
@@ -42,7 +42,7 @@ numpy = "0.17.2"
 page_size = "0.4.2"
 parking_lot = "0.12.1"
 pico-args = "0.5.0"
-pyo3 = { version = "0.17.1" }
+pyo3 = "0.17.1"
 pyo3-log = "0.7.0"
 rand = "0.8.5"
 rayon = "1.5.3"
@@ -52,8 +52,3 @@ tempfile = "3.3.0"
 thiserror = "1.0.37"
 tokio = "1.21.2"
 tonic = "0.8.2"
-
-[workspace.dev-dependencies]
-criterion = { version = "0.4.0", features = ["html_reports"] }
-rand = "0.8.5"
-tempfile = "3.3.0"
