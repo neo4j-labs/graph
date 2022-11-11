@@ -23,4 +23,7 @@ rayon.workspace = true
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+env_logger.workspace = true
 graph_builder = { path = "../builder", version = "^0.2.0", features = ["gdl"] }
+log.workspace = true
+polars.workspace = true
