@@ -14,8 +14,8 @@ fn main() -> AppResult {
     // https://ldbcouncil.org/benchmarks/graphalytics/#data-sets
     //
     // We can now create a graph by loading the local file.
-    // We also pass in CsrLayout::Deduplicated as additional
-    // parameter to tell the builder to create a sorted adjacency
+    // We also pass in CsrLayout::Deduplicated to tell
+    // the builder to create a sorted adjacency
     // list and deduplicate parallel edges.
     let g: DirectedCsrGraph<u64> = GraphBuilder::new()
         .csr_layout(CsrLayout::Deduplicated)
@@ -25,7 +25,7 @@ fn main() -> AppResult {
 
     // Now we can run Page Rank on the graph.
     // The result contains the actual page rank scores,
-    // the number of iterations the algorirhm until it
+    // the number of iterations the algorithm ran until it
     // converged and the final error value.
     let (scores, iterations, _) = time(|| page_rank(&g, PageRankConfig::default()));
     info!("PageRank ran iterations: {iterations}");
@@ -58,7 +58,7 @@ fn main() -> AppResult {
     drop(g);
 
     // Counting triangles benefits from an adjacency list that is sorted by degree.
-    // We can sort the adjacency list by calling the `reorder_by_degree` method.
+    // We can sort the adjacency list by calling the `to_degree_ordered` method.
     // In contrast to `to_undirected`, relabeling does not create a new graph,
     // instead it changes the adjacency list of the given graph.
     time(|| ug.to_degree_ordered());
