@@ -42,6 +42,7 @@ numpy = "0.17.2"
 page_size = "0.4.2"
 parking_lot = "0.12.1"
 pico-args = "0.5.0"
+polars = { version = "0.25.1", default_features = false, features = ["fmt"] }
 pyo3 = "0.17.1"
 pyo3-log = "0.7.0"
 rand = "0.8.5"
