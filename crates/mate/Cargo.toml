@@ -1,6 +1,6 @@
 [package]
 name = "graph_mate"
-version = "0.2.1"
+version = "0.0.2"
 description = "A library of high-performant graph algorithms."
 keywords = ["graph", "algorithms", "parallel"]
 publish = false
@@ -31,3 +31,12 @@ rayon.workspace = true
 workspace = true
 features = ["macros", "pyproto", "auto-initialize", "abi3", "abi3-py38"]
 default-features = false
+
+[package.metadata.release]
+pre-release-commit-message = "Release {{crate_name}} {{version}}"
+
+[[package.metadata.release.pre-release-replacements]]
+file = "pyproject.toml"
+search = "^version = \".+\"$"
+replace = "version = \"{{version}}\""
+exactly = 1
