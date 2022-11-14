@@ -54,7 +54,7 @@ impl Default for FlightServiceImpl {
 }
 
 type BoxedFlightStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + Sync + 'static>>;
-type FlightResult<T> = Result<T, Status>;
+pub(crate) type FlightResult<T> = Result<T, Status>;
 
 #[tonic::async_trait]
 impl FlightService for FlightServiceImpl {
@@ -180,6 +180,8 @@ impl FlightService for FlightServiceImpl {
         let action = request.into_inner();
         let action: FlightAction = action.try_into()?;
 
+        info!("Received ACTION {action:?}");
+
         let result = match action {
             FlightAction::Create(config) => {
                 create_graph(config, Arc::clone(&self.graph_catalog)).await?
@@ -284,8 +286,6 @@ async fn create_graph(
     config: CreateGraphFromFileConfig,
     graph_catalog: Arc<RwLock<GraphCatalog>>,
 ) -> FlightResult<arrow_flight::Result> {
-    info!("Creating graph using config: {config:?}");
-
     let CreateGraphFromFileConfig {
         graph_name,
         file_format,
@@ -306,12 +306,10 @@ async fn create_graph(
         graph.edge_count(),
         start.elapsed().as_millis(),
     );
-    info!("Created graph '{graph_name}': {result:?}");
+    graph_catalog.write().insert(graph_name.clone(), graph);
 
-    graph_catalog.write().insert(graph_name, graph);
-
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    info!("Done creating graph '{graph_name}': {result:?}");
+    into_flight_result(result)
 }
 
 async fn list_graphs(
@@ -319,8 +317,7 @@ async fn list_graphs(
 ) -> FlightResult<arrow_flight::Result> {
     let graph_infos = graph_catalog.read().list();
     let result = ListActionResult::new(graph_infos);
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    into_flight_result(result)
 }
 
 async fn remove_graph(
@@ -328,15 +325,13 @@ async fn remove_graph(
     graph_catalog: Arc<RwLock<GraphCatalog>>,
 ) -> FlightResult<arrow_flight::Result> {
     let result = graph_catalog.write().remove(config.graph_name)?;
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    into_flight_result(result)
 }
 
 async fn to_relabeled_graph(
     config: ToRelabeledConfig,
     graph_catalog: Arc<RwLock<GraphCatalog>>,
 ) -> FlightResult<arrow_flight::Result> {
-    info!("Relabelling graph using config: {config:?}");
     let ToRelabeledConfig { graph_name } = config;
 
     let result = tokio::task::spawn_blocking(move || {
@@ -358,15 +353,14 @@ async fn to_relabeled_graph(
     .await
     .unwrap()?;
 
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    info!("Done relabeling graph: {result:?}");
+    into_flight_result(result)
 }
 
 async fn to_undirected_graph(
     config: ToUndirectedConfig,
     graph_catalog: Arc<RwLock<GraphCatalog>>,
 ) -> FlightResult<arrow_flight::Result> {
-    info!("Converting graph to undirected using config: {config:?}");
     let ToUndirectedConfig {
         graph_name,
         csr_layout,
@@ -398,8 +392,8 @@ async fn to_undirected_graph(
     .await
     .unwrap()?;
 
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    info!("Done converting graph to undirected: {result:?}");
+    into_flight_result(result)
 }
 
 async fn compute_page_rank(
@@ -409,8 +403,6 @@ async fn compute_page_rank(
     graph_name: String,
     property_key: String,
 ) -> FlightResult<arrow_flight::Result> {
-    info!("Computing page rank on graph '{graph_name}' using config: {config:?}");
-
     let catalog_key = graph_name.clone();
 
     let (ranks, result) = tokio::task::spawn_blocking(move || {
@@ -444,16 +436,14 @@ async fn compute_page_rank(
         .insert(property_id.clone(), record_batches);
 
     let result = MutateResult::new(property_id, result);
-
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    info!("Done computing page rank: {result:?}");
+    into_flight_result(result)
 }
 
 async fn compute_triangle_count(
     graph_catalog: Arc<RwLock<GraphCatalog>>,
     graph_name: String,
 ) -> FlightResult<arrow_flight::Result> {
-    info!("Computing global triangle count on graph '{graph_name}'");
     let graph_name = graph_name.clone();
 
     let result = tokio::task::spawn_blocking(move || {
@@ -476,8 +466,8 @@ async fn compute_triangle_count(
     .await
     .unwrap()?;
 
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    info!("Done computing triangle count: {result:?}");
+    into_flight_result(result)
 }
 
 async fn compute_sssp(
@@ -487,8 +477,6 @@ async fn compute_sssp(
     graph_name: String,
     property_key: String,
 ) -> FlightResult<arrow_flight::Result> {
-    info!("Computing sssp on graph '{graph_name}' using config: {config:?}");
-
     let catalog_key = graph_name.clone();
 
     let (distances, result) = tokio::task::spawn_blocking(move || {
@@ -526,9 +514,8 @@ async fn compute_sssp(
         .insert(property_id.clone(), record_batches);
 
     let result = MutateResult::new(property_id, result);
-
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    info!("Done computing sssp: {result:?}");
+    into_flight_result(result)
 }
 
 async fn compute_wcc(
@@ -538,8 +525,6 @@ async fn compute_wcc(
     graph_name: String,
     property_key: String,
 ) -> FlightResult<arrow_flight::Result> {
-    info!("Computing wcc on graph '{graph_name}' using config: {config:?}");
-
     let catalog_key = graph_name.clone();
 
     let (components, result) = tokio::task::spawn_blocking(move || {
@@ -572,9 +557,8 @@ async fn compute_wcc(
         .insert(property_id.clone(), record_batches);
 
     let result = MutateResult::new(property_id, result);
-
-    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    info!("Done computing wcc: {result:?}");
+    into_flight_result(result)
 }
 
 fn from_arrow_err(e: ArrowError) -> Status {
