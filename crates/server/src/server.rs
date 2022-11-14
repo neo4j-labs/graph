@@ -1,6 +1,7 @@
 use crate::actions::*;
 use crate::catalog::*;
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -153,7 +154,9 @@ impl FlightService for FlightServiceImpl {
 
         info!("Created graph '{graph_name}': {result:?}");
 
-        self.graph_catalog.write().insert(graph_name, graph);
+        self.graph_catalog
+            .write()
+            .insert(Cow::from(graph_name), graph);
 
         let result = serde_json::to_vec(&result).map_err(from_json_error)?;
         let result = arrow_flight::PutResult {
@@ -306,8 +309,7 @@ async fn create_graph(
         graph.edge_count(),
         start.elapsed().as_millis(),
     );
-    graph_catalog.write().insert(graph_name.clone(), graph);
-
+    graph_catalog.write().insert(Cow::from(&graph_name), graph);
     info!("Done creating graph '{graph_name}': {result:?}");
     into_flight_result(result)
 }
