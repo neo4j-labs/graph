@@ -32,24 +32,24 @@ impl DiGraph {
 impl DiGraph {
     /// Load a graph in the Graph500 format
     #[staticmethod]
-    #[args(layout = "Layout::Unsorted")]
-    pub fn load(py: Python<'_>, path: PathBuf, layout: Layout) -> PyResult<Self> {
+    #[args(layout = "None")]
+    pub fn load(py: Python<'_>, path: PathBuf, layout: Option<Layout>) -> PyResult<Self> {
         let g = PyGraph::load(py, path, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
 
     /// Convert a numpy 2d-array into a graph.
     #[staticmethod]
-    #[args(layout = "Layout::Unsorted")]
-    pub fn from_numpy(np: &PyArray2<u32>, layout: Layout) -> PyResult<Self> {
+    #[args(layout = "None")]
+    pub fn from_numpy(np: &PyArray2<u32>, layout: Option<Layout>) -> PyResult<Self> {
         let g = PyGraph::from_numpy(np, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
 
     /// Convert a pandas dataframe into a graph.
     #[staticmethod]
-    #[args(layout = "Layout::Unsorted")]
-    pub fn from_pandas(py: Python<'_>, data: PyObject, layout: Layout) -> PyResult<Self> {
+    #[args(layout = "None")]
+    pub fn from_pandas(py: Python<'_>, data: PyObject, layout: Option<Layout>) -> PyResult<Self> {
         let g = PyGraph::from_pandas(py, data, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
