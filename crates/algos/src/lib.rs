@@ -150,3 +150,11 @@ pub mod utils;
 pub mod wcc;
 
 const DEFAULT_PARALLELISM: usize = 4;
+
+// Related to https://github.com/rust-lang/rust/issues/72686
+// `unused_crate_dependencies` does not differentiate between `dev-dependencies` and `dependencies`
+// so we fake the usage by blank importing the dev0dependencies in test scope.
+#[cfg(test)]
+use env_logger as _;
+#[cfg(test)]
+use polars as _;
