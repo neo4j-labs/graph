@@ -2,9 +2,10 @@ use arrow_flight::{flight_descriptor::DescriptorType, Action, ActionType, Flight
 use serde::{Deserialize, Serialize};
 use tonic::Status;
 
-use crate::catalog::PropertyId;
+use crate::{catalog::PropertyId, server::FlightResult};
 use graph::prelude::*;
 
+#[derive(Debug)]
 pub enum FlightAction {
     Create(CreateGraphFromFileConfig),
     List,
@@ -319,4 +320,9 @@ impl<T> MutateResult<T> {
 
 pub fn from_json_error(error: serde_json::Error) -> Status {
     Status::internal(format!("JsonError: {error:?}"))
+}
+
+pub fn into_flight_result<T: serde::Serialize>(result: T) -> FlightResult<arrow_flight::Result> {
+    let result = serde_json::to_vec(&result).map_err(from_json_error)?;
+    Ok(arrow_flight::Result { body: result })
 }
