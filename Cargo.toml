@@ -53,3 +53,7 @@ tempfile = "3.3.0"
 thiserror = "1.0.37"
 tokio = "1.21.2"
 tonic = "0.8.2"
+
+[workspace.metadata.release]
+pre-release-commit-message = "Release {{crate_name}} {{version}}"
+post-release-commit-message = "Start development of {{next_version}}"
