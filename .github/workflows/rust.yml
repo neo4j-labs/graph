@@ -1,13 +1,22 @@
-name: Rust
+name: CI
 
 on:
   push:
     branches: [ main ]
+    tags: [ 'graph_mate-v*' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
+  PY_PACKAGE_NAME: "graph_mate"
+  PYTHON_VERSION: "3.8" # to build abi3 wheels
+  MATURIN_ARGS: "--features extension-module --manifest-path crates/mate/Cargo.toml --release --out dist"
 
 jobs:
   check:
@@ -152,3 +161,169 @@ jobs:
         with:
           command: clippy
           args: --all-features -- -D warnings
+
+  macos-x86_64:
+    name: Package graph_mate for Mac x86_64
+    runs-on: macos-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: test_python
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: x64
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Build wheels - x86_64
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: ${{ env.MATURIN_ARGS }} --sdist
+          maturin-version: "v0.14.0-beta.7"
+      - name: Install built wheel - x86_64
+        run: |
+          pip install dist/${{ env.PY_PACKAGE_NAME }}-*.whl --force-reinstall
+          python -c "import ${{ env.PY_PACKAGE_NAME }}"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: dist
+
+  macos-universal:
+    name: Package graph_mate for Mac Universal
+    runs-on: macos-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: test_python
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: x64
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Build wheels - universal2
+        uses: PyO3/maturin-action@v1
+        with:
+          args: ${{ env.MATURIN_ARGS }} --universal2
+          maturin-version: "v0.14.0-beta.7"
+      - name: Install built wheel - universal2
+        run: |
+          pip install dist/${{ env.PY_PACKAGE_NAME }}-*universal2.whl --force-reinstall
+          python -c "import ${{ env.PY_PACKAGE_NAME }}"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: dist
+
+  windows:
+    name: Package graph_mate for Windows
+    runs-on: windows-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: test_python
+    strategy:
+      matrix:
+        target: [x64, x86]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: ${{ matrix.target }}
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: ${{ env.MATURIN_ARGS }}
+          maturin-version: "v0.14.0-beta.7"
+      - name: Install built wheel
+        shell: bash
+        run: |
+          python -m pip install dist/${{ env.PY_PACKAGE_NAME }}-*.whl --force-reinstall
+          python -c "import ${{ env.PY_PACKAGE_NAME }}"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: dist
+
+  linux:
+    name: Package graph_mate for Linux
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: test_python
+    strategy:
+      matrix:
+        target: [x86_64, i686]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: x64
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: ${{ env.MATURIN_ARGS }}
+          maturin-version: "v0.14.0-beta.7"
+      - name: Install built wheel
+        if: matrix.target == 'x86_64'
+        run: |
+          pip install dist/${{ env.PY_PACKAGE_NAME }}-*.whl --force-reinstall
+          python -c "import ${{ env.PY_PACKAGE_NAME }}"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: dist
+
+  release:
+    name: Release graph_mate
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs:
+      - macos-universal
+      - macos-x86_64
+      - windows
+      - linux
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: wheels
+      - uses: actions/setup-python@v4
+      - name: Publish to PyPi
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.GRAPH_PYPI_TOKEN }}
+        run: |
+          pip install --upgrade twine
+          twine upload --skip-existing *
+
+# Parts of this Actions file is taken and adapted from Ruff under MIT License:
+# https://github.com/charliermarsh/ruff/blob/e00bcd19f51f33a399751d2a7b854d59024473ca/.github/workflows/ruff.yaml
+# Their license: https://raw.githubusercontent.com/charliermarsh/ruff/e00bcd19f51f33a399751d2a7b854d59024473ca/LICENSE
