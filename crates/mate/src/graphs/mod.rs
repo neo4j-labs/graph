@@ -222,7 +222,7 @@ where
     ///
     /// Note, that this method creates a new graph with the same space
     /// requirements as the input graph.
-    fn reorder_by_degree<EV>(&mut self) -> PyResult<()>
+    fn make_degree_ordered<EV>(&mut self) -> PyResult<()>
     where
         G: RelabelByDegreeOp<NI, EV>,
     {

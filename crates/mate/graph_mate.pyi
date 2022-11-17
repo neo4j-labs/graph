@@ -130,7 +130,7 @@ class Graph:
 
         This function returns a copy of the data as a Python list.
         """
-    def reorder_by_degree(self):
+    def make_degree_ordered(self):
         """
         Converts this graph by relabeling the node ids based on their degree.
 
