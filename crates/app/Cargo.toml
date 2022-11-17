@@ -1,6 +1,6 @@
 [package]
 name = "graph_app"
-version = "0.1.3"
+version = "0.2.0"
 description = "A binary to execute graph algorithms."
 keywords = ["graph", "algorithms", "parallel"]
 publish = false
@@ -22,7 +22,7 @@ rayon.workspace = true
 
 [dependencies.graph]
 path = "../algos"
-version = "^0.2.0"
+version = "^0.3.0"
 features = ["clap"]
 
 [dependencies.kommandozeile]

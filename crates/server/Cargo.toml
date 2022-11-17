@@ -1,6 +1,6 @@
 [package]
 name = "graph_server"
-version = "0.1.1"
+version = "0.2.0"
 description = "A server for managing graphs and running algorithms."
 keywords = ["arrow", "grpc", "graph", "algorithms"]
 publish = false
@@ -19,7 +19,7 @@ async-trait.workspace = true
 clap.workspace = true
 env_logger.workspace = true
 futures.workspace = true
-graph = { path = "../algos", version = "^0.2.0", features = ["serde"] }
+graph = { path = "../algos", version = "^0.3.0", features = ["serde"] }
 itertools.workspace = true
 log.workspace = true
 parking_lot.workspace = true

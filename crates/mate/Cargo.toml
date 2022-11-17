@@ -1,6 +1,6 @@
 [package]
 name = "graph_mate"
-version = "0.0.2"
+version = "0.1.0"
 description = "A library of high-performant graph algorithms."
 keywords = ["graph", "algorithms", "parallel"]
 publish = false
@@ -21,7 +21,7 @@ default = []
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
-graph = { path = "../algos", version = "^0.2.0" }
+graph = { path = "../algos", version = "^0.3.0" }
 log.workspace = true
 numpy.workspace = true
 pyo3-log.workspace = true
