@@ -51,7 +51,7 @@ def test_reorder(ug: Graph):
         (ug.degree(n) for n in range(ug.node_count())), reverse=True
     )
 
-    ug.reorder_by_degree()
+    ug.make_degree_ordered()
     degrees = [ug.degree(n) for n in range(ug.node_count())]
 
     assert degrees == sorted_degrees

@@ -92,8 +92,8 @@ impl Graph {
     ///
     /// This modifies the graph in-place.
     /// The operation can only be done when there are no `neighbors` referenced somewhere.
-    pub fn reorder_by_degree(&mut self) -> PyResult<()> {
-        self.inner.reorder_by_degree()
+    pub fn make_degree_ordered(&mut self) -> PyResult<()> {
+        self.inner.make_degree_ordered()
     }
 
     /// Count the number of global triangles of this graph.

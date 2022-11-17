@@ -58,7 +58,7 @@ fn main() -> AppResult {
     drop(g);
 
     // Counting triangles benefits from an adjacency list that is sorted by degree.
-    // We can sort the adjacency list by calling the `to_degree_ordered` method.
+    // We can sort the adjacency list by calling the `make_degree_ordered` method.
     // In contrast to `to_undirected`, relabeling does not create a new graph,
     // instead it changes the adjacency list of the given graph.
     time(|| ug.make_degree_ordered());
