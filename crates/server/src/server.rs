@@ -342,7 +342,7 @@ async fn to_relabeled_graph(
         if let GraphType::Undirected(graph) = graph {
             use graph::prelude::RelabelByDegreeOp;
             let start = Instant::now();
-            graph.to_degree_ordered();
+            graph.make_degree_ordered();
             Ok(ToRelabeledResult {
                 to_relabeled_millis: start.elapsed().as_millis(),
             })

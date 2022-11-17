@@ -169,7 +169,7 @@ pub trait RelabelByDegreeOp<NI, EV> {
     ///
     /// assert_eq!(graph.neighbors(0).as_slice(), &[1, 2, 3]);
     /// ```
-    fn to_degree_ordered(&mut self);
+    fn make_degree_ordered(&mut self);
 }
 
 pub trait ToUndirectedOp {
@@ -246,7 +246,7 @@ where
         + SwapCsr<NI, NI, EV>
         + Sync,
 {
-    fn to_degree_ordered(&mut self) {
+    fn make_degree_ordered(&mut self) {
         relabel_by_degree(self)
     }
 }
@@ -751,7 +751,7 @@ mod tests {
             ])
             .build();
 
-        graph.to_degree_ordered();
+        graph.make_degree_ordered();
 
         assert_eq!(graph.node_count(), graph.node_count());
         assert_eq!(graph.edge_count(), graph.edge_count());

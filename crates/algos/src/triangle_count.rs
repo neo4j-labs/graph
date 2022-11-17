@@ -15,7 +15,7 @@ where
     G: RelabelByDegreeOp<NI, EV>,
 {
     let start = Instant::now();
-    graph.to_degree_ordered();
+    graph.make_degree_ordered();
     info!("Relabeled graph in {:?}", start.elapsed());
 }
 

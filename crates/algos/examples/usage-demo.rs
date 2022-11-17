@@ -61,7 +61,7 @@ fn main() -> AppResult {
     // We can sort the adjacency list by calling the `to_degree_ordered` method.
     // In contrast to `to_undirected`, relabeling does not create a new graph,
     // instead it changes the adjacency list of the given graph.
-    time(|| ug.to_degree_ordered());
+    time(|| ug.make_degree_ordered());
 
     // Now we can count the number of global triangles in the graph.
     let tc = time(|| global_triangle_count(&ug));

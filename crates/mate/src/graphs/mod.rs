@@ -233,7 +233,7 @@ where
             ))
         })?;
 
-        (_, self.load_micros) = timed(self.load_micros, || g.to_degree_ordered());
+        (_, self.load_micros) = timed(self.load_micros, || g.make_degree_ordered());
         Ok(())
     }
 
