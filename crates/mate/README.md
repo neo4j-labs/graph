@@ -5,7 +5,7 @@ Python binding for the set of `graph` crates.
 `graph_mate` is a Python API that provides a collection of high-performant graph algorithms.
 It provides implementations for directed and undirected graphs.
 
-Graphs can be created programatically or read from the graph500 input format.
+Graphs can be created programatically or read from the [`Graph500`](https://graph500.org/) input format.
 
 The library is implemented in Rust and uses [rayon](https://github.com/rayon-rs/rayon) for running graph creation and algorithm execution in parallel without holding on to the Global Interpreter Lock or using multiprocessing.
 
@@ -103,8 +103,8 @@ assert directed.edge_count() == 5
 assert directed.out_degree(1) == 2
 assert directed.in_degree(1) == 1
 
-assert  np.array_equal(directed.out_neighbors(1), [2, 3])
-assert  np.array_equal(directed.in_neighbors(1), [0])
+assert np.array_equal(directed.out_neighbors(1), [2, 3])
+assert np.array_equal(directed.in_neighbors(1), [0])
 ```
 
 Neighbors are returned as a numpy array view into the graph, which means we cannot modify the array.
