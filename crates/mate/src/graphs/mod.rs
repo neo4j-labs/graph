@@ -94,19 +94,20 @@ where
     GraphError: From<G::Error>,
 {
     /// Load a graph in the Graph500 format
-    fn load(py: Python<'_>, path: PathBuf, layout: Layout) -> PyResult<Self> {
-        fn load_graph500<NI, G>(path: PathBuf, layout: CsrLayout) -> GResult<(G, u64)>
+    fn load(py: Python<'_>, path: PathBuf, layout: Option<Layout>) -> PyResult<Self> {
+        fn load_graph500<NI, G>(path: PathBuf, layout: Option<Layout>) -> GResult<(G, u64)>
         where
             NI: Idx,
             G: TryFrom<(Graph500<NI>, CsrLayout)>,
             GraphError: From<G::Error>,
         {
             let (graph, load_micros) = time(move || {
-                GraphBuilder::new()
-                    .csr_layout(layout)
-                    .file_format(Graph500Input::default())
-                    .path(path)
-                    .build()
+                let mut b = GraphBuilder::new();
+                if let Some(layout) = layout {
+                    b = b.csr_layout(CsrLayout::from(layout));
+                }
+
+                b.file_format(Graph500Input::default()).path(path).build()
             });
             let graph = graph?;
 
@@ -114,7 +115,7 @@ where
         }
 
         let (graph, took) = py
-            .allow_threads(move || load_graph500(path, CsrLayout::from(layout)))
+            .allow_threads(move || load_graph500(path, layout))
             .map_err(GraphErrorWrapper)?;
 
         Ok(Self::new(took, graph))
@@ -126,7 +127,7 @@ impl<NI, G> PyGraph<NI, G>
 where
     NI: Idx,
 {
-    fn from_numpy(np: &PyArray2<NI>, layout: Layout) -> PyResult<Self>
+    fn from_numpy(np: &PyArray2<NI>, layout: Option<Layout>) -> PyResult<Self>
     where
         NI: Element,
         for<'a> G: From<(ArrayEdgeList<'a, NI>, CsrLayout)>,
@@ -137,7 +138,7 @@ where
         Ok(Self::from_edge_list(el, layout))
     }
 
-    fn from_pandas(py: Python<'_>, data: PyObject, layout: Layout) -> PyResult<Self>
+    fn from_pandas(py: Python<'_>, data: PyObject, layout: Option<Layout>) -> PyResult<Self>
     where
         NI: Element,
         for<'a> G: From<(ArrayEdgeList<'a, NI>, CsrLayout)>,
@@ -149,12 +150,13 @@ where
     }
 
     /// Load a graph from an edge list
-    fn from_edge_list<E>(edge_list: E, layout: Layout) -> Self
+    fn from_edge_list<E>(edge_list: E, layout: Option<Layout>) -> Self
     where
         E: Edges<NI = NI>,
         G: From<(E, CsrLayout)>,
     {
-        let (graph, took) = time(move || G::from((edge_list, CsrLayout::from(layout))));
+        let (graph, took) =
+            time(move || G::from((edge_list, layout.map(CsrLayout::from).unwrap_or_default())));
         Self::new(took, graph)
     }
 }
