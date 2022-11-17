@@ -1,4 +1,14 @@
-# graph
+# graph &emsp; [![GitHub Actions workflow status]][actions] [![Latest version on crates.io]][crates.io] [![Latest version on PyPI]][pypi.org] [![License: MIT]][license]
+
+[GitHub Actions workflow status]: https://img.shields.io/github/workflow/status/s1ck/graph/CI/main?label=CI&style=flat-square
+[actions]: https://github.com/s1ck/graph/actions/workflows/rust.yml?query=branch%3Amain
+[Latest version on crates.io]: https://img.shields.io/crates/v/graph?style=flat-square
+[crates.io]: https://crates.io/crates/graph/
+[Latest version on PyPI]: https://img.shields.io/pypi/v/graph-mate?style=flat-square
+[pypi.org]: https://pypi.org/project/graph-mate/
+[License: MIT]: https://img.shields.io/crates/l/graph?style=flat-square
+[license]: https://choosealicense.com/licenses/mit/
+
 
 A library that provides a collection of high-performant graph algorithms.
 This crate builds on top of the [graph_builder](https://docs.rs/graph_builder/latest/)
