@@ -160,7 +160,7 @@ pub trait RelabelByDegreeOp<NI, EV> {
     /// assert_eq!(neighbors.next(), Some(&3));
     /// assert_eq!(neighbors.next(), None);
     ///
-    /// graph.to_degree_ordered();
+    /// graph.make_degree_ordered();
     ///
     /// assert_eq!(graph.degree(0), 3);
     /// assert_eq!(graph.degree(1), 2);
