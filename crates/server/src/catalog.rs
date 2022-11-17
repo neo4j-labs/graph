@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, marker::PhantomData, path::Path, sync::Arc};
+use std::{collections::HashMap, marker::PhantomData, path::Path, sync::Arc};
 
 use arrow::{
     datatypes::{Field, Schema},
@@ -168,8 +168,8 @@ impl GraphCatalog {
             .ok_or_else(|| GraphCatalog::graph_not_found(graph_name))
     }
 
-    pub fn insert(&mut self, graph_name: Cow<str>, graph: GraphType) {
-        self.graphs.insert(graph_name.into_owned(), graph);
+    pub fn insert<K: Into<String>>(&mut self, graph_name: K, graph: GraphType) {
+        self.graphs.insert(graph_name.into(), graph);
     }
 
     pub fn list(&self) -> Vec<GraphInfo> {
