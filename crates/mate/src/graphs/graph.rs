@@ -1,4 +1,4 @@
-use super::{Layout, PyGraph};
+use super::{FileFormat, Layout, PyGraph};
 use crate::triangle_count::TriangleCountResult;
 use graph::prelude::UndirectedCsrGraph;
 use numpy::{PyArray1, PyArray2};
@@ -26,11 +26,16 @@ impl Graph {
 
 #[pymethods]
 impl Graph {
-    /// Load a graph in the Graph500 format
+    /// Load a graph in the provided format
     #[staticmethod]
-    #[args(layout = "None")]
-    pub fn load(py: Python<'_>, path: PathBuf, layout: Option<Layout>) -> PyResult<Self> {
-        let g = PyGraph::load(py, path, layout)?;
+    #[args(layout = "None", file_format = "FileFormat::Graph500")]
+    pub fn load(
+        py: Python<'_>,
+        path: PathBuf,
+        layout: Option<Layout>,
+        file_format: FileFormat,
+    ) -> PyResult<Self> {
+        let g = PyGraph::load_file(py, path, layout, file_format)?;
         Ok(Self::new(g.load_micros, g))
     }
 

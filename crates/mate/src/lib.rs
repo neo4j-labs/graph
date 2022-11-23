@@ -13,8 +13,6 @@ mod page_rank;
 mod triangle_count;
 mod wcc;
 
-type GResult<T> = std::result::Result<T, GError>;
-
 struct GraphError(GError);
 
 impl PyErrArguments for GraphError {
