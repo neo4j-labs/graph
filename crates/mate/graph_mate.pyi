@@ -27,14 +27,32 @@ class Layout:
     """
     Deduplicated: Layout
 
+class FileFormat:
+    """
+    Defines the file format of an input file.
+    """
+
+    """
+    The input in a binary Graph500 format.
+    """
+    Graph500: FileFormat
+
+    """
+    The input is a text file where each line represents an edge in the form
+    of `<source_id> <target_id>`.
+    """
+    EdgeList: FileFormat
+
 class DiGraph:
     """
     A directed graph using 32 bits for node ids.
     """
 
     @staticmethod
-    def load(path: str, layout: Layout = Layout.Unsorted) -> DiGraph:
-        """Load a graph from the Graph500 binary format."""
+    def load(
+        path: str, layout: Layout = Layout.Unsorted, file_format=FileFormat.Graph500
+    ) -> DiGraph:
+        """Load a graph from the provided format."""
     @staticmethod
     def from_numpy(
         np: npt.NDArray[np.uint32], layout: Layout = Layout.Unsorted
@@ -101,8 +119,10 @@ class Graph:
     """
 
     @staticmethod
-    def load(path: str, layout: Layout = Layout.Unsorted) -> Graph:
-        """Load a graph from the Graph500 binary format"""
+    def load(
+        path: str, layout: Layout = Layout.Unsorted, file_format=FileFormat.Graph500
+    ) -> Graph:
+        """Load a graph from the provided format"""
     @staticmethod
     def from_numpy(
         np: npt.NDArray[np.uint32], layout: Layout = Layout.Unsorted

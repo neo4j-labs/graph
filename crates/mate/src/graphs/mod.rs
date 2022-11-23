@@ -1,8 +1,9 @@
-use crate::{GResult, GraphError as GraphErrorWrapper};
+use crate::GraphError as GraphErrorWrapper;
 use ::graph::prelude::{
-    CsrLayout, DirectedDegrees, DirectedNeighbors, Edges, Error as GraphError, Graph as GraphTrait,
-    Graph500, Graph500Input, GraphBuilder, Idx, RelabelByDegreeOp, ToUndirectedOp,
-    UndirectedDegrees, UndirectedNeighbors,
+    CsrLayout, DirectedDegrees, DirectedNeighbors, EdgeList, EdgeListInput, Edges,
+    Error as GraphError, Graph as GraphTrait, Graph500, Graph500Input, GraphBuilder, Idx,
+    InputCapabilities, InputPath, RelabelByDegreeOp, ToUndirectedOp, UndirectedDegrees,
+    UndirectedNeighbors,
 };
 use numpy::{
     ndarray::{iter::AxisIter, ArrayView2, Ix1},
@@ -30,6 +31,7 @@ pub(crate) use self::shared_slice::{NumpyType, SharedSlice};
 
 pub(crate) fn register(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Layout>()?;
+    m.add_class::<FileFormat>()?;
 
     digraph::register(py, m)?;
     graph::register(py, m)?;
@@ -50,6 +52,17 @@ pub enum Layout {
     /// Neighbor lists are sorted and do not contain duplicate target ids.
     /// Self-loops, i.e., edges in the form of `(u, u)` are removed.
     Deduplicated,
+}
+
+/// Defines the file format of an input file.
+#[derive(Clone, Copy, Debug)]
+#[pyclass]
+pub enum FileFormat {
+    /// The input in a binary Graph500 format.
+    Graph500,
+    /// The input is a text file where each line represents an edge in the form
+    /// of `<source_id> <target_id>`.
+    EdgeList,
 }
 
 impl From<Layout> for CsrLayout {
@@ -86,36 +99,62 @@ impl<NI, G> PyGraph<NI, G> {
     }
 }
 
-/// pymethods
 impl<NI, G> PyGraph<NI, G>
 where
     NI: Idx,
-    G: TryFrom<(Graph500<NI>, CsrLayout)> + Send,
-    GraphError: From<G::Error>,
 {
-    /// Load a graph in the Graph500 format
-    fn load(py: Python<'_>, path: PathBuf, layout: Option<Layout>) -> PyResult<Self> {
-        fn load_graph500<NI, G>(path: PathBuf, layout: Option<Layout>) -> GResult<(G, u64)>
-        where
-            NI: Idx,
-            G: TryFrom<(Graph500<NI>, CsrLayout)>,
-            GraphError: From<G::Error>,
-        {
-            let (graph, load_micros) = time(move || {
-                let mut b = GraphBuilder::new();
-                if let Some(layout) = layout {
-                    b = b.csr_layout(CsrLayout::from(layout));
-                }
-
-                b.file_format(Graph500Input::default()).path(path).build()
-            });
-            let graph = graph?;
-
-            Ok((graph, load_micros))
+    /// Load a graph in the provided format
+    fn load_file(
+        py: Python<'_>,
+        path: PathBuf,
+        layout: Option<Layout>,
+        file_format: FileFormat,
+    ) -> PyResult<Self>
+    where
+        G: TryFrom<(EdgeList<NI, ()>, CsrLayout)> + TryFrom<(Graph500<NI>, CsrLayout)> + Send,
+        GraphError: From<<EdgeList<NI, ()> as TryFrom<InputPath<PathBuf>>>::Error>,
+        GraphError: From<<Graph500<NI> as TryFrom<InputPath<PathBuf>>>::Error>,
+        GraphError: From<<G as TryFrom<(EdgeList<NI, ()>, CsrLayout)>>::Error>,
+        GraphError: From<<G as TryFrom<(Graph500<NI>, CsrLayout)>>::Error>,
+    {
+        match file_format {
+            FileFormat::Graph500 => {
+                Self::load_file_input(py, path, layout, Graph500Input::default())
+            }
+            FileFormat::EdgeList => {
+                Self::load_file_input(py, path, layout, EdgeListInput::default())
+            }
         }
+    }
 
+    /// Load a graph in the provided format
+    fn load_file_input<Format>(
+        py: Python<'_>,
+        path: PathBuf,
+        layout: Option<Layout>,
+        format: Format,
+    ) -> PyResult<Self>
+    where
+        Format: InputCapabilities<NI> + Send,
+        Format::GraphInput: TryFrom<InputPath<PathBuf>>,
+        G: TryFrom<(Format::GraphInput, CsrLayout)> + Send,
+        GraphError: From<<Format::GraphInput as TryFrom<InputPath<PathBuf>>>::Error>,
+        GraphError: From<G::Error>,
+    {
         let (graph, took) = py
-            .allow_threads(move || load_graph500(path, layout))
+            .allow_threads(move || {
+                let (graph, load_micros) = time(move || {
+                    let mut b = GraphBuilder::new();
+                    if let Some(layout) = layout {
+                        b = b.csr_layout(CsrLayout::from(layout));
+                    }
+
+                    b.file_format(format).path(path).build()
+                });
+                let graph = graph?;
+
+                Ok((graph, load_micros))
+            })
             .map_err(GraphErrorWrapper)?;
 
         Ok(Self::new(took, graph))
