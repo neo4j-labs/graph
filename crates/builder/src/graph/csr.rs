@@ -605,13 +605,7 @@ where
     Label: Idx + Hash,
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
-        let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels: _,
-            max_degree: _,
-            max_label: _,
-        } = dot_graph;
+        let DotGraph { edge_list, .. } = dot_graph;
 
         DirectedCsrGraph::from((edge_list, csr_layout))
     }
@@ -624,11 +618,7 @@ where
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
         let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels,
-            max_degree: _,
-            max_label: _,
+            edge_list, labels, ..
         } = dot_graph;
 
         let node_values = NodeValues::new(labels);
@@ -808,13 +798,7 @@ where
     Label: Idx + Hash,
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
-        let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels: _,
-            max_degree: _,
-            max_label: _,
-        } = dot_graph;
+        let DotGraph { edge_list, .. } = dot_graph;
 
         UndirectedCsrGraph::from((edge_list, csr_layout))
     }
@@ -827,11 +811,7 @@ where
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
         let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels,
-            max_degree: _,
-            max_label: _,
+            edge_list, labels, ..
         } = dot_graph;
 
         let node_values = NodeValues::new(labels);
