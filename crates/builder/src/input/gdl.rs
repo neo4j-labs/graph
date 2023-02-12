@@ -32,6 +32,10 @@ impl_from_cypher_value!(CypherValue::Float, f32);
 impl_from_cypher_value!(CypherValue::Float, f64);
 impl_from_cypher_value!(CypherValue::Integer, i32);
 impl_from_cypher_value!(CypherValue::Integer, i64);
+impl_from_cypher_value!(CypherValue::Integer, isize);
+impl_from_cypher_value!(CypherValue::Integer, u32);
+impl_from_cypher_value!(CypherValue::Integer, u64);
+impl_from_cypher_value!(CypherValue::Integer, usize);
 
 impl<'gdl, NI, EV> From<&'gdl gdl::Graph> for EdgeList<NI, EV>
 where
