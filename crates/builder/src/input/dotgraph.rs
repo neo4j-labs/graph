@@ -307,7 +307,12 @@ where
 {
     pub fn from_graph<G>(graph: &G) -> Self
     where
-        G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + NodeValues<NI, Label>,
+        G: Graph<NI>
+            + UndirectedNeighbors<NI>
+            + UndirectedDegrees<NI>
+            + NodeValues<NI, Label>
+            + Send
+            + Sync,
     {
         graph.into()
     }
@@ -321,22 +326,30 @@ impl<Label, G, NI> From<&G> for NeighborLabelFrequencies<Label, NI>
 where
     NI: Idx,
     Label: Idx + Hash,
-    G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + NodeValues<NI, Label>,
+    G: Graph<NI>
+        + UndirectedNeighbors<NI>
+        + UndirectedDegrees<NI>
+        + NodeValues<NI, Label>
+        + Send
+        + Sync,
 {
     fn from(graph: &G) -> Self {
         let mut frequencies = Vec::with_capacity(graph.node_count().index());
 
-        for node in 0..graph.node_count().index() {
-            let mut frequency = FxHashMap::<Label, usize>::default();
+        (0..graph.node_count().index())
+            .into_par_iter()
+            .map(|node| {
+                let mut frequency = FxHashMap::<Label, usize>::default();
 
-            for &target in graph.neighbors(NI::new(node)) {
-                let target_label = graph.node_value(target);
-                let count = frequency.entry(*target_label).or_insert(0);
-                *count += 1;
-            }
+                for &target in graph.neighbors(NI::new(node)) {
+                    let target_label = graph.node_value(target);
+                    let count = frequency.entry(*target_label).or_insert(0);
+                    *count += 1;
+                }
 
-            frequencies.push(frequency);
-        }
+                frequency
+            })
+            .collect_into_vec(&mut frequencies);
 
         Self {
             frequencies,
