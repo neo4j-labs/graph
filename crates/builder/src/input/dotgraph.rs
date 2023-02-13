@@ -286,6 +286,10 @@ where
         self.map.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn iter(&self) -> std::collections::hash_map::Iter<Label, usize> {
         self.map.iter()
     }
