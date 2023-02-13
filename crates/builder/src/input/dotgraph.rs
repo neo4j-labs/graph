@@ -266,6 +266,31 @@ where
     }
 }
 
+pub struct NeighborLabelFrequency<'a, Label> {
+    map: &'a FxHashMap<Label, usize>,
+}
+
+impl<'a, Label> NeighborLabelFrequency<'a, Label>
+where
+    Label: Hash + Eq,
+{
+    fn new(map: &'a FxHashMap<Label, usize>) -> Self {
+        Self { map }
+    }
+
+    pub fn get(&self, label: Label) -> Option<usize> {
+        self.map.get(&label).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<Label, usize> {
+        self.map.iter()
+    }
+}
+
 pub struct NeighborLabelFrequencies<Label, NI> {
     pub frequencies: Vec<FxHashMap<Label, usize>>,
     phantom: PhantomData<NI>,
@@ -283,8 +308,8 @@ where
         graph.into()
     }
 
-    pub fn neighbor_frequency(&self, node: NI) -> &FxHashMap<Label, usize> {
-        &self.frequencies[node.index()]
+    pub fn neighbor_frequency(&self, node: NI) -> NeighborLabelFrequency<'_, Label> {
+        NeighborLabelFrequency::new(&self.frequencies[node.index()])
     }
 }
 
