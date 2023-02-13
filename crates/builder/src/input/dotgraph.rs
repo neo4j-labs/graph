@@ -447,6 +447,7 @@ mod tests {
 
     use crate::input::edgelist::Edges;
     use crate::input::InputPath;
+    use crate::{CsrLayout, UndirectedCsrGraph};
 
     use super::*;
 
@@ -469,5 +470,66 @@ mod tests {
         let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
 
         assert_eq!(graph.max_label_frequency(), 2);
+    }
+
+    #[test]
+    fn label_stats_test() {
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+        let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
+
+        let label_stats = LabelStats::from_graph(&graph);
+
+        assert_eq!(label_stats.max_degree, 3);
+        assert_eq!(label_stats.max_label, 2);
+        assert_eq!(label_stats.max_label_frequency, 2);
+        assert_eq!(label_stats.label_frequency[&0], 1);
+        assert_eq!(label_stats.label_frequency[&1], 2);
+        assert_eq!(label_stats.label_frequency[&2], 2);
+    }
+
+    #[test]
+    fn neighbor_label_frequency_test() {
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+        let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
+
+        let nlf = NeighborLabelFrequencies::from_graph(&graph);
+
+        assert_eq!(nlf.neighbor_frequency(0).get(0), None);
+        assert_eq!(nlf.neighbor_frequency(0).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(0).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(1).get(0), Some(1));
+        assert_eq!(nlf.neighbor_frequency(1).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(1).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(2).get(0), Some(1));
+        assert_eq!(nlf.neighbor_frequency(2).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(2).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(3).get(0), None);
+        assert_eq!(nlf.neighbor_frequency(3).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(3).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(4).get(0), None);
+        assert_eq!(nlf.neighbor_frequency(4).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(4).get(2), Some(1));
+    }
+
+    #[test]
+    fn node_label_index_test() {
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+        let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
+        let label_stats = LabelStats::from_graph(&graph);
+
+        let idx = NodeLabelIndex::from_stats(graph.node_count(), label_stats, |node| {
+            *graph.node_value(node)
+        });
+
+        assert_eq!(idx.nodes(0), &[0]);
+        assert_eq!(idx.nodes(1), &[1, 3]);
+        assert_eq!(idx.nodes(2), &[2, 4]);
     }
 }
