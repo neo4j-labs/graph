@@ -1,6 +1,13 @@
 use std::{
-    convert::TryFrom, fs::File, hash::Hash, io::Read, marker::PhantomData, mem::ManuallyDrop,
-    path::Path, sync::atomic::Ordering::Acquire,
+    convert::TryFrom,
+    fs::File,
+    hash::Hash,
+    io::Read,
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    ops::Range,
+    path::Path,
+    sync::{atomic::Ordering::Acquire, Arc, Mutex},
 };
 
 use atomic::Atomic;
@@ -223,7 +230,12 @@ where
 {
     pub fn from_graph<G>(graph: &G) -> Self
     where
-        G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + NodeValues<NI, Label>,
+        G: Graph<NI>
+            + UndirectedNeighbors<NI>
+            + UndirectedDegrees<NI>
+            + NodeValues<NI, Label>
+            + Send
+            + Sync,
     {
         graph.into()
     }
@@ -233,25 +245,77 @@ impl<NI, Label, G> From<&G> for LabelStats<NI, Label>
 where
     NI: Idx,
     Label: Idx + Hash,
-    G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + NodeValues<NI, Label>,
+    G: Graph<NI>
+        + UndirectedNeighbors<NI>
+        + UndirectedDegrees<NI>
+        + NodeValues<NI, Label>
+        + Send
+        + Sync,
 {
     fn from(graph: &G) -> Self {
-        let mut label_frequency = FxHashMap::default();
-        let mut max_label = Label::new(usize::MIN);
-        let mut max_degree = NI::new(usize::MIN);
+        let label_frequency = Arc::new(Mutex::new(FxHashMap::default()));
+        let max_label = Arc::new(Mutex::new(Label::new(usize::MIN)));
+        let max_degree = Arc::new(Mutex::new(NI::new(usize::MIN)));
 
-        for node in 0..graph.node_count().index() {
-            let node = NI::new(node);
-            let label = graph.node_value(node);
-            let frequency = label_frequency.entry(*label).or_insert_with(|| {
-                if *label > max_label {
-                    max_label = *label;
-                }
-                0_usize
+        rayon::iter::split(0..graph.node_count().index(), |range| {
+            if range.len() <= 1 {
+                return (range, None);
+            }
+            let pivot = range.start + (range.end - range.start) / 2;
+            (range.start..pivot, Some(pivot..range.end))
+        })
+        .into_par_iter()
+        .for_each(|range: Range<usize>| {
+            let mut local_frequency = FxHashMap::default();
+            let mut local_max_degree = NI::new(usize::MIN);
+            let mut local_max_label = Label::new(usize::MIN);
+
+            range.into_iter().for_each(|node| {
+                let node = NI::new(node);
+                let label = graph.node_value(node);
+
+                let frequency = local_frequency.entry(*label).or_insert_with(|| {
+                    if *label > local_max_label {
+                        local_max_label = *label;
+                    }
+                    0_usize
+                });
+                *frequency += 1;
+
+                local_max_degree = NI::max(local_max_degree, graph.degree(node));
             });
-            *frequency += 1;
-            max_degree = NI::max(max_degree, graph.degree(node));
-        }
+
+            {
+                let mut max_label = max_label.lock().unwrap();
+                *max_label = Label::max(*max_label, local_max_label);
+            }
+            {
+                let mut max_degree = max_degree.lock().unwrap();
+                *max_degree = NI::max(*max_degree, local_max_degree);
+            }
+            {
+                let mut label_frequency = label_frequency.lock().unwrap();
+                local_frequency.into_iter().for_each(|(k, v)| {
+                    let freq = label_frequency.entry(k).or_insert(0);
+                    *freq += v;
+                });
+            }
+        });
+
+        let label_frequency = Arc::try_unwrap(label_frequency)
+            .expect("Lock still has multiple owners")
+            .into_inner()
+            .expect("Mutex must not be locked");
+
+        let max_degree = Arc::try_unwrap(max_degree)
+            .expect("Lock still has multiple owners")
+            .into_inner()
+            .expect("Mutex must not be locked");
+
+        let max_label = Arc::try_unwrap(max_label)
+            .expect("Lock still has multiple owners")
+            .into_inner()
+            .expect("Mutex must not be locked");
 
         let max_label_frequency = *label_frequency.values().max().unwrap_or(&0);
         let label_count = label_frequency.len();
