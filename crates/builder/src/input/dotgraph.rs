@@ -7,7 +7,10 @@ use std::{
     mem::ManuallyDrop,
     ops::Range,
     path::Path,
-    sync::{atomic::Ordering::Acquire, Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering::Acquire},
+        Arc, Mutex,
+    },
 };
 
 use atomic::Atomic;
@@ -254,8 +257,8 @@ where
 {
     fn from(graph: &G) -> Self {
         let label_frequency = Arc::new(Mutex::new(FxHashMap::default()));
-        let max_label = Arc::new(Mutex::new(Label::new(usize::MIN)));
-        let max_degree = Arc::new(Mutex::new(NI::new(usize::MIN)));
+        let max_degree = AtomicUsize::new(usize::MIN);
+        let max_label = AtomicUsize::new(usize::MIN);
 
         rayon::iter::split(0..graph.node_count().index(), |range| {
             if range.len() <= 1 {
@@ -285,14 +288,8 @@ where
                 local_max_degree = NI::max(local_max_degree, graph.degree(node));
             });
 
-            {
-                let mut max_label = max_label.lock().unwrap();
-                *max_label = Label::max(*max_label, local_max_label);
-            }
-            {
-                let mut max_degree = max_degree.lock().unwrap();
-                *max_degree = NI::max(*max_degree, local_max_degree);
-            }
+            max_label.fetch_max(local_max_label.index(), atomic::Ordering::AcqRel);
+            max_degree.fetch_max(local_max_degree.index(), atomic::Ordering::AcqRel);
             {
                 let mut label_frequency = label_frequency.lock().unwrap();
                 local_frequency.into_iter().for_each(|(k, v)| {
@@ -302,17 +299,10 @@ where
             }
         });
 
+        let max_degree = NI::new(max_degree.load(atomic::Ordering::Acquire));
+        let max_label = Label::new(max_label.load(atomic::Ordering::Acquire));
+
         let label_frequency = Arc::try_unwrap(label_frequency)
-            .expect("Lock still has multiple owners")
-            .into_inner()
-            .expect("Mutex must not be locked");
-
-        let max_degree = Arc::try_unwrap(max_degree)
-            .expect("Lock still has multiple owners")
-            .into_inner()
-            .expect("Mutex must not be locked");
-
-        let max_label = Arc::try_unwrap(max_label)
             .expect("Lock still has multiple owners")
             .into_inner()
             .expect("Mutex must not be locked");
