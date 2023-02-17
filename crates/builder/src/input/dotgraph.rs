@@ -288,8 +288,9 @@ where
                 local_max_degree = NI::max(local_max_degree, graph.degree(node));
             });
 
-            max_label.fetch_max(local_max_label.index(), atomic::Ordering::AcqRel);
-            max_degree.fetch_max(local_max_degree.index(), atomic::Ordering::AcqRel);
+            update_max_value(local_max_label.index(), &max_label);
+            update_max_value(local_max_degree.index(), &max_degree);
+
             {
                 let mut label_frequency = label_frequency.lock().unwrap();
                 local_frequency.into_iter().for_each(|(k, v)| {
@@ -316,6 +317,29 @@ where
             max_label,
             max_label_frequency,
             label_frequency,
+        }
+    }
+}
+
+fn update_max_value(new_value: usize, shared: &AtomicUsize) {
+    let mut curr_max = shared.load(atomic::Ordering::Relaxed);
+
+    // Even if `curr_max` is outdated, we know that the actual
+    // value is higher, since this is the only case where we
+    // update the value. We can safely return in that case.
+    if new_value < curr_max {
+        return;
+    }
+
+    while curr_max < new_value {
+        if let Err(new_max) = shared.compare_exchange(
+            curr_max,
+            new_value,
+            atomic::Ordering::AcqRel,
+            atomic::Ordering::Relaxed,
+        ) {
+            // CAX failed, we need to try again with the new value.
+            curr_max = new_max;
         }
     }
 }
