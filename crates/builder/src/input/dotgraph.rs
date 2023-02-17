@@ -446,7 +446,7 @@ where
     NI: Idx,
     Label: Idx,
 {
-    pub fn from_stats<F>(node_count: NI, label_stats: LabelStats<NI, Label>, label_func: F) -> Self
+    pub fn from_stats<F>(node_count: NI, label_stats: &LabelStats<NI, Label>, label_func: F) -> Self
     where
         Label: Hash,
         F: Fn(NI) -> Label + Send + Sync,
@@ -459,13 +459,13 @@ where
     }
 }
 
-impl<Label, NI, F> From<(NI, LabelStats<NI, Label>, F)> for NodeLabelIndex<Label, NI>
+impl<Label, NI, F> From<(NI, &LabelStats<NI, Label>, F)> for NodeLabelIndex<Label, NI>
 where
     NI: Idx,
     Label: Idx + Hash,
     F: Fn(NI) -> Label + Send + Sync,
 {
-    fn from((node_count, label_stats, label_func): (NI, LabelStats<NI, Label>, F)) -> Self {
+    fn from((node_count, label_stats, label_func): (NI, &LabelStats<NI, Label>, F)) -> Self {
         let LabelStats {
             label_count,
             max_label,
@@ -480,7 +480,7 @@ where
         offsets.push(Label::zero());
 
         let mut total = Label::zero();
-        for label in Label::zero().range_inclusive(max_label) {
+        for label in Label::zero().range_inclusive(*max_label) {
             offsets.push(total);
             total += Label::new(*label_frequency.get(&label).unwrap_or(&0));
         }
@@ -623,7 +623,7 @@ mod tests {
         let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
         let label_stats = LabelStats::from_graph(&graph);
 
-        let idx = NodeLabelIndex::from_stats(graph.node_count(), label_stats, |node| {
+        let idx = NodeLabelIndex::from_stats(graph.node_count(), &label_stats, |node| {
             *graph.node_value(node)
         });
 
