@@ -307,7 +307,7 @@ where
             .into_inner()
             .expect("Mutex must not be locked");
 
-        let max_label_frequency = *label_frequency.values().max().unwrap_or(&0);
+        let max_label_frequency = label_frequency.values().max().copied().unwrap_or_default();
         let label_count = label_frequency.len();
 
         Self {
