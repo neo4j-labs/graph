@@ -351,7 +351,7 @@ where
 
 pub struct NeighborLabelFrequencies<Label, NI> {
     pub frequencies: Vec<FxHashMap<Label, usize>>,
-    phantom: PhantomData<NI>,
+    _node_type: PhantomData<NI>,
 }
 
 impl<Label, NI> NeighborLabelFrequencies<Label, NI>
@@ -407,7 +407,7 @@ where
 
         Self {
             frequencies,
-            phantom: PhantomData::default(),
+            _node_type: PhantomData::default(),
         }
     }
 }
