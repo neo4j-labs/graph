@@ -28,7 +28,15 @@ features = ["clap"]
 [dependencies.kommandozeile]
 git = "https://github.com/knutwalker/kommandozeile"
 default-features = false
-features = ["args_glob_expand", "args_file", "clap_app_color", "clap_verbose", "setup_clap"]
+rev = "18a7dbc73a0591985fd390ce655950bf9bb9f955"
+features = [
+    "args_glob_expand",
+    "args_file",
+    "clap_app_color",
+    "clap_verbose",
+    "setup_clap",
+    "clap_derive"
+]
 
 [[bin]]
 name = "app"

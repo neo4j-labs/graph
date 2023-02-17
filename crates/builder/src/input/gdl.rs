@@ -1,10 +1,16 @@
 use crate::graph::csr::{CsrLayout, DirectedCsrGraph, NodeValues, UndirectedCsrGraph};
 use crate::index::Idx;
-use crate::input::{DotGraph, EdgeList};
+use crate::input::EdgeList;
 
 use gdl::CypherValue;
+
+#[cfg(feature = "dotgraph")]
+use crate::input::DotGraph;
+#[cfg(feature = "dotgraph")]
 use linereader::LineReader;
+#[cfg(feature = "dotgraph")]
 use std::fmt::Write;
+#[cfg(feature = "dotgraph")]
 use std::hash::Hash;
 
 /// A wrapper around [`gdl::CypherValue`] to allow custom From implementations.
@@ -32,6 +38,10 @@ impl_from_cypher_value!(CypherValue::Float, f32);
 impl_from_cypher_value!(CypherValue::Float, f64);
 impl_from_cypher_value!(CypherValue::Integer, i32);
 impl_from_cypher_value!(CypherValue::Integer, i64);
+impl_from_cypher_value!(CypherValue::Integer, isize);
+impl_from_cypher_value!(CypherValue::Integer, u32);
+impl_from_cypher_value!(CypherValue::Integer, u64);
+impl_from_cypher_value!(CypherValue::Integer, usize);
 
 impl<'gdl, NI, EV> From<&'gdl gdl::Graph> for EdgeList<NI, EV>
 where
@@ -78,6 +88,7 @@ where
     }
 }
 
+#[cfg(feature = "dotgraph")]
 impl<NI, Label> From<&gdl::Graph> for DotGraph<NI, Label>
 where
     NI: Idx,

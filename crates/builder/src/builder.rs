@@ -359,27 +359,6 @@ impl GraphBuilder<Uninitialized> {
     /// assert_eq!(graph.node_count(), 4);
     /// assert_eq!(graph.edge_count(), 5);
     /// ```
-    ///
-    /// Read a node labeled graph from a "dot graph" file:
-    ///
-    /// ```
-    /// use std::path::PathBuf;
-    ///
-    /// use graph_builder::prelude::*;
-    ///
-    /// let path = [env!("CARGO_MANIFEST_DIR"), "resources", "example.graph"]
-    ///     .iter()
-    ///     .collect::<PathBuf>();
-    ///
-    /// let graph: DirectedCsrGraph<usize, usize> = GraphBuilder::new()
-    ///     .file_format(DotGraphInput::default())
-    ///     .path(path)
-    ///     .build()
-    ///     .expect("loading failed");
-    ///
-    /// assert_eq!(graph.node_count(), 4);
-    /// assert_eq!(graph.edge_count(), 5);
-    /// ```
     pub fn file_format<Format, Path, NI>(
         self,
         _format: Format,

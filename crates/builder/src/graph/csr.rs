@@ -4,7 +4,6 @@ use log::info;
 use std::{
     convert::TryFrom,
     fs::File,
-    hash::Hash,
     io::{BufReader, Read, Write},
     iter::FromIterator,
     mem::{ManuallyDrop, MaybeUninit},
@@ -19,11 +18,16 @@ use crate::compat::*;
 use crate::{
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
-    input::{edgelist::Edges, Direction, DotGraph, Graph500},
+    input::{edgelist::Edges, Direction, Graph500},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
     NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
     UndirectedNeighborsWithValues,
 };
+
+#[cfg(feature = "dotgraph")]
+use crate::input::DotGraph;
+#[cfg(feature = "dotgraph")]
+use std::hash::Hash;
 
 /// Defines how the neighbor list of individual nodes are organized within the
 /// CSR target array.
@@ -599,24 +603,20 @@ where
     }
 }
 
+#[cfg(feature = "dotgraph")]
 impl<NI, Label> From<(DotGraph<NI, Label>, CsrLayout)> for DirectedCsrGraph<NI, ()>
 where
     NI: Idx,
     Label: Idx + Hash,
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
-        let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels: _,
-            max_degree: _,
-            max_label: _,
-        } = dot_graph;
+        let DotGraph { edge_list, .. } = dot_graph;
 
         DirectedCsrGraph::from((edge_list, csr_layout))
     }
 }
 
+#[cfg(feature = "dotgraph")]
 impl<NI, Label> From<(DotGraph<NI, Label>, CsrLayout)> for DirectedCsrGraph<NI, Label>
 where
     NI: Idx,
@@ -624,11 +624,7 @@ where
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
         let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels,
-            max_degree: _,
-            max_label: _,
+            edge_list, labels, ..
         } = dot_graph;
 
         let node_values = NodeValues::new(labels);
@@ -802,24 +798,20 @@ where
     }
 }
 
+#[cfg(feature = "dotgraph")]
 impl<NI, Label> From<(DotGraph<NI, Label>, CsrLayout)> for UndirectedCsrGraph<NI, ()>
 where
     NI: Idx,
     Label: Idx + Hash,
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
-        let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels: _,
-            max_degree: _,
-            max_label: _,
-        } = dot_graph;
+        let DotGraph { edge_list, .. } = dot_graph;
 
         UndirectedCsrGraph::from((edge_list, csr_layout))
     }
 }
 
+#[cfg(feature = "dotgraph")]
 impl<NI, Label> From<(DotGraph<NI, Label>, CsrLayout)> for UndirectedCsrGraph<NI, Label>
 where
     NI: Idx,
@@ -827,11 +819,7 @@ where
 {
     fn from((dot_graph, csr_layout): (DotGraph<NI, Label>, CsrLayout)) -> Self {
         let DotGraph {
-            label_frequencies: _,
-            edge_list,
-            labels,
-            max_degree: _,
-            max_label: _,
+            edge_list, labels, ..
         } = dot_graph;
 
         let node_values = NodeValues::new(labels);

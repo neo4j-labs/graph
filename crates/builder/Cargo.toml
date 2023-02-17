@@ -35,6 +35,7 @@ tempfile.workspace = true
 
 [features]
 force_fallback_impl = []
+dotgraph = []
 
 [[bench]]
 name = "edgelist"
@@ -45,4 +46,4 @@ name = "csr"
 harness = false
 
 [package.metadata.docs.rs]
-features = ["gdl"]
+features = ["gdl", "dotgraph"]

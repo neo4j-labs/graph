@@ -1,8 +1,16 @@
-#![allow(dead_code)]
-
 use std::{
-    convert::TryFrom, fs::File, hash::Hash, io::Read, marker::PhantomData, mem::ManuallyDrop,
-    path::Path, sync::atomic::Ordering::Acquire,
+    convert::TryFrom,
+    fs::File,
+    hash::Hash,
+    io::Read,
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    ops::Range,
+    path::Path,
+    sync::{
+        atomic::{AtomicUsize, Ordering::Acquire},
+        Arc, Mutex,
+    },
 };
 
 use atomic::Atomic;
@@ -13,7 +21,7 @@ use rayon::prelude::*;
 use crate::{
     graph::csr::{sort_targets, Csr, Target},
     index::Idx,
-    Error, SharedMut,
+    Error, Graph, NodeValues, SharedMut, UndirectedDegrees, UndirectedNeighbors,
 };
 
 use super::{edgelist::EdgeList, InputCapabilities, InputPath};
@@ -82,11 +90,11 @@ where
     NI: Idx,
     Label: Idx,
 {
-    pub(crate) labels: Vec<Label>,
-    pub(crate) edge_list: EdgeList<NI, ()>,
-    pub(crate) max_degree: NI,
-    pub(crate) max_label: Label,
-    pub(crate) label_frequencies: FxHashMap<Label, usize>,
+    pub labels: Vec<Label>,
+    pub edge_list: EdgeList<NI, ()>,
+    pub max_degree: NI,
+    pub max_label: Label,
+    pub label_frequency: FxHashMap<Label, usize>,
 }
 
 impl<NI, Label> DotGraph<NI, Label>
@@ -94,87 +102,20 @@ where
     NI: Idx,
     Label: Idx + Hash,
 {
-    fn node_count(&self) -> NI {
+    pub fn node_count(&self) -> NI {
         NI::new(self.labels.len())
     }
 
-    pub(crate) fn label_count(&self) -> Label {
-        Label::new(self.max_label.index() + 1)
+    pub fn label_count(&self) -> usize {
+        self.max_label.index() + 1
     }
 
-    pub(crate) fn max_label_frequency(&self) -> usize {
-        self.label_frequencies
+    pub fn max_label_frequency(&self) -> usize {
+        self.label_frequency
             .values()
             .max()
             .cloned()
             .unwrap_or_default()
-    }
-
-    pub(crate) fn label_index(&self) -> Csr<Label, NI, ()> {
-        let node_count = self.node_count();
-        let label_count = self.label_count();
-
-        // Prefix sum: We insert the offset entries one index to the right and
-        // increment the offset of the next label during insert. That way we'll
-        // end up with the correct offsets after inserting into `nodes` in the
-        // next loop.
-        let mut offsets = Vec::with_capacity(label_count.index() + 1);
-        offsets.push(Label::zero());
-
-        let mut total = Label::zero();
-        for label in Label::zero().range_inclusive(self.max_label) {
-            offsets.push(total);
-            total += Label::new(*self.label_frequencies.get(&label).unwrap_or(&0));
-        }
-
-        let mut offsets = ManuallyDrop::new(offsets);
-        let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
-
-        // SAFETY: Label and Label::Atomic have the same memory layout
-        let offsets = unsafe {
-            let ptr = ptr as *mut Atomic<Label>;
-            Vec::from_raw_parts(ptr, len, cap)
-        };
-
-        let mut nodes = Vec::<Target<NI, ()>>::with_capacity(node_count.index());
-        let nodes_ptr = SharedMut::new(nodes.as_mut_ptr());
-
-        self.labels
-            .par_iter()
-            .enumerate()
-            .for_each(|(node, &label)| {
-                let next_label = label + Label::new(1);
-                let offset = Label::get_and_increment(&offsets[next_label.index()], Acquire);
-                // SAFETY: There is exactly one thread that writes at `offset.index()`.
-                unsafe {
-                    nodes_ptr
-                        .add(offset.index())
-                        .write(Target::new(NI::new(node), ()));
-                }
-            });
-
-        // SAFETY: The `labels` vec has `node_count` length and we performed an
-        // insert operation for each index (node). Each inserts happens at a
-        // unique index which is computed from the `offset` array.
-        unsafe {
-            nodes.set_len(node_count.index());
-        }
-
-        let mut offsets = ManuallyDrop::new(offsets);
-        let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
-
-        // SAFETY: Label and Label::Atomic have the same memory layout
-        let offsets = unsafe {
-            let ptr = ptr as *mut _;
-            Vec::from_raw_parts(ptr, len, cap)
-        };
-
-        sort_targets(&offsets, &mut nodes);
-
-        let offsets = offsets.into_boxed_slice();
-        let nodes = nodes.into_boxed_slice();
-
-        Csr::new(offsets, nodes)
     }
 }
 
@@ -265,15 +206,337 @@ where
             edges.push((source, target, ()));
         }
 
-        let edges = EdgeList::new(edges);
+        let edge_list = EdgeList::new(edges);
 
         Ok(Self {
             labels,
-            edge_list: edges,
+            edge_list,
             max_degree,
             max_label,
-            label_frequencies: label_frequency,
+            label_frequency,
         })
+    }
+}
+
+pub struct LabelStats<NI, Label> {
+    pub max_degree: NI,
+    pub label_count: usize,
+    pub max_label: Label,
+    pub max_label_frequency: usize,
+    pub label_frequency: FxHashMap<Label, usize>,
+}
+
+impl<NI, Label> LabelStats<NI, Label>
+where
+    NI: Idx,
+    Label: Idx + Hash,
+{
+    pub fn from_graph<G>(graph: &G) -> Self
+    where
+        G: Graph<NI>
+            + UndirectedNeighbors<NI>
+            + UndirectedDegrees<NI>
+            + NodeValues<NI, Label>
+            + Send
+            + Sync,
+    {
+        graph.into()
+    }
+}
+
+impl<NI, Label, G> From<&G> for LabelStats<NI, Label>
+where
+    NI: Idx,
+    Label: Idx + Hash,
+    G: Graph<NI>
+        + UndirectedNeighbors<NI>
+        + UndirectedDegrees<NI>
+        + NodeValues<NI, Label>
+        + Send
+        + Sync,
+{
+    fn from(graph: &G) -> Self {
+        let label_frequency = Arc::new(Mutex::new(FxHashMap::default()));
+        let max_degree = AtomicUsize::new(usize::MIN);
+        let max_label = AtomicUsize::new(usize::MIN);
+
+        rayon::iter::split(0..graph.node_count().index(), |range| {
+            if range.len() <= 1 {
+                return (range, None);
+            }
+            let pivot = range.start + (range.end - range.start) / 2;
+            (range.start..pivot, Some(pivot..range.end))
+        })
+        .into_par_iter()
+        .for_each(|range: Range<usize>| {
+            let mut local_frequency = FxHashMap::default();
+            let mut local_max_degree = NI::new(usize::MIN);
+            let mut local_max_label = Label::new(usize::MIN);
+
+            range.into_iter().for_each(|node| {
+                let node = NI::new(node);
+                let label = graph.node_value(node);
+
+                let frequency = local_frequency.entry(*label).or_insert_with(|| {
+                    if *label > local_max_label {
+                        local_max_label = *label;
+                    }
+                    0_usize
+                });
+                *frequency += 1;
+
+                local_max_degree = NI::max(local_max_degree, graph.degree(node));
+            });
+
+            update_max_value(local_max_label.index(), &max_label);
+            update_max_value(local_max_degree.index(), &max_degree);
+
+            {
+                let mut label_frequency = label_frequency.lock().unwrap();
+                local_frequency.into_iter().for_each(|(k, v)| {
+                    let freq = label_frequency.entry(k).or_insert(0);
+                    *freq += v;
+                });
+            }
+        });
+
+        let max_degree = NI::new(max_degree.load(atomic::Ordering::Acquire));
+        let max_label = Label::new(max_label.load(atomic::Ordering::Acquire));
+
+        let label_frequency = Arc::try_unwrap(label_frequency)
+            .expect("Lock still has multiple owners")
+            .into_inner()
+            .expect("Mutex must not be locked");
+
+        let max_label_frequency = label_frequency.values().max().copied().unwrap_or_default();
+        let label_count = label_frequency.len();
+
+        Self {
+            max_degree,
+            label_count,
+            max_label,
+            max_label_frequency,
+            label_frequency,
+        }
+    }
+}
+
+fn update_max_value(new_value: usize, shared: &AtomicUsize) {
+    let mut curr_max = shared.load(atomic::Ordering::Relaxed);
+
+    // Even if `curr_max` is outdated, we know that the actual
+    // value is higher, since this is the only case where we
+    // update the value. We can safely return in that case.
+    if new_value < curr_max {
+        return;
+    }
+
+    while curr_max < new_value {
+        if let Err(new_max) = shared.compare_exchange(
+            curr_max,
+            new_value,
+            atomic::Ordering::AcqRel,
+            atomic::Ordering::Relaxed,
+        ) {
+            // CAX failed, we need to try again with the new value.
+            curr_max = new_max;
+        }
+    }
+}
+
+pub struct NeighborLabelFrequency<'a, Label> {
+    map: &'a FxHashMap<Label, usize>,
+}
+
+impl<'a, Label> NeighborLabelFrequency<'a, Label>
+where
+    Label: Hash + Eq,
+{
+    fn new(map: &'a FxHashMap<Label, usize>) -> Self {
+        Self { map }
+    }
+
+    pub fn get(&self, label: Label) -> Option<usize> {
+        self.map.get(&label).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<Label, usize> {
+        self.map.iter()
+    }
+}
+
+pub struct NeighborLabelFrequencies<Label, NI> {
+    pub frequencies: Vec<FxHashMap<Label, usize>>,
+    _node_type: PhantomData<NI>,
+}
+
+impl<Label, NI> NeighborLabelFrequencies<Label, NI>
+where
+    NI: Idx,
+    Label: Idx + Hash,
+{
+    pub fn from_graph<G>(graph: &G) -> Self
+    where
+        G: Graph<NI>
+            + UndirectedNeighbors<NI>
+            + UndirectedDegrees<NI>
+            + NodeValues<NI, Label>
+            + Send
+            + Sync,
+    {
+        graph.into()
+    }
+
+    pub fn neighbor_frequency(&self, node: NI) -> NeighborLabelFrequency<'_, Label> {
+        NeighborLabelFrequency::new(&self.frequencies[node.index()])
+    }
+}
+
+impl<Label, G, NI> From<&G> for NeighborLabelFrequencies<Label, NI>
+where
+    NI: Idx,
+    Label: Idx + Hash,
+    G: Graph<NI>
+        + UndirectedNeighbors<NI>
+        + UndirectedDegrees<NI>
+        + NodeValues<NI, Label>
+        + Send
+        + Sync,
+{
+    fn from(graph: &G) -> Self {
+        let mut frequencies = Vec::with_capacity(graph.node_count().index());
+
+        (0..graph.node_count().index())
+            .into_par_iter()
+            .map(|node| {
+                let mut frequency = FxHashMap::<Label, usize>::default();
+
+                for &target in graph.neighbors(NI::new(node)) {
+                    let target_label = graph.node_value(target);
+                    let count = frequency.entry(*target_label).or_insert(0);
+                    *count += 1;
+                }
+
+                frequency
+            })
+            .collect_into_vec(&mut frequencies);
+
+        Self {
+            frequencies,
+            _node_type: PhantomData::default(),
+        }
+    }
+}
+
+pub struct NodeLabelIndex<Label, NI>(Csr<Label, NI, ()>)
+where
+    NI: Idx,
+    Label: Idx;
+
+impl<Label, NI> NodeLabelIndex<Label, NI>
+where
+    NI: Idx,
+    Label: Idx,
+{
+    pub fn from_stats<F>(node_count: NI, label_stats: LabelStats<NI, Label>, label_func: F) -> Self
+    where
+        Label: Hash,
+        F: Fn(NI) -> Label + Send + Sync,
+    {
+        (node_count, label_stats, label_func).into()
+    }
+
+    pub fn nodes(&self, label: Label) -> &[NI] {
+        self.0.targets(label)
+    }
+}
+
+impl<Label, NI, F> From<(NI, LabelStats<NI, Label>, F)> for NodeLabelIndex<Label, NI>
+where
+    NI: Idx,
+    Label: Idx + Hash,
+    F: Fn(NI) -> Label + Send + Sync,
+{
+    fn from((node_count, label_stats, label_func): (NI, LabelStats<NI, Label>, F)) -> Self {
+        let LabelStats {
+            label_count,
+            max_label,
+            label_frequency,
+            ..
+        } = label_stats;
+        // Prefix sum: We insert the offset entries one index to the right and
+        // increment the offset of the next label during insert. That way we'll
+        // end up with the correct offsets after inserting into `nodes` in the
+        // next loop.
+        let mut offsets = Vec::with_capacity(label_count.index() + 1);
+        offsets.push(Label::zero());
+
+        let mut total = Label::zero();
+        for label in Label::zero().range_inclusive(max_label) {
+            offsets.push(total);
+            total += Label::new(*label_frequency.get(&label).unwrap_or(&0));
+        }
+
+        let offsets = {
+            let mut offsets = ManuallyDrop::new(offsets);
+            let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
+
+            // SAFETY: Label and Label::Atomic have the same memory layout
+            unsafe {
+                let ptr = ptr as *mut Atomic<Label>;
+                Vec::from_raw_parts(ptr, len, cap)
+            }
+        };
+
+        let mut nodes = Vec::<Target<NI, ()>>::with_capacity(node_count.index());
+        let nodes_ptr = SharedMut::new(nodes.as_mut_ptr());
+
+        (0..node_count.index()).into_par_iter().for_each(|node| {
+            let label = label_func(NI::new(node));
+            let next_label = label + Label::new(1);
+            let offset = Label::get_and_increment(&offsets[next_label.index()], Acquire);
+            // SAFETY: There is exactly one thread that writes at `offset.index()`.
+            unsafe {
+                nodes_ptr
+                    .add(offset.index())
+                    .write(Target::new(NI::new(node), ()));
+            }
+        });
+
+        // SAFETY: The `nodes` vec has `node_count` length and we performed an
+        // insert operation for each index (node). Each inserts happens at a
+        // unique index which is computed from the `offset` array.
+        unsafe {
+            nodes.set_len(node_count.index());
+        }
+
+        let offsets = {
+            let mut offsets = ManuallyDrop::new(offsets);
+            let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
+
+            // SAFETY: Label and Label::Atomic have the same memory layout
+            unsafe {
+                let ptr = ptr as *mut _;
+                Vec::from_raw_parts(ptr, len, cap)
+            }
+        };
+
+        sort_targets(&offsets, &mut nodes);
+
+        let offsets = offsets.into_boxed_slice();
+        let nodes = nodes.into_boxed_slice();
+
+        let csr = Csr::new(offsets, nodes);
+
+        Self(csr)
     }
 }
 
@@ -281,7 +544,9 @@ where
 mod tests {
     use std::path::PathBuf;
 
-    use crate::input::{edgelist::Edges, InputPath};
+    use crate::input::edgelist::Edges;
+    use crate::input::InputPath;
+    use crate::{CsrLayout, UndirectedCsrGraph};
 
     use super::*;
 
@@ -304,5 +569,66 @@ mod tests {
         let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
 
         assert_eq!(graph.max_label_frequency(), 2);
+    }
+
+    #[test]
+    fn label_stats_test() {
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+        let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
+
+        let label_stats = LabelStats::from_graph(&graph);
+
+        assert_eq!(label_stats.max_degree, 3);
+        assert_eq!(label_stats.max_label, 2);
+        assert_eq!(label_stats.max_label_frequency, 2);
+        assert_eq!(label_stats.label_frequency[&0], 1);
+        assert_eq!(label_stats.label_frequency[&1], 2);
+        assert_eq!(label_stats.label_frequency[&2], 2);
+    }
+
+    #[test]
+    fn neighbor_label_frequency_test() {
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+        let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
+
+        let nlf = NeighborLabelFrequencies::from_graph(&graph);
+
+        assert_eq!(nlf.neighbor_frequency(0).get(0), None);
+        assert_eq!(nlf.neighbor_frequency(0).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(0).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(1).get(0), Some(1));
+        assert_eq!(nlf.neighbor_frequency(1).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(1).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(2).get(0), Some(1));
+        assert_eq!(nlf.neighbor_frequency(2).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(2).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(3).get(0), None);
+        assert_eq!(nlf.neighbor_frequency(3).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(3).get(2), Some(1));
+
+        assert_eq!(nlf.neighbor_frequency(4).get(0), None);
+        assert_eq!(nlf.neighbor_frequency(4).get(1), Some(1));
+        assert_eq!(nlf.neighbor_frequency(4).get(2), Some(1));
+    }
+
+    #[test]
+    fn node_label_index_test() {
+        let path = TEST_GRAPH.iter().collect::<PathBuf>();
+        let graph = DotGraph::<usize, usize>::try_from(InputPath(path.as_path())).unwrap();
+        let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
+        let label_stats = LabelStats::from_graph(&graph);
+
+        let idx = NodeLabelIndex::from_stats(graph.node_count(), label_stats, |node| {
+            *graph.node_value(node)
+        });
+
+        assert_eq!(idx.nodes(0), &[0]);
+        assert_eq!(idx.nodes(1), &[1, 3]);
+        assert_eq!(idx.nodes(2), &[2, 4]);
     }
 }
