@@ -461,13 +461,15 @@ where
             total += Label::new(*label_frequency.get(&label).unwrap_or(&0));
         }
 
-        let mut offsets = ManuallyDrop::new(offsets);
-        let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
+        let offsets = {
+            let mut offsets = ManuallyDrop::new(offsets);
+            let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
 
-        // SAFETY: Label and Label::Atomic have the same memory layout
-        let offsets = unsafe {
-            let ptr = ptr as *mut Atomic<Label>;
-            Vec::from_raw_parts(ptr, len, cap)
+            // SAFETY: Label and Label::Atomic have the same memory layout
+            unsafe {
+                let ptr = ptr as *mut Atomic<Label>;
+                Vec::from_raw_parts(ptr, len, cap)
+            }
         };
 
         let mut nodes = Vec::<Target<NI, ()>>::with_capacity(node_count.index());
@@ -485,20 +487,22 @@ where
             }
         });
 
-        // SAFETY: The `labels` vec has `node_count` length and we performed an
+        // SAFETY: The `nodes` vec has `node_count` length and we performed an
         // insert operation for each index (node). Each inserts happens at a
         // unique index which is computed from the `offset` array.
         unsafe {
             nodes.set_len(node_count.index());
         }
 
-        let mut offsets = ManuallyDrop::new(offsets);
-        let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
+        let offsets = {
+            let mut offsets = ManuallyDrop::new(offsets);
+            let (ptr, len, cap) = (offsets.as_mut_ptr(), offsets.len(), offsets.capacity());
 
-        // SAFETY: Label and Label::Atomic have the same memory layout
-        let offsets = unsafe {
-            let ptr = ptr as *mut _;
-            Vec::from_raw_parts(ptr, len, cap)
+            // SAFETY: Label and Label::Atomic have the same memory layout
+            unsafe {
+                let ptr = ptr as *mut _;
+                Vec::from_raw_parts(ptr, len, cap)
+            }
         };
 
         sort_targets(&offsets, &mut nodes);
