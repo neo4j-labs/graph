@@ -13,6 +13,7 @@ license.workspace = true
 atoi.workspace = true
 atomic.workspace = true
 byte-slice-cast.workspace = true
+dashmap.workspace = true
 delegate.workspace = true
 fast-float.workspace = true
 fxhash.workspace = true
@@ -43,6 +44,10 @@ harness = false
 
 [[bench]]
 name = "csr"
+harness = false
+
+[[bench]]
+name = "dotgraph"
 harness = false
 
 [package.metadata.docs.rs]

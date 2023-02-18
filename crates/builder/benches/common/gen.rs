@@ -21,3 +21,14 @@ where
         })
         .collect::<Vec<_>>()
 }
+
+pub fn node_values<NV, F>(node_count: usize, node_value: F) -> Vec<NV>
+where
+    F: Fn(usize, &mut StdRng) -> NV,
+{
+    let mut rng = StdRng::seed_from_u64(42);
+
+    (0..node_count)
+        .map(|n| node_value(n, &mut rng))
+        .collect::<Vec<_>>()
+}

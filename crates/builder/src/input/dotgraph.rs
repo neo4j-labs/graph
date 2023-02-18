@@ -7,13 +7,11 @@ use std::{
     mem::ManuallyDrop,
     ops::Range,
     path::Path,
-    sync::{
-        atomic::{AtomicUsize, Ordering::Acquire},
-        Arc, Mutex,
-    },
+    sync::atomic::{AtomicUsize, Ordering::Acquire},
 };
 
 use atomic::Atomic;
+use dashmap::DashMap;
 use fxhash::FxHashMap;
 use linereader::LineReader;
 use rayon::prelude::*;
@@ -256,7 +254,7 @@ where
         + Sync,
 {
     fn from(graph: &G) -> Self {
-        let label_frequency = Arc::new(Mutex::new(FxHashMap::default()));
+        let label_frequency: DashMap<Label, usize> = DashMap::new();
         let max_degree = AtomicUsize::new(usize::MIN);
         let max_label = AtomicUsize::new(usize::MIN);
 
@@ -269,7 +267,6 @@ where
         })
         .into_par_iter()
         .for_each(|range: Range<usize>| {
-            let mut local_frequency = FxHashMap::default();
             let mut local_max_degree = NI::new(usize::MIN);
             let mut local_max_label = Label::new(usize::MIN);
 
@@ -277,7 +274,7 @@ where
                 let node = NI::new(node);
                 let label = graph.node_value(node);
 
-                let frequency = local_frequency.entry(*label).or_insert_with(|| {
+                let mut frequency = label_frequency.entry(*label).or_insert_with(|| {
                     if *label > local_max_label {
                         local_max_label = *label;
                     }
@@ -290,26 +287,19 @@ where
 
             update_max_value(local_max_label.index(), &max_label);
             update_max_value(local_max_degree.index(), &max_degree);
-
-            {
-                let mut label_frequency = label_frequency.lock().unwrap();
-                local_frequency.into_iter().for_each(|(k, v)| {
-                    let freq = label_frequency.entry(k).or_insert(0);
-                    *freq += v;
-                });
-            }
         });
 
         let max_degree = NI::new(max_degree.load(atomic::Ordering::Acquire));
         let max_label = Label::new(max_label.load(atomic::Ordering::Acquire));
-
-        let label_frequency = Arc::try_unwrap(label_frequency)
-            .expect("Lock still has multiple owners")
-            .into_inner()
-            .expect("Mutex must not be locked");
-
-        let max_label_frequency = label_frequency.values().max().copied().unwrap_or_default();
+        let max_label_frequency = label_frequency
+            .iter()
+            .map(|ref_multi| *ref_multi.value())
+            .max()
+            .unwrap_or_default();
         let label_count = label_frequency.len();
+        let label_frequency = label_frequency
+            .into_iter()
+            .collect::<FxHashMap<Label, usize>>();
 
         Self {
             max_degree,
@@ -446,7 +436,7 @@ where
     NI: Idx,
     Label: Idx,
 {
-    pub fn from_stats<F>(node_count: NI, label_stats: LabelStats<NI, Label>, label_func: F) -> Self
+    pub fn from_stats<F>(node_count: NI, label_stats: &LabelStats<NI, Label>, label_func: F) -> Self
     where
         Label: Hash,
         F: Fn(NI) -> Label + Send + Sync,
@@ -459,13 +449,13 @@ where
     }
 }
 
-impl<Label, NI, F> From<(NI, LabelStats<NI, Label>, F)> for NodeLabelIndex<Label, NI>
+impl<Label, NI, F> From<(NI, &LabelStats<NI, Label>, F)> for NodeLabelIndex<Label, NI>
 where
     NI: Idx,
     Label: Idx + Hash,
     F: Fn(NI) -> Label + Send + Sync,
 {
-    fn from((node_count, label_stats, label_func): (NI, LabelStats<NI, Label>, F)) -> Self {
+    fn from((node_count, label_stats, label_func): (NI, &LabelStats<NI, Label>, F)) -> Self {
         let LabelStats {
             label_count,
             max_label,
@@ -480,7 +470,7 @@ where
         offsets.push(Label::zero());
 
         let mut total = Label::zero();
-        for label in Label::zero().range_inclusive(max_label) {
+        for label in Label::zero().range_inclusive(*max_label) {
             offsets.push(total);
             total += Label::new(*label_frequency.get(&label).unwrap_or(&0));
         }
@@ -623,7 +613,7 @@ mod tests {
         let graph = UndirectedCsrGraph::<usize, usize>::from((graph, CsrLayout::Sorted));
         let label_stats = LabelStats::from_graph(&graph);
 
-        let idx = NodeLabelIndex::from_stats(graph.node_count(), label_stats, |node| {
+        let idx = NodeLabelIndex::from_stats(graph.node_count(), &label_stats, |node| {
             *graph.node_value(node)
         });
 
