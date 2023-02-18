@@ -55,5 +55,5 @@ fn bench_node_label_index(b: &mut criterion::Bencher, Input { node_count, .. }: 
     })
 }
 
-criterion_group!(benches, node_label_index);
+criterion_group!(benches, label_stats, node_label_index);
 criterion_main!(benches);
