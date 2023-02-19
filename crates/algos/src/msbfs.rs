@@ -12,22 +12,22 @@ where
     // set S = { s1, ... , sw } that contains the source vertex s_i for each bfs_i
 
     assert!(
-        sources.len() < usize::BITS as usize,
+        sources.len() <= u64::BITS as usize,
         "number of source nodes exceeds bit field width"
     );
 
     // w = total number of BFSs (fixed to machine-specific width)
-    let w = usize::min(sources.len(), usize::BITS as usize);
+    let w = usize::min(sources.len(), u64::BITS as usize);
 
     let node_count = graph.node_count().index();
     // seen_v = f1..fw where fi=1 if b1 has discovered v
-    let mut seen: Vec<usize> = Vec::with_capacity(node_count);
+    let mut seen: Vec<u64> = Vec::with_capacity(node_count);
     // visit_v = g1..gw where gi=1 if v needs to be explored by bi
-    let mut visit: Vec<usize> = Vec::with_capacity(node_count);
+    let mut visit: Vec<u64> = Vec::with_capacity(node_count);
     // visit_v = g1..gw where gi=1 if v needs to be explored by bi
-    let mut visit_next: Vec<usize> = Vec::with_capacity(node_count);
+    let mut visit_next: Vec<u64> = Vec::with_capacity(node_count);
 
-    let empty_set = 0_usize;
+    let empty_set = 0_u64;
 
     // init
     seen.resize(node_count, 0);
@@ -85,22 +85,22 @@ where
     // set S = { s1, ... , sw } that contains the source vertex s_i for each bfs_i
 
     assert!(
-        sources.len() < usize::BITS as usize,
+        sources.len() <= u64::BITS as usize,
         "number of source nodes exceeds bit field width"
     );
 
     // w = total number of BFSs (fixed to machine-specific width)
-    let w = usize::min(sources.len(), usize::BITS as usize);
+    let w = usize::min(sources.len(), u64::BITS as usize);
 
     let node_count = graph.node_count().index();
     // seen_v = f1..fw where fi=1 if b1 has discovered v
-    let mut seen: Vec<usize> = Vec::with_capacity(node_count);
+    let mut seen: Vec<u64> = Vec::with_capacity(node_count);
     // visit_v = g1..gw where gi=1 if v needs to be explored by bi
-    let mut visit: Vec<usize> = Vec::with_capacity(node_count);
+    let mut visit: Vec<u64> = Vec::with_capacity(node_count);
     // visit_v = g1..gw where gi=1 if v needs to be explored by bi
-    let mut visit_next: Vec<usize> = Vec::with_capacity(node_count);
+    let mut visit_next: Vec<u64> = Vec::with_capacity(node_count);
 
-    let empty_set = 0_usize;
+    let empty_set = 0_u64;
 
     // init
     seen.resize(node_count, 0);
@@ -150,7 +150,7 @@ where
     }
 }
 
-pub struct Sources<'src, NI>(usize, &'src [NI]);
+pub struct Sources<'src, NI>(u64, &'src [NI]);
 
 impl<'src, NI> IntoIterator for Sources<'src, NI>
 where
@@ -165,7 +165,7 @@ where
     }
 }
 
-pub struct SourceIter<'sources, NI>(usize, &'sources [NI]);
+pub struct SourceIter<'sources, NI>(u64, &'sources [NI]);
 
 impl<'sources, NI> Iterator for SourceIter<'sources, NI>
 where
