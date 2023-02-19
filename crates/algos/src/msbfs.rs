@@ -1,10 +1,10 @@
 use graph_builder::prelude::*;
 
-pub fn msbfs<NI, G, F>(graph: &G, sources: &[NI], mut compute: F)
+pub fn msbfs<'src, NI, G, F>(graph: &G, sources: &'src [NI], mut compute: F)
 where
     NI: Idx,
     G: Graph<NI> + UndirectedDegrees<NI> + UndirectedNeighbors<NI> + Sync,
-    F: FnMut(NI, NI, usize),
+    F: FnMut(Sources<'src, NI>, NI, usize),
 {
     // input:
     // w = total number of BFSs (fixed to machine-specific width)
@@ -51,19 +51,13 @@ where
                 let n = n.index();
                 // d is set of all BFSs that need to explore n in the next level
                 // A \ B := A & ~B
-                let mut d = visit[v] & !seen[n];
+                let d = visit[v] & !seen[n];
 
                 if d != empty_set {
                     // A U B := A | B
                     visit_next[n] |= d;
                     seen[n] |= d;
-
-                    // compute sth
-                    while d != empty_set {
-                        let bfs = d.trailing_zeros() as usize;
-                        compute(sources[bfs], NI::new(n), level);
-                        d = d ^ (1 << bfs);
-                    }
+                    compute(Sources(d, sources), NI::new(n), level);
                 }
             })
         }
@@ -79,11 +73,11 @@ where
     }
 }
 
-pub fn msbfs_anp<NI, G, F>(graph: &G, sources: &[NI], mut compute: F)
+pub fn msbfs_anp<'src, NI, G, F>(graph: &G, sources: &'src [NI], mut compute: F)
 where
     NI: Idx,
     G: Graph<NI> + UndirectedDegrees<NI> + UndirectedNeighbors<NI> + Sync,
-    F: FnMut(NI, NI, usize),
+    F: FnMut(Sources<'src, NI>, NI, usize),
 {
     // input:
     // w = total number of BFSs (fixed to machine-specific width)
@@ -140,13 +134,8 @@ where
             visit_next[v] &= !seen[v];
             seen[v] |= visit_next[v];
             if visit_next[v] != empty_set {
-                // d is set of all BFSs that explore v at the same time
-                let mut d = visit_next[v];
-                while d != empty_set {
-                    let bfs = d.trailing_zeros() as usize;
-                    compute(sources[bfs], NI::new(v), level);
-                    d = d ^ (1 << bfs);
-                }
+                let sources = Sources(visit_next[v], sources);
+                compute(sources, NI::new(v), level);
             }
         }
 
@@ -157,6 +146,40 @@ where
             level += 1;
         } else {
             break;
+        }
+    }
+}
+
+pub struct Sources<'src, NI>(usize, &'src [NI]);
+
+impl<'src, NI> IntoIterator for Sources<'src, NI>
+where
+    NI: Idx,
+{
+    type Item = NI;
+
+    type IntoIter = SourceIter<'src, NI>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SourceIter(self.0, self.1)
+    }
+}
+
+pub struct SourceIter<'sources, NI>(usize, &'sources [NI]);
+
+impl<'sources, NI> Iterator for SourceIter<'sources, NI>
+where
+    NI: Idx,
+{
+    type Item = NI;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 == 0 {
+            None
+        } else {
+            let bfs = self.0.trailing_zeros() as usize;
+            self.0 ^= 1 << bfs;
+            Some(self.1[bfs])
         }
     }
 }
@@ -187,8 +210,10 @@ mod tests {
 
         let mut actual = HashMap::<(usize, usize), usize>::default();
 
-        msbfs(&graph, &[0, 1], |s, t, d| {
-            actual.insert((s, t), d);
+        msbfs(&graph, &[0, 1], |sources, t, d| {
+            for s in sources {
+                actual.insert((s, t), d);
+            }
         });
 
         let mut expected = HashMap::default();
@@ -216,8 +241,10 @@ mod tests {
 
         let mut actual = HashMap::<(usize, usize), usize>::default();
 
-        msbfs_anp(&graph, &[0, 1], |s, t, d| {
-            actual.insert((s, t), d);
+        msbfs_anp(&graph, &[0, 1], |sources, t, d| {
+            for s in sources {
+                actual.insert((s, t), d);
+            }
         });
 
         let mut expected = HashMap::default();
