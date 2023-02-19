@@ -142,6 +142,7 @@
 
 pub mod afforest;
 pub mod dss;
+pub mod msbfs;
 pub mod page_rank;
 pub mod prelude;
 pub mod sssp;
