@@ -1,5 +1,33 @@
+#![allow(dead_code)]
+
 use graph_builder::prelude::Idx;
 use rand::prelude::*;
+
+
+#[derive(Clone, Copy)]
+pub struct Input {
+    pub name: &'static str,
+    pub node_count: usize,
+    pub edge_count: usize,
+}
+
+pub const SMALL: Input = Input {
+    name: "small",
+    node_count: 1_000,
+    edge_count: 10_000,
+};
+
+pub const MEDIUM: Input = Input {
+    name: "medium",
+    node_count: 10_000,
+    edge_count: 100_000,
+};
+
+pub const LARGE: Input = Input {
+    name: "large",
+    node_count: 100_000,
+    edge_count: 1_000_000,
+};
 
 pub fn uniform_edge_list<NI, EV, F>(
     node_count: usize,
