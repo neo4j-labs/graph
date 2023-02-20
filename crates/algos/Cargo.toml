@@ -23,7 +23,14 @@ rayon.workspace = true
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+bench_util = { path = "../bench_util", version = "0.0.1" }
+criterion.workspace = true
 env_logger.workspace = true
 graph_builder = { path = "../builder", version = "^0.3.1", features = ["gdl"] }
 log.workspace = true
 polars.workspace = true
+rand.workspace = true
+
+[[bench]]
+name = "msbfs"
+harness = false
