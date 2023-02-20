@@ -1,5 +1,5 @@
 [package]
-name = "bench-util"
+name = "bench_util"
 version = "0.0.1"
 description = "Benchmark utilities."
 keywords = ["benchmark", "util", "graph"]
