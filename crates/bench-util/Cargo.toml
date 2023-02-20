@@ -11,5 +11,13 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+async-compression.workspace = true
+decompress.workspace = true
+directories.workspace = true
+futures.workspace = true
 graph_builder = { path = "../builder", version = "^0.3.1", features = ["dotgraph", "gdl"] }
 rand.workspace = true
+reqwest.workspace = true
+tokio-tar.workspace = true
+tokio-util.workspace = true
+tokio.workspace = true
