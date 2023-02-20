@@ -42,8 +42,8 @@ where
     let mut level = 1;
 
     loop {
-        for v in 0..node_count {
-            if visit[v] == empty_set {
+        for (v, visit) in visit.iter().enumerate().take(node_count) {
+            if *visit == empty_set {
                 continue;
             }
 
@@ -51,7 +51,7 @@ where
                 let n = n.index();
                 // d is set of all BFSs that need to explore n in the next level
                 // A \ B := A & ~B
-                let d = visit[v] & !seen[n];
+                let d = visit & !seen[n];
 
                 if d != empty_set {
                     // A U B := A | B
@@ -117,24 +117,24 @@ where
     loop {
         // stage 1: Explore all vertices in visit to determine
         // in which BFSs their neighbors should be visited.
-        for v in 0..node_count {
-            if visit[v] == empty_set {
+        for (v, visit) in visit.iter().enumerate().take(node_count) {
+            if *visit == empty_set {
                 continue;
             }
             graph.neighbors(NI::new(v)).for_each(|n| {
-                visit_next[n.index()] |= visit[v];
+                visit_next[n.index()] |= visit;
             })
         }
         // stage 2: Iterate over visitNext, update its bit fields
         // based on seen, and execute the BFS computation.
-        for v in 0..node_count {
-            if visit_next[v] == empty_set {
+        for (v, visit_next) in visit_next.iter_mut().enumerate().take(node_count) {
+            if *visit_next == empty_set {
                 continue;
             }
-            visit_next[v] &= !seen[v];
-            seen[v] |= visit_next[v];
-            if visit_next[v] != empty_set {
-                let sources = Sources(visit_next[v], sources);
+            *visit_next &= !seen[v];
+            seen[v] |= *visit_next;
+            if *visit_next != empty_set {
+                let sources = Sources(*visit_next, sources);
                 compute(sources, NI::new(v), level);
             }
         }
