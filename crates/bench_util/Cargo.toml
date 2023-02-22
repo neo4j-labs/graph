@@ -12,7 +12,6 @@ license.workspace = true
 
 [dependencies]
 async-compression.workspace = true
-decompress.workspace = true
 directories.workspace = true
 futures.workspace = true
 graph_builder = { path = "../builder", version = "^0.3.1", features = ["dotgraph", "gdl"] }

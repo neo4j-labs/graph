@@ -25,7 +25,6 @@ byte-slice-cast = "1.2.2"
 clap = { version = "4.0", features = ["derive"] }
 criterion = { version = "0.4.0", features = ["html_reports"] }
 dashmap = "5.4.0"
-decompress = "0.1.0"
 delegate = "0.8.0"
 directories = "4.0"
 env_logger = "0.9.3"
