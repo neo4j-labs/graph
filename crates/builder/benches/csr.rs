@@ -2,10 +2,7 @@ use criterion::*;
 use graph_builder::graph::csr::Csr;
 use graph_builder::prelude::*;
 
-mod common;
-
-use common::gen::uniform_edge_list;
-use common::*;
+use bench_util::*;
 
 fn from_edge_list(c: &mut Criterion) {
     let mut group = c.benchmark_group("from_edge_list");

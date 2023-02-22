@@ -30,6 +30,7 @@ rayon.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+bench_util = { path = "../bench_util", version = "0.0.1" }
 criterion.workspace = true
 rand.workspace = true
 tempfile.workspace = true
