@@ -421,7 +421,7 @@ where
 
         Self {
             frequencies,
-            _node_type: PhantomData::default(),
+            _node_type: PhantomData,
         }
     }
 }

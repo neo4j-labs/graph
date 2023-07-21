@@ -31,22 +31,17 @@ use std::hash::Hash;
 
 /// Defines how the neighbor list of individual nodes are organized within the
 /// CSR target array.
-#[derive(Clone, Copy, Debug)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum CsrLayout {
     /// Neighbor lists are sorted and may contain duplicate target ids. This is
     /// the default representation.
     Sorted,
     /// Neighbor lists are not in any particular order.
+    #[default]
     Unsorted,
     /// Neighbor lists are sorted and do not contain duplicate target ids.
     /// Self-loops, i.e., edges in the form of `(u, u)` are removed.
     Deduplicated,
-}
-
-impl Default for CsrLayout {
-    fn default() -> Self {
-        CsrLayout::Unsorted
-    }
 }
 
 /// A Compressed-Sparse-Row data structure to represent sparse graphs.
@@ -266,7 +261,7 @@ where
 {
     fn to_byte_slice<S: AsRef<[Self]> + ?Sized>(slice: &S) -> &[u8] {
         let slice = slice.as_ref();
-        let len = slice.len() * std::mem::size_of::<Target<NI, EV>>();
+        let len = std::mem::size_of_val(slice);
         unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const u8, len) }
     }
 }
@@ -278,7 +273,7 @@ where
 {
     fn to_mut_byte_slice<S: AsMut<[Self]> + ?Sized>(slice: &mut S) -> &mut [u8] {
         let slice = slice.as_mut();
-        let len = slice.len() * std::mem::size_of::<Target<NI, EV>>();
+        let len = std::mem::size_of_val(slice);
         unsafe { std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut u8, len) }
     }
 }

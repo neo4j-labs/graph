@@ -51,7 +51,6 @@ where
     fn from(gdl_graph: &'gdl gdl::Graph) -> Self {
         let edges = gdl_graph
             .relationships()
-            .into_iter()
             .map(|r| {
                 let source = gdl_graph.get_node(r.source()).unwrap().id();
                 let target = gdl_graph.get_node(r.target()).unwrap().id();
@@ -78,7 +77,7 @@ where
         let mut node_values = Vec::with_capacity(gdl_graph.node_count());
         node_values.resize_with(gdl_graph.node_count(), || NV::default());
 
-        gdl_graph.nodes().into_iter().for_each(|n| {
+        gdl_graph.nodes().for_each(|n| {
             if let Some(k) = n.property_keys().next() {
                 node_values[n.id()] = NV::from(MyCypherValue(n.property_value(k).unwrap()));
             }
