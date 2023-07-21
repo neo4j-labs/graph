@@ -90,11 +90,11 @@ jobs:
       - name: Install cargo-careful
         run: cargo install cargo-careful
       - name: Run unit tests
-        run: cargo careful test --no-default-features
+        run: cargo +nightly careful test --no-default-features
       - name: Run unit tests
-        run: cargo careful test --features force_fallback_impl
+        run: cargo +nightly careful test --features force_fallback_impl
       - name: Run unit tests
-        run: cargo careful test --all-features
+        run: cargo +nightly careful test --all-features
 
   build_python:
     name: Build graph-mate with maturin
