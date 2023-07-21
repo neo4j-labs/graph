@@ -648,7 +648,7 @@ mod tests {
     #[test]
     fn split_by_partition_3_parts() {
         let partition = vec![0..2, 2..5, 5..10];
-        let mut slice = (0..10).into_iter().collect::<Vec<_>>();
+        let mut slice = (0..10).collect::<Vec<_>>();
         let splits = split_by_partition(&partition, &mut slice);
 
         assert_eq!(splits.len(), partition.len());
@@ -660,7 +660,7 @@ mod tests {
     #[test]
     fn split_by_partition_8_parts() {
         let partition = vec![0..1, 1..2, 2..3, 3..4, 4..6, 6..7, 7..8, 8..10];
-        let mut slice = (0..10).into_iter().collect::<Vec<_>>();
+        let mut slice = (0..10).collect::<Vec<_>>();
         let splits = split_by_partition(&partition, &mut slice);
 
         assert_eq!(splits.len(), partition.len());
