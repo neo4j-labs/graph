@@ -1,0 +1,49 @@
+name: Open a PR for a new release
+
+on:
+  workflow_dispatch:
+    inputs:
+      crate:
+        description: Which crate to release
+        required: true
+        type: choice
+        options:
+          - graph
+          - graph_builder
+          - graph_mate
+          - all
+      version:
+        description: >-
+          What version to release.
+          Can be one of 'major', 'minor', 'patch', or a concrete version.
+          See https://github.com/crate-ci/cargo-release/blob/7527065e413b9625ccb09800b765f6c49d011c79/docs/reference.md#bump-level for more details.
+        required: true
+        type: string
+
+env:
+  RUSTUP_TOOLCHAIN: stable
+
+jobs:
+  make-release-pr:
+    permissions:
+      id-token: write
+      pull-requests: write
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - uses: chainguard-dev/actions/setup-gitsign@main
+      - name: Install cargo-release
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: cargo-release
+      - uses: cargo-bins/release-pr@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ inputs.version }}
+          crate-name: ${{ inputs.crate }}

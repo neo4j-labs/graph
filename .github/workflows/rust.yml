@@ -3,10 +3,20 @@ name: CI
 on:
   push:
     branches: [ main ]
-    tags: [ 'graph_mate-v*' ]
+  merge_group:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      crate:
+        description: Which crate to publish
+        required: true
+        type: choice
+        options:
+          - graph
+          - graph_builder
+          - graph_mate
+          - all
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,79 +33,83 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          profile: minimal
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
           toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --no-default-features
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-features
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run cargo check
+        run: cargo check --no-default-features
+      - name: Run cargo check
+        run: cargo check --all-features
 
   test:
     name: Test Suite
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, beta]
     runs-on: ubuntu-latest
-    needs: check
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          command: test
-          args: --no-default-features
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+          toolchain: ${{ matrix.rust }}
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+      - name: Run unit tests
+        run: cargo +${{ matrix.rust }} nextest run --no-default-features
+      - name: Run unit tests
+        run: cargo +${{ matrix.rust }} nextest run --all-features
 
   test_careful:
     name: Test Suite (cargo careful)
     runs-on: ubuntu-latest
-    needs: check
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          profile: minimal
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
           toolchain: nightly
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-careful
-      - uses: actions-rs/cargo@v1
-        with:
-          command: careful
-          args: test --no-default-features
-      - uses: actions-rs/cargo@v1
-        with:
-          command: careful
-          args: test --features force_fallback_impl
-      - uses: actions-rs/cargo@v1
-        with:
-          command: careful
-          args: test --all-features
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-careful
+        uses: cargo install cargo-careful
+      - name: Run unit tests
+        run: cargo careful test --no-default-features
+      - name: Run unit tests
+        run: cargo careful test --features force_fallback_impl
+      - name: Run unit tests
+        run: cargo careful test --all-features
 
   build_python:
     name: Build graph-mate with maturin
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          profile: minimal
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
           toolchain: stable
-          override: true
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
@@ -107,14 +121,17 @@ jobs:
   test_python:
     name: Run python tests
     runs-on: ubuntu-latest
-    needs: build_python
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          profile: minimal
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
           toolchain: stable
-          override: true
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
@@ -131,36 +148,38 @@ jobs:
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
-    needs: check
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          profile: minimal
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
           toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+          components: rustfmt
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
-    needs: check
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          profile: minimal
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
           toolchain: stable
-          override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features -- -D warnings
+          components: clippy
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   macos-x86_64:
     name: Package graph_mate for Mac x86_64
@@ -168,17 +187,20 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/')"
     needs: test_python
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
       - name: Build wheels - x86_64
         uses: PyO3/maturin-action@v1
         with:
@@ -201,17 +223,20 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/')"
     needs: test_python
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
       - name: Build wheels - universal2
         uses: PyO3/maturin-action@v1
         with:
@@ -236,17 +261,20 @@ jobs:
       matrix:
         target: [x64, x86]
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.target }}
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -273,17 +301,20 @@ jobs:
       matrix:
         target: [x86_64, i686]
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -302,11 +333,49 @@ jobs:
           name: wheels
           path: dist
 
-  release:
+  release_crate:
+    name: Release a Rust crate
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') && inputs.crate != 'all' && inputs.crate != 'graph_mate'
+    needs:
+      - check
+      - test
+      - test_careful
+      - fmt
+      - clippy
+      - test_python
+      - macos-universal
+      - macos-x86_64
+      - windows
+      - linux
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p ${{ inputs.crate }}
+
+  release_graph_mate:
     name: Release graph_mate
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: startsWith(github.ref, 'refs/tags/') && inputs.crate == 'graph_mate'
     needs:
+      - check
+      - test
+      - test_careful
+      - fmt
+      - clippy
+      - test_python
       - macos-universal
       - macos-x86_64
       - windows
@@ -323,6 +392,38 @@ jobs:
         run: |
           pip install --upgrade twine
           twine upload --skip-existing *
+
+  release_all:
+    name: Release all Rust crates
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') && inputs.crate == 'all'
+    needs:
+      - check
+      - test
+      - test_careful
+      - fmt
+      - clippy
+      - test_python
+      - macos-universal
+      - macos-x86_64
+      - windows
+      - linux
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
 
 # Parts of this Actions file is taken and adapted from Ruff under MIT License:
 # https://github.com/charliermarsh/ruff/blob/e00bcd19f51f33a399751d2a7b854d59024473ca/.github/workflows/ruff.yaml
