@@ -1,6 +1,7 @@
 [workspace]
 
 members = ["crates/*"]
+exclude = ["crates/server"]
 
 [workspace.package]
 authors = [
@@ -13,34 +14,34 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-ahash = "0.8.2"
+ahash = "0.8.3"
 arrow = "27.0.0"
 arrow-flight = "27.0.0"
 async-compression = { version = "0.3.15", features = ["tokio", "stream", "zstd"] }
-async-trait = "0.1.58"
+async-trait = "0.1.72"
 atoi = "2.0.0"
-atomic = "0.5.1"
+atomic = "0.5.3"
 atomic_float = "0.1.0"
 byte-slice-cast = "1.2.2"
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.3", features = ["derive"] }
 criterion = { version = "0.4.0", features = ["html_reports"] }
-dashmap = "5.4.0"
+dashmap = "5.5.0"
 delegate = "0.8.0"
 directories = "4.0"
 env_logger = "0.9.3"
 fast-float = "0.2.0"
 float-ord = "0.3.2"
-futures = "0.3.25"
+futures = "0.3.28"
 fxhash = "0.2.1"
 gdl = "0.2.7"
 itertools = "0.10.5"
 linereader = "0.4.0"
-log = "0.4.17"
-memmap2 = "0.5.8"
+log = "0.4.19"
+memmap2 = "0.5.10"
 nanorand = "0.7.0"
-num = "0.4.0"
-num_cpus = "1.14.0"
-num-format = "0.4.3"
+num = "0.4.1"
+num_cpus = "1.16.0"
+num-format = "0.4.4"
 numpy = "0.17.2"
 page_size = "0.4.2"
 parking_lot = "0.12.1"
@@ -49,16 +50,16 @@ polars = { version = "0.25.1", default_features = false, features = ["fmt"] }
 pyo3 = "0.17.3"
 pyo3-log = "0.7.0"
 rand = "0.8.5"
-rayon = "1.5.3"
+rayon = "1.7.0"
 reqwest = { version = "0.11", features = ["stream"] }
-serde_json = "1.0.87"
-serde = { version = "1.0.147", features = ["derive"] }
-tempfile = "3.3.0"
-thiserror = "1.0.37"
-tokio = { version = "1.21.2", features = ["full"], default-features = true }
-tokio-tar = "0.3.0"
-tokio-util = {version = "0.7.7", features = ["io"] }
-tonic = "0.8.2"
+serde_json = "1.0.103"
+serde = { version = "1.0.174", features = ["derive"] }
+tempfile = "3.7.0"
+thiserror = "1.0.44"
+tokio = { version = "1.29.1", features = ["full"], default-features = true }
+tokio-tar = "0.3.1"
+tokio-util = {version = "0.7.8", features = ["io"] }
+tonic = "0.8.3"
 
 [workspace.metadata.release]
 pre-release-commit-message = "Release {{crate_name}} {{version}}"

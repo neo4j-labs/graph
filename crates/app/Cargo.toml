@@ -19,6 +19,7 @@ float-ord.workspace = true
 log.workspace = true
 pico-args.workspace = true
 rayon.workspace = true
+polars.workspace = true
 
 [dependencies.graph]
 path = "../algos"
