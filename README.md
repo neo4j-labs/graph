@@ -1,7 +1,7 @@
 # graph &emsp; [![GitHub Actions workflow status]][actions] [![Latest version on crates.io]][crates.io] [![Latest version on PyPI]][pypi.org] [![License: MIT]][license]
 
-[GitHub Actions workflow status]: https://img.shields.io/github/actions/workflow/status/s1ck/graph/rust.yml?branch=main&label=CI&style=flat-square
-[actions]: https://github.com/s1ck/graph/actions/workflows/rust.yml?query=branch%3Amain
+[GitHub Actions workflow status]: https://img.shields.io/github/actions/workflow/status/neo4j-labs/graph/rust.yml?branch=main&label=CI&style=flat-square
+[actions]: https://github.com/neo4j-labs/graph/actions/workflows/rust.yml?query=branch%3Amain
 [Latest version on crates.io]: https://img.shields.io/crates/v/graph?style=flat-square
 [crates.io]: https://crates.io/crates/graph/
 [Latest version on PyPI]: https://img.shields.io/pypi/v/graph-mate?style=flat-square
