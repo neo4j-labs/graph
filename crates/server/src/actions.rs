@@ -123,8 +123,7 @@ impl TryFrom<Action> for CreateGraphFromFileConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<CreateGraphFromFileConfig>(action.body.as_slice())
-            .map_err(from_json_error)
+        serde_json::from_slice::<CreateGraphFromFileConfig>(&action.body).map_err(from_json_error)
     }
 }
 
@@ -214,7 +213,7 @@ impl TryFrom<Action> for RemoveGraphConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<Self>(action.body.as_slice()).map_err(from_json_error)
+        serde_json::from_slice::<Self>(&action.body).map_err(from_json_error)
     }
 }
 
@@ -227,7 +226,7 @@ impl TryFrom<Action> for ToRelabeledConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<Self>(action.body.as_slice()).map_err(from_json_error)
+        serde_json::from_slice::<Self>(&action.body).map_err(from_json_error)
     }
 }
 
@@ -248,7 +247,7 @@ impl TryFrom<Action> for ToUndirectedConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<Self>(action.body.as_slice()).map_err(from_json_error)
+        serde_json::from_slice::<Self>(&action.body).map_err(from_json_error)
     }
 }
 
@@ -276,7 +275,7 @@ impl TryFrom<Action> for ComputeConfig {
     type Error = Status;
 
     fn try_from(action: Action) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<ComputeConfig>(action.body.as_slice()).map_err(from_json_error)
+        serde_json::from_slice::<ComputeConfig>(&action.body).map_err(from_json_error)
     }
 }
 
@@ -324,5 +323,7 @@ pub fn from_json_error(error: serde_json::Error) -> Status {
 
 pub fn into_flight_result<T: serde::Serialize>(result: T) -> FlightResult<arrow_flight::Result> {
     let result = serde_json::to_vec(&result).map_err(from_json_error)?;
-    Ok(arrow_flight::Result { body: result })
+    Ok(arrow_flight::Result {
+        body: result.into(),
+    })
 }

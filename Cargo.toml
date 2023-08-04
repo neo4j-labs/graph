@@ -1,7 +1,6 @@
 [workspace]
 
 members = ["crates/*"]
-exclude = ["crates/server"]
 
 [workspace.package]
 authors = [
@@ -15,8 +14,8 @@ license = "MIT"
 
 [workspace.dependencies]
 ahash = "0.8.3"
-arrow = "27.0.0"
-arrow-flight = "27.0.0"
+arrow = "45.0.0"
+arrow-flight = "45.0.0"
 async-compression = { version = "0.3.15", features = ["tokio", "stream", "zstd"] }
 async-trait = "0.1.72"
 atoi = "2.0.0"
@@ -59,7 +58,7 @@ thiserror = "1.0.44"
 tokio = { version = "1.29.1", features = ["full"], default-features = true }
 tokio-tar = "0.3.1"
 tokio-util = {version = "0.7.8", features = ["io"] }
-tonic = "0.8.3"
+tonic = "0.9"
 
 [workspace.metadata.release]
 pre-release-commit-message = "Release {{crate_name}} {{version}}"
