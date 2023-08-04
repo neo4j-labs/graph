@@ -8,7 +8,7 @@ authors = [
     "Paul Horn <developer@knutwalker.de>",
 ]
 rust-version = "1.65"
-repository = "https://github.com/s1ck/graph"
+repository = "https://github.com/neo4j-labs/graph"
 edition = "2021"
 license = "MIT"
 
