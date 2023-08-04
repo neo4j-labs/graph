@@ -4,7 +4,6 @@ use crate::catalog::*;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -12,14 +11,16 @@ use arrow::datatypes::Float32Type;
 use arrow::datatypes::Int64Type;
 use arrow::datatypes::UInt64Type;
 use arrow::error::ArrowError;
+use arrow::ipc::writer;
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions};
 use arrow_flight::utils::flight_data_to_arrow_batch;
 use arrow_flight::{
-    flight_service_server::FlightService, utils::flight_data_from_arrow_batch, Action, ActionType,
-    Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse,
-    PutResult, SchemaAsIpc, SchemaResult, Ticket,
+    flight_service_server::FlightService, Action, ActionType, Criteria, Empty, FlightData,
+    FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc,
+    SchemaResult, Ticket,
 };
-use futures::{Stream, StreamExt};
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use graph::page_rank::PageRankConfig;
 use graph::prelude::Components;
 use graph::prelude::DeltaSteppingConfig;
@@ -54,18 +55,17 @@ impl Default for FlightServiceImpl {
     }
 }
 
-type BoxedFlightStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + Sync + 'static>>;
 pub(crate) type FlightResult<T> = Result<T, Status>;
 
 #[tonic::async_trait]
 impl FlightService for FlightServiceImpl {
-    type DoActionStream = BoxedFlightStream<arrow_flight::Result>;
-    type DoExchangeStream = BoxedFlightStream<FlightData>;
-    type DoGetStream = BoxedFlightStream<FlightData>;
-    type DoPutStream = BoxedFlightStream<PutResult>;
-    type HandshakeStream = BoxedFlightStream<HandshakeResponse>;
-    type ListActionsStream = BoxedFlightStream<ActionType>;
-    type ListFlightsStream = BoxedFlightStream<FlightInfo>;
+    type DoActionStream = BoxStream<'static, Result<arrow_flight::Result, Status>>;
+    type DoExchangeStream = BoxStream<'static, Result<FlightData, Status>>;
+    type DoGetStream = BoxStream<'static, Result<FlightData, Status>>;
+    type DoPutStream = BoxStream<'static, Result<PutResult, Status>>;
+    type HandshakeStream = BoxStream<'static, Result<HandshakeResponse, Status>>;
+    type ListActionsStream = BoxStream<'static, Result<ActionType, Status>>;
+    type ListFlightsStream = BoxStream<'static, Result<FlightInfo, Status>>;
 
     async fn do_get(&self, request: Request<Ticket>) -> FlightResult<Response<Self::DoGetStream>> {
         let property_id = request.into_inner().try_into()?;
@@ -78,10 +78,18 @@ impl FlightService for FlightServiceImpl {
         let ipc_write_options = IpcWriteOptions::default();
         // Record batches are pre-computed and are immediately available.
         // Imho, there is no need to implement lazy batch computation.
+        let data_gen = writer::IpcDataGenerator::default();
+        let mut dictionary_tracker = writer::DictionaryTracker::new(false);
+
         let record_batches = property_entry
             .batches
             .iter()
-            .map(|batch| flight_data_from_arrow_batch(batch, &ipc_write_options).1)
+            .map(|batch| {
+                let (_, encoded_batch) = data_gen
+                    .encoded_batch(batch, &mut dictionary_tracker, &ipc_write_options)
+                    .expect("DictionaryTracker configured above to not error on replacement");
+                encoded_batch.into()
+            })
             .map(Ok)
             .collect::<Vec<_>>();
 
@@ -160,7 +168,7 @@ impl FlightService for FlightServiceImpl {
 
         let result = serde_json::to_vec(&result).map_err(from_json_error)?;
         let result = arrow_flight::PutResult {
-            app_metadata: result,
+            app_metadata: result.into(),
         };
 
         Ok(Response::new(Box::pin(futures::stream::once(async {

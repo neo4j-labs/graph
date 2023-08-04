@@ -230,7 +230,7 @@ impl TryFrom<Ticket> for PropertyId {
     type Error = Status;
 
     fn try_from(ticket: Ticket) -> Result<Self, Self::Error> {
-        serde_json::from_slice::<PropertyId>(ticket.ticket.as_slice()).map_err(from_json_error)
+        serde_json::from_slice::<PropertyId>(&ticket.ticket).map_err(from_json_error)
     }
 }
 
