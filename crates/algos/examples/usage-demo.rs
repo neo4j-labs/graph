@@ -3,6 +3,7 @@ use log::info;
 use polars::prelude::*;
 
 type AppResult = Result<(), Box<dyn std::error::Error>>;
+type ID = u64;
 
 fn main() -> AppResult {
     // First, we want to prepare some logging, so that we can see
@@ -17,7 +18,7 @@ fn main() -> AppResult {
     // We also pass in CsrLayout::Deduplicated to tell
     // the builder to create a sorted adjacency
     // list and deduplicate parallel edges.
-    let g: DirectedCsrGraph<u64> = GraphBuilder::new()
+    let g: DirectedCsrGraph<ID> = GraphBuilder::new()
         .csr_layout(CsrLayout::Deduplicated)
         .file_format(Graph500Input::default())
         .path("examples/scale_24.graph")
