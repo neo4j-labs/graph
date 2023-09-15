@@ -25,25 +25,25 @@ fn should_compile_test() {
             .path("graph")
             .build()?;
 
-        #[cfg(features = "dotgraph")]
+        #[cfg(feature = "dotgraph")]
         let _g: DirectedCsrGraph<usize> = GraphBuilder::new()
             .file_format(DotGraphInput::<usize, usize>::default())
             .path("graph")
             .build()?;
 
-        #[cfg(features = "dotgraph")]
+        #[cfg(feature = "dotgraph")]
         let _g: UndirectedCsrGraph<usize> = GraphBuilder::new()
             .file_format(DotGraphInput::<usize, usize>::default())
             .path("graph")
             .build()?;
 
-        #[cfg(features = "dotgraph")]
+        #[cfg(feature = "dotgraph")]
         let _g: DirectedCsrGraph<usize, usize> = GraphBuilder::new()
             .file_format(DotGraphInput::default())
             .path("graph")
             .build()?;
 
-        #[cfg(features = "dotgraph")]
+        #[cfg(feature = "dotgraph")]
         let _g: UndirectedCsrGraph<usize, usize> = GraphBuilder::new()
             .file_format(DotGraphInput::default())
             .path("graph")
@@ -368,7 +368,7 @@ fn directed_u32_graph_from_edge_list_file() {
 }
 
 #[test]
-#[cfg(features = "dotgraph")]
+#[cfg(feature = "dotgraph")]
 fn directed_u32_graph_from_dot_graph_file() {
     let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.graph"]
         .iter()
@@ -423,7 +423,7 @@ fn undirected_u32_graph_from_edge_list_file() {
 }
 
 #[test]
-#[cfg(features = "dotgraph")]
+#[cfg(feature = "dotgraph")]
 fn undirected_u32_graph_from_dot_graph_file() {
     let path = [env!("CARGO_MANIFEST_DIR"), "resources", "test.graph"]
         .iter()
