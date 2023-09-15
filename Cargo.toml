@@ -1,6 +1,7 @@
 [workspace]
 
 members = ["crates/*"]
+resolver = "2"
 
 [workspace.package]
 authors = [
