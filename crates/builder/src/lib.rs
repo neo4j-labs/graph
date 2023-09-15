@@ -179,7 +179,7 @@ pub use crate::graph::csr::UndirectedCsrGraph;
 
 use std::convert::Infallible;
 
-use crate::graph::csr::Target;
+use crate::graph::Target;
 use crate::index::Idx;
 use thiserror::Error;
 

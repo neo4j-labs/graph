@@ -17,7 +17,8 @@ use linereader::LineReader;
 use rayon::prelude::*;
 
 use crate::{
-    graph::csr::{sort_targets, Csr, Target},
+    graph::csr::{sort_targets, Csr},
+    graph::Target,
     index::Idx,
     Error, Graph, NodeValues, SharedMut, UndirectedDegrees, UndirectedNeighbors,
 };
