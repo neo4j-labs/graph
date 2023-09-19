@@ -14,17 +14,16 @@ use std::{
 
 use rayon::prelude::*;
 
-use crate::compat::*;
-
 use crate::{
+    compat::*,
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
     input::{edgelist::Edges, Direction, Graph500},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
-    NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
+    NodeValues as NodeValuesTrait, SharedMut, Target, UndirectedDegrees, UndirectedNeighbors,
     UndirectedNeighborsWithValues,
-    Target,
 };
+
 #[cfg(feature = "dotgraph")]
 use crate::input::DotGraph;
 #[cfg(feature = "dotgraph")]
