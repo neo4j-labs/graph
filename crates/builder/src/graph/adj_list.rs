@@ -1,6 +1,13 @@
-use crate::{index::Idx, prelude::Direction, prelude::Edges, CsrLayout, Target};
-use std::sync::Mutex;
+use crate::{
+    index::Idx, prelude::Direction, prelude::Edges, prelude::NodeValues as NodeValuesTrait,
+    CsrLayout, DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Graph, Target,
+};
 
+use log::info;
+use std::sync::Mutex;
+use std::time::Instant;
+
+use crate::graph::csr::NodeValues;
 use rayon::prelude::*;
 
 #[derive(Debug)]
@@ -113,10 +120,119 @@ where
     }
 }
 
+pub struct DirectedALGraph<NI: Idx, NV = (), EV = ()> {
+    node_values: NodeValues<NV>,
+    al_out: AdjacencyList<NI, EV>,
+    al_inc: AdjacencyList<NI, EV>,
+}
+
+impl<NI: Idx, NV, EV> DirectedALGraph<NI, NV, EV>
+where
+    NV: Send + Sync,
+    EV: Send + Sync,
+{
+    pub fn new(
+        node_values: NodeValues<NV>,
+        al_out: AdjacencyList<NI, EV>,
+        al_inc: AdjacencyList<NI, EV>,
+    ) -> Self {
+        let g = Self {
+            node_values,
+            al_out,
+            al_inc,
+        };
+
+        info!(
+            "Created directed graph (node_count = {:?}, edge_count = {:?})",
+            g.node_count(),
+            g.edge_count()
+        );
+
+        g
+    }
+}
+
+impl<NI: Idx, NV, EV> Graph<NI> for DirectedALGraph<NI, NV, EV>
+where
+    NV: Send + Sync,
+    EV: Send + Sync,
+{
+    delegate::delegate! {
+        to self.al_out {
+            fn node_count(&self) -> NI;
+            fn edge_count(&self) -> NI;
+        }
+    }
+}
+
+impl<NI: Idx, NV, EV> NodeValuesTrait<NI, NV> for DirectedALGraph<NI, NV, EV> {
+    fn node_value(&self, node: NI) -> &NV {
+        &self.node_values.0[node.index()]
+    }
+}
+
+impl<NI: Idx, NV, EV> DirectedDegrees<NI> for DirectedALGraph<NI, NV, EV> {
+    fn out_degree(&self, node: NI) -> NI {
+        self.al_out.degree(node)
+    }
+
+    fn in_degree(&self, node: NI) -> NI {
+        self.al_inc.degree(node)
+    }
+}
+
+impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedALGraph<NI, NV, ()> {
+    type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
+
+    fn out_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.al_out.targets(node).iter()
+    }
+
+    fn in_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.al_inc.targets(node).iter()
+    }
+}
+
+impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedALGraph<NI, NV, EV> {
+    type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV: 'a, EV: 'a;
+
+    fn out_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.al_out.targets_with_values(node).iter()
+    }
+
+    fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.al_inc.targets_with_values(node).iter()
+    }
+}
+
+impl<NI, EV, E> From<(E, CsrLayout)> for DirectedALGraph<NI, (), EV>
+where
+    NI: Idx,
+    EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
+{
+    fn from((edge_list, csr_layout): (E, CsrLayout)) -> Self {
+        info!("Creating directed graph");
+        let node_count = edge_list.max_node_id() + NI::new(1);
+        let node_values = NodeValues::new(vec![(); node_count.index()]);
+
+        let start = Instant::now();
+        let al_out = AdjacencyList::from((&edge_list, node_count, Direction::Outgoing, csr_layout));
+        info!("Created outgoing adjacency list in {:?}", start.elapsed());
+
+        let start = Instant::now();
+        let al_inc = AdjacencyList::from((&edge_list, node_count, Direction::Incoming, csr_layout));
+        info!("Created incoming adjacency list in {:?}", start.elapsed());
+
+        DirectedALGraph::new(node_values, al_out, al_inc)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::prelude::EdgeList;
+    use crate::GraphBuilder;
     use tap::prelude::*;
 
     #[test]
@@ -278,5 +394,18 @@ mod test {
 
         assert_eq!(list.targets(0), &[1, 2, 3]);
         assert_eq!(list.targets(1), &[0, 2, 3]);
+    }
+
+    #[test]
+    fn directed_al_graph() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .edges([(0, 1), (0, 2), (1, 2)])
+            .build::<DirectedALGraph<u32, ()>>();
+
+        assert_eq!(g.out_degree(0), 2);
+        assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
+        assert_eq!(g.in_degree(2), 2);
+        assert_eq!(g.in_neighbors(2).as_slice(), &[0, 1]);
     }
 }

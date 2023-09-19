@@ -314,7 +314,7 @@ where
     }
 }
 
-pub struct NodeValues<NV>(Box<[NV]>);
+pub struct NodeValues<NV>(pub(crate) Box<[NV]>);
 
 impl<NV> NodeValues<NV> {
     pub fn new(node_values: Vec<NV>) -> Self {
