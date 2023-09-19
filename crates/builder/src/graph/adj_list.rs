@@ -15,8 +15,6 @@ pub struct AdjacencyList<NI, EV> {
     edges: Vec<Vec<Target<NI, EV>>>,
 }
 
-pub struct List<NI, EV>(pub Vec<Target<NI, EV>>);
-
 impl<NI: Idx, EV> AdjacencyList<NI, EV> {
     pub fn new(edges: Vec<Vec<Target<NI, EV>>>) -> Self {
         Self { edges }
