@@ -45,7 +45,7 @@ name = "edgelist"
 harness = false
 
 [[bench]]
-name = "csr"
+name = "topology"
 harness = false
 
 [[bench]]
