@@ -228,6 +228,29 @@ where
     }
 }
 
+impl<NI, NV, EV, E> From<(NodeValues<NV>, E, CsrLayout)> for DirectedALGraph<NI, NV, EV>
+where
+    NI: Idx,
+    NV: Send + Sync,
+    EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
+{
+    fn from((node_values, edge_list, csr_layout): (NodeValues<NV>, E, CsrLayout)) -> Self {
+        info!("Creating directed graph");
+        let node_count = edge_list.max_node_id() + NI::new(1);
+
+        let start = Instant::now();
+        let al_out = AdjacencyList::from((&edge_list, node_count, Direction::Outgoing, csr_layout));
+        info!("Created outgoing adjacency list in {:?}", start.elapsed());
+
+        let start = Instant::now();
+        let al_inc = AdjacencyList::from((&edge_list, node_count, Direction::Incoming, csr_layout));
+        info!("Created incoming adjacency list in {:?}", start.elapsed());
+
+        DirectedALGraph::new(node_values, al_out, al_inc)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -407,5 +430,18 @@ mod test {
         assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
         assert_eq!(g.in_degree(2), 2);
         assert_eq!(g.in_neighbors(2).as_slice(), &[0, 1]);
+    }
+
+    #[test]
+    fn directed_al_graph_with_node_values() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .edges([(0, 1), (0, 2), (1, 2)])
+            .node_values(vec!["foo", "bar", "baz"])
+            .build::<DirectedALGraph<u32, &str>>();
+
+        assert_eq!(g.node_value(0), &"foo");
+        assert_eq!(g.node_value(1), &"bar");
+        assert_eq!(g.node_value(2), &"baz");
     }
 }
