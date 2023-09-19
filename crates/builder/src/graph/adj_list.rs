@@ -1,5 +1,5 @@
-use crate::index::Idx;
-use crate::Target;
+use crate::{index::Idx, prelude::Direction, prelude::Edges, CsrLayout, Target};
+use std::sync::Mutex;
 
 use rayon::prelude::*;
 
@@ -58,13 +58,66 @@ impl<NI: Idx> AdjacencyList<NI, ()> {
 
         // SAFETY: The types Target<T, ()> and T are verified to have the same
         //         size and alignment.
-        unsafe { std::slice::from_raw_parts(targets.as_ptr() as *const NI, targets.len()) }
+        unsafe { std::slice::from_raw_parts(targets.as_ptr().cast(), targets.len()) }
+    }
+}
+
+impl<NI, EV, E> From<(&'_ E, NI, Direction, CsrLayout)> for AdjacencyList<NI, EV>
+where
+    NI: Idx,
+    EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
+{
+    fn from(
+        (edge_list, node_count, direction, csr_layout): (&'_ E, NI, Direction, CsrLayout),
+    ) -> Self {
+        let mut thread_safe_vec = Vec::with_capacity(node_count.index());
+        thread_safe_vec.resize_with(node_count.index(), || Mutex::new(Vec::new()));
+        let thread_safe_vec = thread_safe_vec;
+
+        edge_list.edges().for_each(|(s, t, v)| {
+            if matches!(direction, Direction::Outgoing | Direction::Undirected) {
+                thread_safe_vec[s.index()]
+                    .lock()
+                    .expect("Cannot lock node-local list")
+                    .push(Target::new(t, v));
+            }
+            if matches!(direction, Direction::Incoming | Direction::Undirected) {
+                thread_safe_vec[t.index()]
+                    .lock()
+                    .expect("Cannot lock node-local list")
+                    .push(Target::new(s, v));
+            }
+        });
+
+        let mut edges = Vec::with_capacity(node_count.index());
+        thread_safe_vec
+            .into_par_iter()
+            .map(|list| {
+                let mut list = list.into_inner().expect("Cannot move out of Mutex");
+
+                match csr_layout {
+                    CsrLayout::Sorted => list.sort_unstable_by_key(|t| t.target),
+                    CsrLayout::Unsorted => {}
+                    CsrLayout::Deduplicated => {
+                        list.sort_unstable_by_key(|t| t.target);
+                        list.dedup_by_key(|t| t.target)
+                    }
+                }
+
+                list
+            })
+            .collect_into_vec(&mut edges);
+
+        AdjacencyList::new(edges)
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::prelude::EdgeList;
+    use tap::prelude::*;
 
     #[test]
     fn empty_list() {
@@ -105,5 +158,125 @@ mod test {
 
         assert_eq!(list.targets(0), &[1]);
         assert_eq!(list.targets(1), &[0]);
+    }
+
+    #[test]
+    fn from_edges_outgoing() {
+        let edges = vec![(0, 1, 42), (0, 2, 1337), (1, 0, 43), (2, 0, 1338)];
+        let edges = EdgeList::new(edges);
+        let list =
+            AdjacencyList::<u32, u32>::from((&edges, 3, Direction::Outgoing, CsrLayout::Unsorted));
+
+        assert_eq!(
+            list.targets_with_values(0)
+                .iter()
+                .collect::<Vec<_>>()
+                .tap_mut(|v| v.sort_by_key(|t| t.target)),
+            &[&Target::new(1, 42), &Target::new(2, 1337)]
+        );
+        assert_eq!(list.targets_with_values(1), &[Target::new(0, 84)]);
+        assert_eq!(list.targets_with_values(2), &[Target::new(0, 1337)]);
+    }
+
+    #[test]
+    fn from_edges_incoming() {
+        let edges = vec![(0, 1, 42), (0, 2, 1337), (1, 0, 43), (2, 0, 1338)];
+        let edges = EdgeList::new(edges);
+        let list =
+            AdjacencyList::<u32, u32>::from((&edges, 3, Direction::Incoming, CsrLayout::Unsorted));
+
+        assert_eq!(
+            list.targets_with_values(0)
+                .iter()
+                .collect::<Vec<_>>()
+                .tap_mut(|v| v.sort_by_key(|t| t.target)),
+            &[&Target::new(1, 42), &Target::new(2, 1337)]
+        );
+        assert_eq!(list.targets_with_values(1), &[Target::new(0, 42)]);
+        assert_eq!(list.targets_with_values(2), &[Target::new(0, 1337)]);
+    }
+
+    #[test]
+    fn from_edges_undirected() {
+        let edges = vec![(0, 1, 42), (0, 2, 1337), (1, 0, 43), (2, 0, 1338)];
+        let edges = EdgeList::new(edges);
+        let list = AdjacencyList::<u32, u32>::from((
+            &edges,
+            3,
+            Direction::Undirected,
+            CsrLayout::Unsorted,
+        ));
+
+        assert_eq!(
+            list.targets_with_values(0)
+                .iter()
+                .collect::<Vec<_>>()
+                .tap_mut(|v| v.sort_by_key(|t| t.target)),
+            &[
+                &Target::new(1, 42),
+                &Target::new(1, 43),
+                &Target::new(2, 1337),
+                &Target::new(2, 1338)
+            ]
+        );
+        assert_eq!(
+            list.targets_with_values(1)
+                .iter()
+                .collect::<Vec<_>>()
+                .tap_mut(|v| v.sort_by_key(|t| t.target)),
+            &[&Target::new(0, 42), &Target::new(0, 43)]
+        );
+        assert_eq!(
+            list.targets_with_values(2)
+                .iter()
+                .collect::<Vec<_>>()
+                .tap_mut(|v| v.sort_by_key(|t| t.target)),
+            &[&Target::new(0, 1337), &Target::new(0, 1338)]
+        );
+    }
+
+    #[test]
+    fn from_edges_sorted() {
+        let edges = vec![
+            (0, 1, ()),
+            (0, 3, ()),
+            (0, 2, ()),
+            (1, 3, ()),
+            (1, 2, ()),
+            (1, 0, ()),
+        ];
+        let edges = EdgeList::new(edges);
+        let list =
+            AdjacencyList::<u32, ()>::from((&edges, 3, Direction::Outgoing, CsrLayout::Sorted));
+
+        assert_eq!(list.targets(0), &[1, 2, 3]);
+        assert_eq!(list.targets(1), &[0, 2, 3]);
+    }
+
+    #[test]
+    fn from_edges_deduplicated() {
+        let edges = vec![
+            (0, 1, ()),
+            (0, 3, ()),
+            (0, 3, ()),
+            (0, 2, ()),
+            (0, 2, ()),
+            (1, 3, ()),
+            (1, 3, ()),
+            (1, 2, ()),
+            (1, 2, ()),
+            (1, 0, ()),
+            (1, 0, ()),
+        ];
+        let edges = EdgeList::new(edges);
+        let list = AdjacencyList::<u32, ()>::from((
+            &edges,
+            3,
+            Direction::Outgoing,
+            CsrLayout::Deduplicated,
+        ));
+
+        assert_eq!(list.targets(0), &[1, 2, 3]);
+        assert_eq!(list.targets(1), &[0, 2, 3]);
     }
 }
