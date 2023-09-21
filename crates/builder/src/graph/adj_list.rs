@@ -1,6 +1,7 @@
 use crate::{
     index::Idx, prelude::Direction, prelude::Edges, prelude::NodeValues as NodeValuesTrait,
     CsrLayout, DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Graph, Target,
+    UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsWithValues,
 };
 
 use log::info;
@@ -249,6 +250,109 @@ where
     }
 }
 
+pub struct UndirectedALGraph<NI: Idx, NV = (), EV = ()> {
+    node_values: NodeValues<NV>,
+    al: AdjacencyList<NI, EV>,
+}
+
+impl<NI: Idx, NV, EV> UndirectedALGraph<NI, NV, EV>
+where
+    NV: Send + Sync,
+    EV: Send + Sync,
+{
+    pub fn new(node_values: NodeValues<NV>, al: AdjacencyList<NI, EV>) -> Self {
+        let g = Self { node_values, al };
+
+        info!(
+            "Created undirected graph (node_count = {:?}, edge_count = {:?})",
+            g.node_count(),
+            g.edge_count()
+        );
+
+        g
+    }
+}
+
+impl<NI: Idx, NV, EV> Graph<NI> for UndirectedALGraph<NI, NV, EV>
+where
+    NV: Send + Sync,
+    EV: Send + Sync,
+{
+    fn node_count(&self) -> NI {
+        self.al.node_count()
+    }
+
+    fn edge_count(&self) -> NI {
+        self.al.edge_count() / NI::new(2)
+    }
+}
+
+impl<NI: Idx, NV, EV> NodeValuesTrait<NI, NV> for UndirectedALGraph<NI, NV, EV> {
+    fn node_value(&self, node: NI) -> &NV {
+        &self.node_values.0[node.index()]
+    }
+}
+
+impl<NI: Idx, NV, EV> UndirectedDegrees<NI> for UndirectedALGraph<NI, NV, EV> {
+    fn degree(&self, node: NI) -> NI {
+        self.al.degree(node)
+    }
+}
+
+impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedALGraph<NI, NV, ()> {
+    type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
+
+    fn neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.al.targets(node).iter()
+    }
+}
+
+impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedALGraph<NI, NV, EV> {
+    type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV: 'a, EV: 'a;
+
+    fn neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
+        self.al.targets_with_values(node).iter()
+    }
+}
+
+impl<NI, EV, E> From<(E, CsrLayout)> for UndirectedALGraph<NI, (), EV>
+where
+    NI: Idx,
+    EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
+{
+    fn from((edge_list, csr_layout): (E, CsrLayout)) -> Self {
+        info!("Creating undirected graph");
+        let node_count = edge_list.max_node_id() + NI::new(1);
+        let node_values = NodeValues::new(vec![(); node_count.index()]);
+
+        let start = Instant::now();
+        let al = AdjacencyList::from((&edge_list, node_count, Direction::Undirected, csr_layout));
+        info!("Created adjacency list in {:?}", start.elapsed());
+
+        UndirectedALGraph::new(node_values, al)
+    }
+}
+
+impl<NI, NV, EV, E> From<(NodeValues<NV>, E, CsrLayout)> for UndirectedALGraph<NI, NV, EV>
+where
+    NI: Idx,
+    NV: Send + Sync,
+    EV: Copy + Send + Sync,
+    E: Edges<NI = NI, EV = EV>,
+{
+    fn from((node_values, edge_list, csr_layout): (NodeValues<NV>, E, CsrLayout)) -> Self {
+        info!("Creating undirected graph");
+        let node_count = edge_list.max_node_id() + NI::new(1);
+
+        let start = Instant::now();
+        let al = AdjacencyList::from((&edge_list, node_count, Direction::Undirected, csr_layout));
+        info!("Created adjacency list in {:?}", start.elapsed());
+
+        UndirectedALGraph::new(node_values, al)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -424,6 +528,8 @@ mod test {
             .edges([(0, 1), (0, 2), (1, 2)])
             .build::<DirectedALGraph<u32, ()>>();
 
+        assert_eq!(g.node_count(), 3);
+        assert_eq!(g.edge_count(), 3);
         assert_eq!(g.out_degree(0), 2);
         assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
         assert_eq!(g.in_degree(2), 2);
@@ -437,6 +543,49 @@ mod test {
             .edges([(0, 1), (0, 2), (1, 2)])
             .node_values(vec!["foo", "bar", "baz"])
             .build::<DirectedALGraph<u32, &str>>();
+
+        assert_eq!(g.node_value(0), &"foo");
+        assert_eq!(g.node_value(1), &"bar");
+        assert_eq!(g.node_value(2), &"baz");
+    }
+
+    #[test]
+    fn undirected_al_graph() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .edges([(0, 1), (0, 2), (1, 2)])
+            .build::<UndirectedALGraph<u32, ()>>();
+
+        assert_eq!(g.node_count(), 3);
+        assert_eq!(g.edge_count(), 3);
+        assert_eq!(g.degree(0), 2);
+        assert_eq!(g.degree(2), 2);
+        assert_eq!(g.neighbors(0).as_slice(), &[1, 2]);
+        assert_eq!(g.neighbors(2).as_slice(), &[0, 1]);
+    }
+
+    #[test]
+    fn undirected_al_graph_cycle() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .edges([(0, 1), (1, 0)])
+            .build::<UndirectedALGraph<u32, ()>>();
+
+        assert_eq!(g.node_count(), 2);
+        assert_eq!(g.edge_count(), 2);
+        assert_eq!(g.degree(0), 2);
+        assert_eq!(g.degree(1), 2);
+        assert_eq!(g.neighbors(0).as_slice(), &[1, 1]);
+        assert_eq!(g.neighbors(1).as_slice(), &[0, 0]);
+    }
+
+    #[test]
+    fn undirected_al_graph_with_node_values() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .edges([(0, 1), (0, 2), (1, 2)])
+            .node_values(vec!["foo", "bar", "baz"])
+            .build::<UndirectedALGraph<u32, &str>>();
 
         assert_eq!(g.node_value(0), &"foo");
         assert_eq!(g.node_value(1), &"bar");
