@@ -18,7 +18,7 @@ use crate::{
     compat::*,
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
-    input::{edgelist::Edges, Direction, Graph500},
+    input::{edgelist::Edges, Direction},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
     NodeValues as NodeValuesTrait, SharedMut, Target, UndirectedDegrees, UndirectedNeighbors,
     UndirectedNeighborsWithValues,
@@ -594,12 +594,6 @@ where
     }
 }
 
-impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for DirectedCsrGraph<NI> {
-    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((graph500.0, csr_layout))
-    }
-}
-
 impl<W, NI, NV, EV> SerializeGraphOp<W> for DirectedCsrGraph<NI, NV, EV>
 where
     W: Write,
@@ -786,12 +780,6 @@ where
         let node_values = NodeValues::new(labels);
 
         UndirectedCsrGraph::from((node_values, edge_list, csr_layout))
-    }
-}
-
-impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for UndirectedCsrGraph<NI> {
-    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
-        UndirectedCsrGraph::from((graph500.0, csr_layout))
     }
 }
 

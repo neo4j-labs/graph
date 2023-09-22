@@ -9,7 +9,6 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use crate::graph::csr::NodeValues;
-use crate::prelude::Graph500;
 use rayon::prelude::*;
 
 #[derive(Debug)]
@@ -259,12 +258,6 @@ where
     }
 }
 
-impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for DirectedALGraph<NI> {
-    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
-        DirectedALGraph::from((graph500.0, csr_layout))
-    }
-}
-
 pub struct UndirectedALGraph<NI: Idx, NV = (), EV = ()> {
     node_values: NodeValues<NV>,
     al: AdjacencyList<NI, EV>,
@@ -365,12 +358,6 @@ where
         info!("Created adjacency list in {:?}", start.elapsed());
 
         UndirectedALGraph::new(node_values, al)
-    }
-}
-
-impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for UndirectedALGraph<NI> {
-    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
-        UndirectedALGraph::from((graph500.0, csr_layout))
     }
 }
 
