@@ -78,6 +78,7 @@ where
     fn from(
         (edge_list, node_count, direction, csr_layout): (&'_ E, NI, Direction, CsrLayout),
     ) -> Self {
+        let start = Instant::now();
         let mut thread_safe_vec = Vec::with_capacity(node_count.index());
         thread_safe_vec.resize_with(node_count.index(), || Mutex::new(Vec::new()));
         let thread_safe_vec = thread_safe_vec;
@@ -96,7 +97,9 @@ where
                     .push(Target::new(s, v));
             }
         });
+        info!("Grouped edge tuples in {:?}", start.elapsed());
 
+        let start = Instant::now();
         let mut edges = Vec::with_capacity(node_count.index());
         thread_safe_vec
             .into_par_iter()
@@ -115,6 +118,11 @@ where
                 list
             })
             .collect_into_vec(&mut edges);
+
+        info!(
+            "Applied list layout and finalized edge list in {:?}",
+            start.elapsed()
+        );
 
         AdjacencyList::new(edges)
     }
