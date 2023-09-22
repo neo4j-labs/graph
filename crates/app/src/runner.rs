@@ -22,8 +22,11 @@ macro_rules! runner {
 
             fn run_<NI: Idx>(
                 args: $crate::CommonArgs,
-                config: PageRankConfig,
-            ) -> ::kommandozeile::Result<()> {
+                config: $algo_config,
+            ) -> ::kommandozeile::Result<()>
+            where
+                NI: Idx + ::std::hash::Hash,
+            {
                 match args.format {
                     $crate::FileFormat::EdgeList => {
                         run__::<NI, EdgeListInput<NI>>(args, config, EdgeListInput::default())
@@ -36,11 +39,11 @@ macro_rules! runner {
 
             fn run__<NI, Format>(
                 args: $crate::CommonArgs,
-                config: PageRankConfig,
+                config: $algo_config,
                 file_format: Format,
             ) -> ::kommandozeile::Result<()>
             where
-                NI: Idx,
+                NI: Idx + ::std::hash::Hash,
                 Format: InputCapabilities<NI>,
                 Format::GraphInput: TryFrom<InputPath<::std::path::PathBuf>>,
                 <Format as InputCapabilities<NI>>::GraphInput: Edges<NI = NI, EV = ()>,
@@ -59,11 +62,11 @@ macro_rules! runner {
 
             fn run___<G, NI, Format>(
                 args: $crate::CommonArgs,
-                config: PageRankConfig,
+                config: $algo_config,
                 file_format: Format,
             ) -> ::kommandozeile::Result<()>
             where
-                NI: Idx,
+                NI: Idx + ::std::hash::Hash,
                 Format: InputCapabilities<NI>,
                 Format::GraphInput: TryFrom<InputPath<::std::path::PathBuf>>,
                 <Format as InputCapabilities<NI>>::GraphInput: Edges<NI = NI, EV = ()>,
