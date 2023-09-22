@@ -9,6 +9,7 @@ pub(crate) fn triangle_count(args: CommonArgs, relabel: bool) -> Result<()> {
     let CommonArgs {
         path,
         format,
+        graph: _,
         use_32_bit,
         runs,
         warmup_runs,

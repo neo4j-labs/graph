@@ -8,6 +8,7 @@ pub(crate) fn sssp(args: CommonArgs, config: DeltaSteppingConfig) -> Result<()> 
     let CommonArgs {
         path,
         format: _,
+        graph: _,
         use_32_bit,
         runs,
         warmup_runs,

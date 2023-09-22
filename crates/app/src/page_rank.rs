@@ -10,6 +10,7 @@ pub(crate) fn page_rank(args: CommonArgs, config: PageRankConfig) -> Result<()> 
     let CommonArgs {
         path,
         format,
+        graph,
         use_32_bit,
         runs,
         warmup_runs,
@@ -21,23 +22,83 @@ pub(crate) fn page_rank(args: CommonArgs, config: PageRankConfig) -> Result<()> 
         path
     );
 
-    match (use_32_bit, format) {
-        (true, FileFormat::EdgeList) => {
-            run::<u32, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
+    match (graph, use_32_bit, format) {
+        (GraphFormat::CompressedSparseRow, true, FileFormat::EdgeList) => {
+            run::<DirectedCsrGraph<u32>, u32, _, _>(
+                path,
+                EdgeListInput::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
         }
-        (true, FileFormat::Graph500) => {
-            run::<u32, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
+        (GraphFormat::CompressedSparseRow, true, FileFormat::Graph500) => {
+            run::<DirectedCsrGraph<u32>, u32, _, _>(
+                path,
+                Graph500Input::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
         }
-        (false, FileFormat::EdgeList) => {
-            run::<u64, _, _>(path, EdgeListInput::default(), runs, warmup_runs, config)
+        (GraphFormat::CompressedSparseRow, false, FileFormat::EdgeList) => {
+            run::<DirectedCsrGraph<u64>, u64, _, _>(
+                path,
+                EdgeListInput::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
         }
-        (false, FileFormat::Graph500) => {
-            run::<u64, _, _>(path, Graph500Input::default(), runs, warmup_runs, config)
+        (GraphFormat::CompressedSparseRow, false, FileFormat::Graph500) => {
+            run::<DirectedCsrGraph<u64>, u64, _, _>(
+                path,
+                Graph500Input::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
+        }
+        (GraphFormat::AdjacencyList, true, FileFormat::EdgeList) => {
+            run::<DirectedALGraph<u32>, u32, _, _>(
+                path,
+                EdgeListInput::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
+        }
+        (GraphFormat::AdjacencyList, true, FileFormat::Graph500) => {
+            run::<DirectedALGraph<u32>, u32, _, _>(
+                path,
+                Graph500Input::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
+        }
+        (GraphFormat::AdjacencyList, false, FileFormat::EdgeList) => {
+            run::<DirectedALGraph<u64>, u64, _, _>(
+                path,
+                EdgeListInput::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
+        }
+        (GraphFormat::AdjacencyList, false, FileFormat::Graph500) => {
+            run::<DirectedALGraph<u64>, u64, _, _>(
+                path,
+                Graph500Input::default(),
+                runs,
+                warmup_runs,
+                config,
+            )
         }
     }
 }
 
-fn run<NI, Format, Path>(
+fn run<G, NI, Format, Path>(
     path: Path,
     file_format: Format,
     runs: usize,
@@ -46,14 +107,15 @@ fn run<NI, Format, Path>(
 ) -> Result<()>
 where
     NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
     Path: AsRef<StdPath>,
     Format: InputCapabilities<NI>,
     Format::GraphInput: TryFrom<InputPath<Path>>,
-    DirectedCsrGraph<NI>: TryFrom<(Format::GraphInput, CsrLayout)>,
+    G: TryFrom<(Format::GraphInput, CsrLayout)>,
     Error: From<<Format::GraphInput as TryFrom<InputPath<Path>>>::Error>,
-    Error: From<<DirectedCsrGraph<NI> as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
+    Error: From<<G as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
 {
-    let graph: DirectedCsrGraph<NI> = GraphBuilder::new()
+    let graph: G = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(file_format)
         .path(path)

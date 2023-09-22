@@ -56,6 +56,9 @@ struct CommonArgs {
     #[clap(short, long, value_enum, default_value_t = FileFormat::EdgeList)]
     format: FileFormat,
 
+    #[clap(short, long, value_enum, default_value_t = GraphFormat::CompressedSparseRow)]
+    graph: GraphFormat,
+
     #[clap(long)]
     use_32_bit: bool,
 
@@ -64,6 +67,12 @@ struct CommonArgs {
 
     #[clap(short, long, default_value_t = 5)]
     warmup_runs: usize,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone)]
+enum GraphFormat {
+    CompressedSparseRow,
+    AdjacencyList,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone)]

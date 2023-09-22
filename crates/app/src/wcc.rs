@@ -11,6 +11,7 @@ pub(crate) fn wcc(app_args: CommonArgs, config: WccConfig) -> Result<()> {
     let CommonArgs {
         path,
         format,
+        graph: _,
         use_32_bit,
         runs,
         warmup_runs,

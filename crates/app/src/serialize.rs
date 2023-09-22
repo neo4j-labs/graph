@@ -15,6 +15,7 @@ pub(crate) fn serialize(args: CommonArgs, undirected: bool, output: PathBuf) -> 
     let CommonArgs {
         path,
         format: _,
+        graph: _,
         runs: _,
         warmup_runs: _,
         use_32_bit,
