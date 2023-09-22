@@ -2,15 +2,18 @@ use std::{path::PathBuf, time::Instant};
 
 use graph::prelude::*;
 
+use crate::runner::runner;
 use kommandozeile::*;
 use log::info;
 
 mod loading;
-mod page_rank;
+mod runner;
 mod serialize;
 mod sssp;
 mod triangle_count;
 mod wcc;
+
+runner!(page_rank, graph::page_rank::page_rank, PageRankConfig);
 
 fn main() -> Result<()> {
     let args = setup_clap::<Args>().run()?;
@@ -19,7 +22,7 @@ fn main() -> Result<()> {
     env_logger::init();
 
     match args.algorithm {
-        Algorithm::PageRank { config } => page_rank::page_rank(args.args, config)?,
+        Algorithm::PageRank { config } => page_rank::run(args.args, config)?,
         Algorithm::Sssp { config } => sssp::sssp(args.args, config)?,
         Algorithm::TriangleCount { relabel } => triangle_count::triangle_count(args.args, relabel)?,
         Algorithm::Wcc { config } => wcc::wcc(args.args, config)?,
