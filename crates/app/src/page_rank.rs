@@ -2,126 +2,69 @@ use graph::prelude::*;
 
 use log::info;
 
-use std::path::Path as StdPath;
-
 use super::*;
 
 pub(crate) fn page_rank(args: CommonArgs, config: PageRankConfig) -> Result<()> {
-    let CommonArgs {
-        path,
-        format,
-        graph,
-        use_32_bit,
-        runs,
-        warmup_runs,
-    } = args;
-
     info!(
         "Reading graph ({} bit) from: {:?}",
-        if use_32_bit { "32" } else { "64" },
-        path
+        if args.use_32_bit { "32" } else { "64" },
+        args.path
     );
 
-    match (graph, use_32_bit, format) {
-        (GraphFormat::CompressedSparseRow, true, FileFormat::EdgeList) => {
-            run::<DirectedCsrGraph<u32>, u32, _, _>(
-                path,
-                EdgeListInput::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
+    if args.use_32_bit {
+        run::<u32>(args, config)
+    } else {
+        run::<u64>(args, config)
+    }
+}
+
+fn run<NI: Idx>(args: CommonArgs, config: PageRankConfig) -> Result<()> {
+    match args.format {
+        FileFormat::EdgeList => {
+            run_::<NI, EdgeListInput<NI>>(args, config, EdgeListInput::default())
         }
-        (GraphFormat::CompressedSparseRow, true, FileFormat::Graph500) => {
-            run::<DirectedCsrGraph<u32>, u32, _, _>(
-                path,
-                Graph500Input::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
-        }
-        (GraphFormat::CompressedSparseRow, false, FileFormat::EdgeList) => {
-            run::<DirectedCsrGraph<u64>, u64, _, _>(
-                path,
-                EdgeListInput::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
-        }
-        (GraphFormat::CompressedSparseRow, false, FileFormat::Graph500) => {
-            run::<DirectedCsrGraph<u64>, u64, _, _>(
-                path,
-                Graph500Input::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
-        }
-        (GraphFormat::AdjacencyList, true, FileFormat::EdgeList) => {
-            run::<DirectedALGraph<u32>, u32, _, _>(
-                path,
-                EdgeListInput::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
-        }
-        (GraphFormat::AdjacencyList, true, FileFormat::Graph500) => {
-            run::<DirectedALGraph<u32>, u32, _, _>(
-                path,
-                Graph500Input::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
-        }
-        (GraphFormat::AdjacencyList, false, FileFormat::EdgeList) => {
-            run::<DirectedALGraph<u64>, u64, _, _>(
-                path,
-                EdgeListInput::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
-        }
-        (GraphFormat::AdjacencyList, false, FileFormat::Graph500) => {
-            run::<DirectedALGraph<u64>, u64, _, _>(
-                path,
-                Graph500Input::default(),
-                runs,
-                warmup_runs,
-                config,
-            )
+        FileFormat::Graph500 => {
+            run_::<NI, Graph500Input<NI>>(args, config, Graph500Input::default())
         }
     }
 }
 
-fn run<G, NI, Format, Path>(
-    path: Path,
-    file_format: Format,
-    runs: usize,
-    warmup_runs: usize,
-    config: PageRankConfig,
-) -> Result<()>
+fn run_<NI, Format>(args: CommonArgs, config: PageRankConfig, file_format: Format) -> Result<()>
 where
     NI: Idx,
-    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
-    Path: AsRef<StdPath>,
     Format: InputCapabilities<NI>,
-    Format::GraphInput: TryFrom<InputPath<Path>>,
+    Format::GraphInput: TryFrom<InputPath<PathBuf>>,
+    <Format as InputCapabilities<NI>>::GraphInput: Edges<NI = NI, EV = ()>,
+    Error: From<<Format::GraphInput as TryFrom<InputPath<PathBuf>>>::Error>,
+{
+    match args.graph {
+        GraphFormat::CompressedSparseRow => {
+            run__::<DirectedCsrGraph<NI>, NI, Format>(args, config, file_format)
+        }
+        GraphFormat::AdjacencyList => {
+            run__::<DirectedALGraph<NI>, NI, Format>(args, config, file_format)
+        }
+    }
+}
+
+fn run__<G, NI, Format>(args: CommonArgs, config: PageRankConfig, file_format: Format) -> Result<()>
+where
+    NI: Idx,
+    Format: InputCapabilities<NI>,
+    Format::GraphInput: TryFrom<InputPath<PathBuf>>,
+    <Format as InputCapabilities<NI>>::GraphInput: Edges<NI = NI, EV = ()>,
+    Error: From<<Format::GraphInput as TryFrom<InputPath<PathBuf>>>::Error>,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
     G: TryFrom<(Format::GraphInput, CsrLayout)>,
-    Error: From<<Format::GraphInput as TryFrom<InputPath<Path>>>::Error>,
     Error: From<<G as TryFrom<(Format::GraphInput, CsrLayout)>>::Error>,
 {
     let graph: G = GraphBuilder::new()
         .csr_layout(CsrLayout::Sorted)
         .file_format(file_format)
-        .path(path)
+        .path(args.path)
         .build()?;
 
-    time(runs, warmup_runs, || {
+    time(args.runs, args.warmup_runs, || {
         graph::page_rank::page_rank(&graph, config);
     });
 
