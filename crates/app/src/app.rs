@@ -9,11 +9,11 @@ use log::info;
 mod loading;
 mod runner;
 mod serialize;
-mod sssp;
 mod triangle_count;
 
-runner!(page_rank, graph::page_rank::page_rank, PageRankConfig);
-runner!(wcc, graph::wcc::wcc_afforest_dss, WccConfig);
+runner!(unweighted: page_rank, graph::page_rank::page_rank, PageRankConfig);
+runner!(unweighted: wcc, graph::wcc::wcc_afforest_dss, WccConfig);
+runner!(weighted: sssp, graph::sssp::delta_stepping, DeltaSteppingConfig, f32);
 
 fn main() -> Result<()> {
     let args = setup_clap::<Args>().run()?;
@@ -23,7 +23,7 @@ fn main() -> Result<()> {
 
     match args.algorithm {
         Algorithm::PageRank { config } => page_rank::run(args.args, config)?,
-        Algorithm::Sssp { config } => sssp::sssp(args.args, config)?,
+        Algorithm::Sssp { config } => sssp::run(args.args, config)?,
         Algorithm::TriangleCount { relabel } => triangle_count::triangle_count(args.args, relabel)?,
         Algorithm::Wcc { config } => wcc::run(args.args, config)?,
         Algorithm::Loading {
