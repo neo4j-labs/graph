@@ -2,7 +2,7 @@ use std::{path::PathBuf, time::Instant};
 
 use graph::prelude::*;
 
-use crate::runner::runner;
+use crate::runner::gen_runner;
 use kommandozeile::*;
 use log::info;
 
@@ -11,9 +11,9 @@ mod runner;
 mod serialize;
 mod triangle_count;
 
-runner!(unweighted: page_rank, graph::page_rank::page_rank, PageRankConfig);
-runner!(unweighted: wcc, graph::wcc::wcc_afforest_dss, WccConfig);
-runner!(weighted: sssp, graph::sssp::delta_stepping, DeltaSteppingConfig, f32);
+gen_runner!(directed+unweighted: page_rank, graph::page_rank::page_rank, PageRankConfig);
+gen_runner!(directed+unweighted: wcc, graph::wcc::wcc_afforest_dss, WccConfig);
+gen_runner!(directed+weighted: sssp, graph::sssp::delta_stepping, DeltaSteppingConfig, f32);
 
 fn main() -> Result<()> {
     let args = setup_clap::<Args>().run()?;
