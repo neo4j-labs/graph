@@ -1,7 +1,8 @@
 use log::info;
 use rayon::prelude::*;
 
-use crate::graph::csr::{prefix_sum, Csr, SwapCsr, Target};
+use crate::graph::csr::{prefix_sum, Csr, SwapCsr};
+use crate::graph::Target;
 use crate::index::Idx;
 use crate::{
     CsrLayout, DirectedDegrees, DirectedNeighborsWithValues, Error, Graph, SharedMut,

@@ -22,6 +22,29 @@ impl<NI: Idx> InputCapabilities<NI> for Graph500Input<NI> {
 
 pub struct Graph500<NI: Idx>(pub EdgeList<NI, ()>);
 
+impl<NI: Idx> Edges for Graph500<NI> {
+    type NI = NI;
+
+    type EV = ();
+
+    type EdgeIter<'a> = rayon::iter::Copied<rayon::slice::Iter<'a, (Self::NI, Self::NI, Self::EV)>>
+        where
+            Self: 'a;
+
+    fn edges(&self) -> Self::EdgeIter<'_> {
+        self.0.edges()
+    }
+
+    fn max_node_id(&self) -> Self::NI {
+        self.0.max_node_id()
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
 impl<NI, P> TryFrom<InputPath<P>> for Graph500<NI>
 where
     P: AsRef<Path>,

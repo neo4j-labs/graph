@@ -14,13 +14,13 @@ use std::{
 
 use rayon::prelude::*;
 
-use crate::compat::*;
 use crate::{
+    compat::*,
     graph_ops::{DeserializeGraphOp, SerializeGraphOp, ToUndirectedOp},
     index::Idx,
-    input::{edgelist::Edges, Direction, Graph500},
+    input::{edgelist::Edges, Direction},
     DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Error, Graph,
-    NodeValues as NodeValuesTrait, SharedMut, UndirectedDegrees, UndirectedNeighbors,
+    NodeValues as NodeValuesTrait, SharedMut, Target, UndirectedDegrees, UndirectedNeighbors,
     UndirectedNeighborsWithValues,
 };
 
@@ -58,40 +58,6 @@ pub enum CsrLayout {
 pub struct Csr<Index: Idx, NI, EV> {
     offsets: Box<[Index]>,
     targets: Box<[Target<NI, EV>]>,
-}
-
-/// Represents the target of an edge and its associated value.
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub struct Target<NI, EV> {
-    pub target: NI,
-    pub value: EV,
-}
-
-impl<T: Ord, V> Ord for Target<T, V> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.target.cmp(&other.target)
-    }
-}
-
-impl<T: PartialOrd, V> PartialOrd for Target<T, V> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.target.partial_cmp(&other.target)
-    }
-}
-
-impl<T: PartialEq, V> PartialEq for Target<T, V> {
-    fn eq(&self, other: &Self) -> bool {
-        self.target.eq(&other.target)
-    }
-}
-
-impl<T: Eq, V> Eq for Target<T, V> {}
-
-impl<T, EV> Target<T, EV> {
-    pub fn new(target: T, value: EV) -> Self {
-        Self { target, value }
-    }
 }
 
 impl<Index: Idx, NI, EV> Csr<Index, NI, EV> {
@@ -347,7 +313,7 @@ where
     }
 }
 
-pub struct NodeValues<NV>(Box<[NV]>);
+pub struct NodeValues<NV>(pub(crate) Box<[NV]>);
 
 impl<NV> NodeValues<NV> {
     pub fn new(node_values: Vec<NV>) -> Self {
@@ -628,12 +594,6 @@ where
     }
 }
 
-impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for DirectedCsrGraph<NI> {
-    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
-        DirectedCsrGraph::from((graph500.0, csr_layout))
-    }
-}
-
 impl<W, NI, NV, EV> SerializeGraphOp<W> for DirectedCsrGraph<NI, NV, EV>
 where
     W: Write,
@@ -820,12 +780,6 @@ where
         let node_values = NodeValues::new(labels);
 
         UndirectedCsrGraph::from((node_values, edge_list, csr_layout))
-    }
-}
-
-impl<NI: Idx> From<(Graph500<NI>, CsrLayout)> for UndirectedCsrGraph<NI> {
-    fn from((graph500, csr_layout): (Graph500<NI>, CsrLayout)) -> Self {
-        UndirectedCsrGraph::from((graph500.0, csr_layout))
     }
 }
 

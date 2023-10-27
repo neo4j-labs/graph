@@ -2,15 +2,18 @@ use std::{path::PathBuf, time::Instant};
 
 use graph::prelude::*;
 
+use crate::runner::gen_runner;
 use kommandozeile::*;
 use log::info;
 
 mod loading;
-mod page_rank;
+mod runner;
 mod serialize;
-mod sssp;
 mod triangle_count;
-mod wcc;
+
+gen_runner!(directed+unweighted: page_rank, graph::page_rank::page_rank, PageRankConfig);
+gen_runner!(directed+unweighted: wcc, graph::wcc::wcc_afforest_dss, WccConfig);
+gen_runner!(directed+weighted: sssp, graph::sssp::delta_stepping, DeltaSteppingConfig, f32);
 
 fn main() -> Result<()> {
     let args = setup_clap::<Args>().run()?;
@@ -19,10 +22,10 @@ fn main() -> Result<()> {
     env_logger::init();
 
     match args.algorithm {
-        Algorithm::PageRank { config } => page_rank::page_rank(args.args, config)?,
-        Algorithm::Sssp { config } => sssp::sssp(args.args, config)?,
+        Algorithm::PageRank { config } => page_rank::run(args.args, config)?,
+        Algorithm::Sssp { config } => sssp::run(args.args, config)?,
         Algorithm::TriangleCount { relabel } => triangle_count::triangle_count(args.args, relabel)?,
-        Algorithm::Wcc { config } => wcc::wcc(args.args, config)?,
+        Algorithm::Wcc { config } => wcc::run(args.args, config)?,
         Algorithm::Loading {
             undirected,
             weighted,
@@ -56,6 +59,9 @@ struct CommonArgs {
     #[clap(short, long, value_enum, default_value_t = FileFormat::EdgeList)]
     format: FileFormat,
 
+    #[clap(short, long, value_enum, default_value_t = GraphFormat::CompressedSparseRow)]
+    graph: GraphFormat,
+
     #[clap(long)]
     use_32_bit: bool,
 
@@ -64,6 +70,12 @@ struct CommonArgs {
 
     #[clap(short, long, default_value_t = 5)]
     warmup_runs: usize,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone)]
+enum GraphFormat {
+    CompressedSparseRow,
+    AdjacencyList,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone)]
