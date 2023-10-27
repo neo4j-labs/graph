@@ -324,7 +324,7 @@ pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
 }
 
 pub trait EdgeMutation<NI: Idx> {
-    fn add_edge(&mut self, source: NI, target: NI) -> Result<(), Error>;
+    fn add_edge(&self, source: NI, target: NI) -> Result<(), Error>;
 }
 
 #[repr(transparent)]
