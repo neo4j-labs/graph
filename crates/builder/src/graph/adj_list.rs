@@ -1,3 +1,4 @@
+use crate::EdgeMutation;
 use crate::{
     index::Idx, prelude::Direction, prelude::Edges, prelude::NodeValues as NodeValuesTrait,
     CsrLayout, DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Graph, Target,
@@ -14,11 +15,16 @@ use rayon::prelude::*;
 #[derive(Debug)]
 pub struct AdjacencyList<NI, EV> {
     edges: Vec<Vec<Target<NI, EV>>>,
+    layout: CsrLayout,
 }
 
 impl<NI: Idx, EV> AdjacencyList<NI, EV> {
     pub fn new(edges: Vec<Vec<Target<NI, EV>>>) -> Self {
-        Self { edges }
+        Self::with_layout(edges, CsrLayout::Unsorted)
+    }
+
+    pub fn with_layout(edges: Vec<Vec<Target<NI, EV>>>, layout: CsrLayout) -> Self {
+        Self { edges, layout }
     }
 
     #[inline]
@@ -65,6 +71,27 @@ impl<NI: Idx> AdjacencyList<NI, ()> {
         // SAFETY: The types Target<T, ()> and T are verified to have the same
         //         size and alignment.
         unsafe { std::slice::from_raw_parts(targets.as_ptr().cast(), targets.len()) }
+    }
+
+    #[inline]
+    fn insert(&mut self, source: NI, target: Target<NI, ()>) {
+        match self.layout {
+            CsrLayout::Sorted => {
+                let edges = &mut self.edges[source.index()];
+                match edges.binary_search(&target) {
+                    Ok(i) => edges.insert(i, target),
+                    Err(i) => edges.insert(i, target),
+                }
+            }
+            CsrLayout::Unsorted => self.edges[source.index()].push(target),
+            CsrLayout::Deduplicated => {
+                let edges = &mut self.edges[source.index()];
+                match edges.binary_search(&target) {
+                    Ok(_) => {}
+                    Err(i) => edges.insert(i, target),
+                }
+            }
+        };
     }
 }
 
@@ -123,7 +150,7 @@ where
             start.elapsed()
         );
 
-        AdjacencyList::new(edges)
+        AdjacencyList::with_layout(edges, csr_layout)
     }
 }
 
@@ -209,6 +236,26 @@ impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedALGraph<NI
 
     fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.al_inc.targets_with_values(node).iter()
+    }
+}
+
+impl<NI: Idx, NV> EdgeMutation<NI> for DirectedALGraph<NI, NV> {
+    fn add_edge(&mut self, source: NI, target: NI) -> Result<(), crate::Error> {
+        if source >= self.al_out.node_count() {
+            return Err(crate::Error::MissingNode {
+                node: format!("{}", source.index()),
+            });
+        }
+        if target >= self.al_inc.node_count() {
+            return Err(crate::Error::MissingNode {
+                node: format!("{}", target.index()),
+            });
+        }
+
+        self.al_out.insert(source, Target::new(target, ()));
+        self.al_inc.insert(target, Target::new(source, ()));
+
+        Ok(())
     }
 }
 
@@ -555,6 +602,62 @@ mod test {
         assert_eq!(g.node_value(0), &"foo");
         assert_eq!(g.node_value(1), &"bar");
         assert_eq!(g.node_value(2), &"baz");
+    }
+
+    #[test]
+    fn directed_al_graph_add_edge_unsorted() {
+        let mut g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Unsorted)
+            .edges([(0, 2), (1, 2)])
+            .build::<DirectedALGraph<u32>>();
+
+        assert_eq!(g.out_neighbors(0).as_slice(), &[2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.out_neighbors(0).as_slice(), &[2, 1]);
+        g.add_edge(0, 2).expect("add edge failed");
+        assert_eq!(g.out_neighbors(0).as_slice(), &[2, 1, 2]);
+    }
+
+    #[test]
+    fn directed_al_graph_add_edge_sorted() {
+        let mut g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .edges([(0, 2), (1, 2)])
+            .build::<DirectedALGraph<u32>>();
+
+        assert_eq!(g.out_neighbors(0).as_slice(), &[2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.out_neighbors(0).as_slice(), &[1, 1, 2]);
+    }
+
+    #[test]
+    fn directed_al_graph_add_edge_deduplicated() {
+        let mut g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
+            .edges([(0, 2), (1, 2), (1, 3)])
+            .build::<DirectedALGraph<u32>>();
+
+        assert_eq!(g.out_neighbors(0).as_slice(), &[2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
+        g.add_edge(0, 3).expect("add edge failed");
+        assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn directed_al_graph_add_edge_missing_node() {
+        let mut g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Unsorted)
+            .edges([(0, 2), (1, 2)])
+            .build::<DirectedALGraph<u32>>();
+
+        let err = g.add_edge(0, 3).unwrap_err();
+
+        assert!(matches!(err, crate::Error::MissingNode { node } if node == "3" ));
     }
 
     #[test]

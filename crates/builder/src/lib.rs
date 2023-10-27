@@ -208,6 +208,9 @@ pub enum Error {
     InvalidNodeValues,
     #[error("invalid id size, expected {expected:?} bytes, got {actual:?} bytes")]
     InvalidIdType { expected: String, actual: String },
+
+    #[error("node {node:?} does not exist in the graph")]
+    MissingNode { node: String },
 }
 
 impl From<Infallible> for Error {
@@ -318,6 +321,10 @@ pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
     /// connecting edge. For each connected node, the value of the connecting
     /// edge is also returned.
     fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
+}
+
+pub trait EdgeMutation<NI: Idx> {
+    fn add_edge(&mut self, source: NI, target: NI) -> Result<(), Error>;
 }
 
 #[repr(transparent)]
