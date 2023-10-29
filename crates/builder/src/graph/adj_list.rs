@@ -1,9 +1,9 @@
-use crate::EdgeMutation;
 use crate::{
     index::Idx, prelude::Direction, prelude::Edges, prelude::NodeValues as NodeValuesTrait,
     CsrLayout, DirectedDegrees, DirectedNeighbors, DirectedNeighborsWithValues, Graph, Target,
     UndirectedDegrees, UndirectedNeighbors, UndirectedNeighborsWithValues,
 };
+use crate::{EdgeMutation, EdgeMutationWithValues};
 
 use log::info;
 use std::sync::{Mutex, MutexGuard};
@@ -55,6 +55,25 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
                 .expect("Could not aqcuire lock")
                 .len(),
         )
+    }
+
+    #[inline]
+    pub(crate) fn insert(&self, source: NI, target: Target<NI, EV>) {
+        let edges = &mut self.edges[source.index()]
+            .lock()
+            .expect("Could not aqcuire lock");
+
+        match self.layout {
+            CsrLayout::Sorted => match edges.binary_search(&target) {
+                Ok(i) => edges.insert(i, target),
+                Err(i) => edges.insert(i, target),
+            },
+            CsrLayout::Unsorted => edges.push(target),
+            CsrLayout::Deduplicated => match edges.binary_search(&target) {
+                Ok(_) => {}
+                Err(i) => edges.insert(i, target),
+            },
+        };
     }
 }
 
@@ -123,25 +142,6 @@ impl<NI: Idx> AdjacencyList<NI, ()> {
             .expect("Could not acquire lock");
 
         Targets { targets }
-    }
-
-    #[inline]
-    fn insert(&self, source: NI, target: Target<NI, ()>) {
-        let edges = &mut self.edges[source.index()]
-            .lock()
-            .expect("Could not aqcuire lock");
-
-        match self.layout {
-            CsrLayout::Sorted => match edges.binary_search(&target) {
-                Ok(i) => edges.insert(i, target),
-                Err(i) => edges.insert(i, target),
-            },
-            CsrLayout::Unsorted => edges.push(target),
-            CsrLayout::Deduplicated => match edges.binary_search(&target) {
-                Ok(_) => {}
-                Err(i) => edges.insert(i, target),
-            },
-        };
     }
 }
 
@@ -354,6 +354,12 @@ impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedALGraph<NI
 
 impl<NI: Idx, NV> EdgeMutation<NI> for DirectedALGraph<NI, NV> {
     fn add_edge(&self, source: NI, target: NI) -> Result<(), crate::Error> {
+        self.add_edge_with_value(source, target, ())
+    }
+}
+
+impl<NI: Idx, NV, EV: Copy> EdgeMutationWithValues<NI, EV> for DirectedALGraph<NI, NV, EV> {
+    fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), crate::Error> {
         if source >= self.al_out.node_count() {
             return Err(crate::Error::MissingNode {
                 node: format!("{}", source.index()),
@@ -365,8 +371,8 @@ impl<NI: Idx, NV> EdgeMutation<NI> for DirectedALGraph<NI, NV> {
             });
         }
 
-        self.al_out.insert(source, Target::new(target, ()));
-        self.al_inc.insert(target, Target::new(source, ()));
+        self.al_out.insert(source, Target::new(target, value));
+        self.al_inc.insert(target, Target::new(source, value));
 
         Ok(())
     }
@@ -777,6 +783,33 @@ mod test {
         assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2]);
         g.add_edge(0, 3).expect("add edge failed");
         assert_eq!(g.out_neighbors(0).as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn directed_al_graph_add_edge_with_value() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Unsorted)
+            .edges_with_values([(0, 2, 4.2), (1, 2, 13.37)])
+            .build::<DirectedALGraph<u32, (), f32>>();
+
+        assert_eq!(
+            g.out_neighbors_with_values(0).as_slice(),
+            &[Target::new(2, 4.2)]
+        );
+        g.add_edge_with_value(0, 1, 19.84).expect("add edge failed");
+        assert_eq!(
+            g.out_neighbors_with_values(0).as_slice(),
+            &[Target::new(2, 4.2), Target::new(1, 19.84)]
+        );
+        g.add_edge_with_value(0, 2, 3.14).expect("add edge failed");
+        assert_eq!(
+            g.out_neighbors_with_values(0).as_slice(),
+            &[
+                Target::new(2, 4.2),
+                Target::new(1, 19.84),
+                Target::new(2, 3.14)
+            ]
+        );
     }
 
     #[test]

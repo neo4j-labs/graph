@@ -327,6 +327,10 @@ pub trait EdgeMutation<NI: Idx> {
     fn add_edge(&self, source: NI, target: NI) -> Result<(), Error>;
 }
 
+pub trait EdgeMutationWithValues<NI: Idx, EV> {
+    fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), Error>;
+}
+
 #[repr(transparent)]
 pub struct SharedMut<T>(*mut T);
 unsafe impl<T: Send> Send for SharedMut<T> {}
