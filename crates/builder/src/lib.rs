@@ -323,11 +323,26 @@ pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
     fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
 }
 
+/// Allows adding new edges to a graph.
 pub trait EdgeMutation<NI: Idx> {
+    /// Adds a new edge between the given source and target node.
+    ///
+    /// # Errors
+    ///
+    /// If either the source or the target node does not exist,
+    /// the method will return [`Error::MissingNode`].
     fn add_edge(&self, source: NI, target: NI) -> Result<(), Error>;
 }
 
+/// Allows adding new edges to a graph.
 pub trait EdgeMutationWithValues<NI: Idx, EV> {
+    /// Adds a new edge between the given source and target node
+    /// and assigns the given value to it.
+    ///
+    /// # Errors
+    ///
+    /// If either the source or the target node does not exist,
+    /// the method will return [`Error::MissingNode`].
     fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), Error>;
 }
 
