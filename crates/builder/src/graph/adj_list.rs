@@ -489,6 +489,32 @@ impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedALGrap
     }
 }
 
+impl<NI: Idx, NV> EdgeMutation<NI> for UndirectedALGraph<NI, NV, ()> {
+    fn add_edge(&self, source: NI, target: NI) -> Result<(), crate::Error> {
+        self.add_edge_with_value(source, target, ())
+    }
+}
+
+impl<NI: Idx, NV, EV: Copy> EdgeMutationWithValues<NI, EV> for UndirectedALGraph<NI, NV, EV> {
+    fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), crate::Error> {
+        if source >= self.al.node_count() {
+            return Err(crate::Error::MissingNode {
+                node: format!("{}", source.index()),
+            });
+        }
+        if target >= self.al.node_count() {
+            return Err(crate::Error::MissingNode {
+                node: format!("{}", target.index()),
+            });
+        }
+
+        self.al.insert(source, Target::new(target, value));
+        self.al.insert(target, Target::new(source, value));
+
+        Ok(())
+    }
+}
+
 impl<NI, EV, E> From<(E, CsrLayout)> for UndirectedALGraph<NI, (), EV>
 where
     NI: Idx,
@@ -840,6 +866,119 @@ mod test {
         assert_eq!(g.edge_count(), 7);
     }
 
+    #[test]
+    fn undirected_al_graph_add_edge_unsorted() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Unsorted)
+            .edges([(0, 2), (1, 2)])
+            .build::<UndirectedALGraph<u32>>();
+
+        assert_eq!(g.neighbors(0).as_slice(), &[2]);
+        assert_eq!(g.neighbors(1).as_slice(), &[2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.neighbors(0).as_slice(), &[2, 1]);
+        assert_eq!(g.neighbors(1).as_slice(), &[2, 0]);
+        g.add_edge(0, 2).expect("add edge failed");
+        assert_eq!(g.neighbors(0).as_slice(), &[2, 1, 2]);
+    }
+
+    #[test]
+    fn undirected_al_graph_add_edge_sorted() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .edges([(0, 2), (1, 2)])
+            .build::<UndirectedALGraph<u32>>();
+
+        assert_eq!(g.neighbors(0).as_slice(), &[2]);
+        assert_eq!(g.neighbors(1).as_slice(), &[2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.neighbors(0).as_slice(), &[1, 2]);
+        assert_eq!(g.neighbors(1).as_slice(), &[0, 2]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.neighbors(0).as_slice(), &[1, 1, 2]);
+    }
+
+    #[test]
+    fn undirected_al_graph_add_edge_deduplicated() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
+            .edges([(0, 2), (1, 2), (1, 3)])
+            .build::<UndirectedALGraph<u32>>();
+
+        assert_eq!(g.neighbors(0).as_slice(), &[2]);
+        assert_eq!(g.neighbors(1).as_slice(), &[2, 3]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.neighbors(0).as_slice(), &[1, 2]);
+        assert_eq!(g.neighbors(1).as_slice(), &[0, 2, 3]);
+        g.add_edge(0, 1).expect("add edge failed");
+        assert_eq!(g.neighbors(0).as_slice(), &[1, 2]);
+        assert_eq!(g.neighbors(1).as_slice(), &[0, 2, 3]);
+        g.add_edge(0, 3).expect("add edge failed");
+        assert_eq!(g.neighbors(0).as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn undirected_al_graph_add_edge_with_value() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Unsorted)
+            .edges_with_values([(0, 2, 4.2), (1, 2, 13.37)])
+            .build::<UndirectedALGraph<u32, (), f32>>();
+
+        assert_eq!(
+            g.neighbors_with_values(0).as_slice(),
+            &[Target::new(2, 4.2)]
+        );
+        assert_eq!(
+            g.neighbors_with_values(1).as_slice(),
+            &[Target::new(2, 13.37)]
+        );
+        g.add_edge_with_value(0, 1, 19.84).expect("add edge failed");
+        assert_eq!(
+            g.neighbors_with_values(0).as_slice(),
+            &[Target::new(2, 4.2), Target::new(1, 19.84)]
+        );
+        assert_eq!(
+            g.neighbors_with_values(1).as_slice(),
+            &[Target::new(2, 13.37), Target::new(0, 19.84)]
+        );
+        g.add_edge_with_value(0, 2, 3.14).expect("add edge failed");
+        assert_eq!(
+            g.neighbors_with_values(0).as_slice(),
+            &[
+                Target::new(2, 4.2),
+                Target::new(1, 19.84),
+                Target::new(2, 3.14)
+            ]
+        );
+    }
+
+    #[test]
+    fn undirected_al_graph_add_edge_missing_node() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Unsorted)
+            .edges([(0, 2), (1, 2)])
+            .build::<UndirectedALGraph<u32>>();
+
+        let err = g.add_edge(0, 3).unwrap_err();
+
+        assert!(matches!(err, crate::Error::MissingNode { node } if node == "3" ));
+    }
+
+    #[test]
+    fn undirected_al_graph_add_edge_parallel() {
+        let g = GraphBuilder::new()
+            .csr_layout(CsrLayout::Unsorted)
+            .edges([(0, 1), (0, 2), (0, 3)])
+            .build::<UndirectedALGraph<u32>>();
+
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                scope.spawn(|| g.add_edge(0, 1));
+            }
+        });
+
+        assert_eq!(g.edge_count(), 7);
+    }
     #[test]
     fn undirected_al_graph() {
         let g = GraphBuilder::new()
