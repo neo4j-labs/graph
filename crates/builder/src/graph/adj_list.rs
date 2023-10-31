@@ -203,10 +203,14 @@ where
         (edge_list, node_count, direction, csr_layout): (&'_ E, NI, Direction, CsrLayout),
     ) -> Self {
         let start = Instant::now();
-        let mut thread_safe_vec = Vec::with_capacity(node_count.index());
-        thread_safe_vec.resize_with(node_count.index(), || Mutex::new(Vec::new()));
-        let thread_safe_vec = thread_safe_vec;
+        let thread_safe_vec = edge_list
+            .degrees(node_count, direction)
+            .into_par_iter()
+            .map(|degree| Mutex::new(Vec::with_capacity(degree.into_inner().index())))
+            .collect::<Vec<_>>();
+        info!("Initialized adjacency list in {:?}", start.elapsed());
 
+        let start = Instant::now();
         edge_list.edges().for_each(|(s, t, v)| {
             if matches!(direction, Direction::Outgoing | Direction::Undirected) {
                 thread_safe_vec[s.index()]
