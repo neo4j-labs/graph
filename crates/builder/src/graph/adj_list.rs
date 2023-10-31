@@ -827,13 +827,13 @@ mod test {
             g.out_neighbors_with_values(0).as_slice(),
             &[Target::new(2, 4.2), Target::new(1, 19.84)]
         );
-        g.add_edge_with_value(0, 2, 3.14).expect("add edge failed");
+        g.add_edge_with_value(0, 2, 1.23).expect("add edge failed");
         assert_eq!(
             g.out_neighbors_with_values(0).as_slice(),
             &[
                 Target::new(2, 4.2),
                 Target::new(1, 19.84),
-                Target::new(2, 3.14)
+                Target::new(2, 1.23)
             ]
         );
     }
@@ -941,13 +941,13 @@ mod test {
             g.neighbors_with_values(1).as_slice(),
             &[Target::new(2, 13.37), Target::new(0, 19.84)]
         );
-        g.add_edge_with_value(0, 2, 3.14).expect("add edge failed");
+        g.add_edge_with_value(0, 2, 1.23).expect("add edge failed");
         assert_eq!(
             g.neighbors_with_values(0).as_slice(),
             &[
                 Target::new(2, 4.2),
                 Target::new(1, 19.84),
-                Target::new(2, 3.14)
+                Target::new(2, 1.23)
             ]
         );
     }
