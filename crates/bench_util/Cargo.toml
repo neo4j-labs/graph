@@ -14,7 +14,7 @@ license.workspace = true
 async-compression.workspace = true
 directories.workspace = true
 futures.workspace = true
-graph_builder = { path = "../builder", version = "^0.3.1", features = ["dotgraph", "gdl"] }
+graph_builder = { path = "../builder", version = "^0.4.0", features = ["dotgraph", "gdl"] }
 rand.workspace = true
 reqwest.workspace = true
 tokio-tar.workspace = true
