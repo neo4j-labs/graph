@@ -18,6 +18,14 @@ pub struct AdjacencyList<NI, EV> {
     layout: CsrLayout,
 }
 
+const _: () = {
+    const fn is_send<T: Send>() {}
+    const fn is_sync<T: Sync>() {}
+
+    is_send::<AdjacencyList<u64, ()>>();
+    is_sync::<AdjacencyList<u64, ()>>();
+};
+
 impl<NI: Idx, EV> AdjacencyList<NI, EV> {
     pub fn new(edges: Vec<Vec<Target<NI, EV>>>) -> Self {
         Self::with_layout(edges, CsrLayout::Unsorted)
