@@ -82,6 +82,8 @@ impl<'slice, NI: Idx> Targets<'slice, NI> {
         );
         // SAFETY: The types Target<T, ()> and T are verified to have the same
         //         size and alignment.
+        //         We can upcast the lifetime since the MutexGuard
+        //         is not exposed, so it is not possible to deref mutable.
         unsafe { std::slice::from_raw_parts(self.targets.as_ptr().cast(), self.targets.len()) }
     }
 }
