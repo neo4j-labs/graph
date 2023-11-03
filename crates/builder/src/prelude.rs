@@ -32,4 +32,7 @@ pub use crate::UndirectedDegrees;
 pub use crate::UndirectedNeighbors;
 pub use crate::UndirectedNeighborsWithValues;
 
+pub use crate::EdgeMutation;
+pub use crate::EdgeMutationWithValues;
+
 pub use crate::Error;

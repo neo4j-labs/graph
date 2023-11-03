@@ -163,6 +163,92 @@
 //!     &[Target::new(0, 0.5)]
 //! );
 //! ```
+//!
+//! # Types of graphs
+//!
+//! The crate currently ships with two graph implementations:
+//!
+//! ## Compressed Sparse Row (CSR)
+//!
+//! [CSR](https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_row_(CSR,_CRS_or_Yale_format))
+//! is a data structure used for representing a sparse matrix. Since graphs can be modelled as adjacency
+//! matrix and are typically very sparse, i.e., not all possible pairs of nodes are connected
+//! by an edge, the CSR representation is very well suited for representing a real-world graph topology.
+//!
+//! In our current implementation, we use two arrays two model the edges. One array stores the adjacency
+//! lists for all nodes consecutively which requires `O(edge_count)` space. The other array stores the
+//! offset for each node in the first array where the corresponding adjacency list can be found which
+//! requires `O(node_count)` space. The degree of a node can be inferred from the offset array.
+//!
+//! Our CSR implementation is immutable, i.e., once built, the topology of the graph cannot be altered as
+//! it would require inserting target ids and shifting all elements to the right which is expensive and
+//! invalidates all offsets coming afterwards. However, building the CSR data structure from a list of
+//! edges is implement very efficiently using multi-threading.
+//!
+//! However, due to inlining the all adjacency lists in one `Vec`, access becomes very cache-friendly,
+//! as there is a chance that the adjacency list of the next node is already cached. Also, reading the
+//! graph from multiple threads is safe, as there will be never be a concurrent mutable access.
+//!
+//! One can use [`DirectedCsrGraph`] or [`UndirectedCsrGraph`] to build a CSR-based graph:
+//!
+//! ```
+//! use graph_builder::prelude::*;
+//!
+//! let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+//!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
+//!     .build();
+//!
+//! assert_eq!(graph.node_count(), 4);
+//! assert_eq!(graph.edge_count(), 5);
+//!
+//! assert_eq!(graph.out_degree(1), 2);
+//! assert_eq!(graph.in_degree(1), 1);
+//!
+//! assert_eq!(graph.out_neighbors(1).as_slice(), &[2, 3]);
+//! assert_eq!(graph.in_neighbors(1).as_slice(), &[0]);
+//! ```
+//!
+//! ## Adjacency List (AL)
+//!
+//! In the Adjacency List implementation, we essentially store the graph as `Vec<Vec<ID>>`. The outer
+//! `Vec` has a length of `node_count` and at each index, we store the neighbors for that particular
+//! node in its own, heap-allocated `Vec`.
+//!
+//! The downside of that representation is that - compared to CSR - it is expected to be slower, both
+//! in building it and also in reading from it, as cache misses are becoming more likely due to the
+//! isolated heap allocations for individual neighbor lists.
+//!
+//! However, in contrast to CSR, an adjacency list is mutable, i.e., it is possible to add edges to the
+//! graph even after it has been built. This makes the data structure interesting for more flexible graph
+//! construction frameworks or for algorithms that need to add new edges as part of the computation.
+//! Currently, adding edges is constrained by source and target node already existing in the graph.
+//!
+//! Internally, the individual neighbor lists for each node are protected by a `Mutex` in order to support
+//! parallel read and write operations on the graph topology.
+//!
+//! One can use [`DirectedALGraph`] or [`UndirectedALGraph`] to build a Adjacency-List-based graph:
+//!
+//! ```
+//! use graph_builder::prelude::*;
+//!
+//! let graph: DirectedALGraph<usize> = GraphBuilder::new()
+//!     .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)])
+//!     .build();
+//!
+//! assert_eq!(graph.node_count(), 4);
+//! assert_eq!(graph.edge_count(), 5);
+//!
+//! assert_eq!(graph.out_degree(1), 2);
+//! assert_eq!(graph.in_degree(1), 1);
+//!
+//! assert_eq!(graph.out_neighbors(1).as_slice(), &[2, 3]);
+//! assert_eq!(graph.in_neighbors(1).as_slice(), &[0]);
+//!
+//! // Let's mutate the graph by adding another edge
+//! graph.add_edge(1, 0);
+//! assert_eq!(graph.edge_count(), 6);
+//! assert_eq!(graph.out_neighbors(1).as_slice(), &[2, 3, 0]);
+//! ```
 
 pub mod builder;
 mod compat;
@@ -173,6 +259,8 @@ pub mod input;
 pub mod prelude;
 
 pub use crate::builder::GraphBuilder;
+pub use crate::graph::adj_list::DirectedALGraph;
+pub use crate::graph::adj_list::UndirectedALGraph;
 pub use crate::graph::csr::CsrLayout;
 pub use crate::graph::csr::DirectedCsrGraph;
 pub use crate::graph::csr::UndirectedCsrGraph;
@@ -208,6 +296,9 @@ pub enum Error {
     InvalidNodeValues,
     #[error("invalid id size, expected {expected:?} bytes, got {actual:?} bytes")]
     InvalidIdType { expected: String, actual: String },
+
+    #[error("node {node:?} does not exist in the graph")]
+    MissingNode { node: String },
 }
 
 impl From<Infallible> for Error {
@@ -318,6 +409,29 @@ pub trait DirectedNeighborsWithValues<NI: Idx, EV> {
     /// connecting edge. For each connected node, the value of the connecting
     /// edge is also returned.
     fn in_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_>;
+}
+
+/// Allows adding new edges to a graph.
+pub trait EdgeMutation<NI: Idx> {
+    /// Adds a new edge between the given source and target node.
+    ///
+    /// # Errors
+    ///
+    /// If either the source or the target node does not exist,
+    /// the method will return [`Error::MissingNode`].
+    fn add_edge(&self, source: NI, target: NI) -> Result<(), Error>;
+}
+
+/// Allows adding new edges to a graph.
+pub trait EdgeMutationWithValues<NI: Idx, EV> {
+    /// Adds a new edge between the given source and target node
+    /// and assigns the given value to it.
+    ///
+    /// # Errors
+    ///
+    /// If either the source or the target node does not exist,
+    /// the method will return [`Error::MissingNode`].
+    fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), Error>;
 }
 
 #[repr(transparent)]
