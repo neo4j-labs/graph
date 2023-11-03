@@ -49,7 +49,7 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
 
     #[inline]
     pub(crate) fn insert(&self, source: NI, target: Target<NI, EV>) {
-        let edges = &mut self.edges[source.index()].lock().unwrap();
+        let mut edges = self.edges[source.index()].lock().unwrap();
 
         match self.layout {
             CsrLayout::Sorted => match edges.binary_search(&target) {
