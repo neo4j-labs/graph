@@ -39,29 +39,17 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
         NI: Send + Sync,
         EV: Send + Sync,
     {
-        NI::new(
-            self.edges
-                .par_iter()
-                .map(|v| v.lock().expect("Could not acquire lock").len())
-                .sum(),
-        )
+        NI::new(self.edges.par_iter().map(|v| v.lock().unwrap().len()).sum())
     }
 
     #[inline]
     pub(crate) fn degree(&self, node: NI) -> NI {
-        NI::new(
-            self.edges[node.index()]
-                .lock()
-                .expect("Could not aqcuire lock")
-                .len(),
-        )
+        NI::new(self.edges[node.index()].lock().unwrap().len())
     }
 
     #[inline]
     pub(crate) fn insert(&self, source: NI, target: Target<NI, EV>) {
-        let edges = &mut self.edges[source.index()]
-            .lock()
-            .expect("Could not aqcuire lock");
+        let edges = &mut self.edges[source.index()].lock().unwrap();
 
         match self.layout {
             CsrLayout::Sorted => match edges.binary_search(&target) {
@@ -137,9 +125,7 @@ impl<NI: Idx> AdjacencyList<NI, ()> {
     where
         'list: 'slice,
     {
-        let targets = self.edges[node.index()]
-            .lock()
-            .expect("Could not acquire lock");
+        let targets = self.edges[node.index()].lock().unwrap();
 
         Targets { targets }
     }
@@ -201,9 +187,7 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
         'list: 'slice,
     {
         TargetsWithValues {
-            targets: self.edges[node.index()]
-                .lock()
-                .expect("Could not aqcuire lock"),
+            targets: self.edges[node.index()].lock().unwrap(),
         }
     }
 }
@@ -226,13 +210,13 @@ where
             if matches!(direction, Direction::Outgoing | Direction::Undirected) {
                 thread_safe_vec[s.index()]
                     .lock()
-                    .expect("Cannot lock node-local list")
+                    .unwrap()
                     .push(Target::new(t, v));
             }
             if matches!(direction, Direction::Incoming | Direction::Undirected) {
                 thread_safe_vec[t.index()]
                     .lock()
-                    .expect("Cannot lock node-local list")
+                    .unwrap()
                     .push(Target::new(s, v));
             }
         });
@@ -243,7 +227,7 @@ where
         thread_safe_vec
             .into_par_iter()
             .map(|list| {
-                let mut list = list.into_inner().expect("Cannot move out of Mutex");
+                let mut list = list.into_inner().unwrap();
 
                 match csr_layout {
                     CsrLayout::Sorted => list.sort_unstable_by_key(|t| t.target),
