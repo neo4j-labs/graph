@@ -121,10 +121,7 @@ impl<'slice, NI: Idx> Iterator for TargetsIter<'slice, NI> {
 
 impl<NI: Idx> AdjacencyList<NI, ()> {
     #[inline]
-    pub(crate) fn targets<'list, 'slice>(&'list self, node: NI) -> Targets<'slice, NI>
-    where
-        'list: 'slice,
-    {
+    pub(crate) fn targets(&self, node: NI) -> Targets<'_, NI> {
         let targets = self.edges[node.index()].lock().unwrap();
 
         Targets { targets }
@@ -179,13 +176,7 @@ impl<'slice, NI: Idx, EV> Iterator for TargetsWithValuesIter<'slice, NI, EV> {
 
 impl<NI: Idx, EV> AdjacencyList<NI, EV> {
     #[inline]
-    pub(crate) fn targets_with_values<'list, 'slice>(
-        &'list self,
-        node: NI,
-    ) -> TargetsWithValues<'slice, NI, EV>
-    where
-        'list: 'slice,
-    {
+    pub(crate) fn targets_with_values(&self, node: NI) -> TargetsWithValues<'_, NI, EV> {
         TargetsWithValues {
             targets: self.edges[node.index()].lock().unwrap(),
         }
