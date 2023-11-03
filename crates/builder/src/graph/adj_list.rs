@@ -308,7 +308,7 @@ impl<NI: Idx, NV, EV> DirectedDegrees<NI> for DirectedALGraph<NI, NV, EV> {
 impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedALGraph<NI, NV, ()> {
     type NeighborsIterator<'a> = TargetsIter<'a, NI> where NV: 'a;
 
-    fn out_neighbors<'slice>(&self, node: NI) -> Self::NeighborsIterator<'_> {
+    fn out_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.al_out.targets(node).into_iter()
     }
 
