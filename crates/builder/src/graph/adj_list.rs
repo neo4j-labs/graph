@@ -58,35 +58,13 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
     #[inline]
     pub(crate) fn insert(&self, source: NI, target: Target<NI, EV>) {
         let mut edges = self.edges[source.index()].write().unwrap();
-
-        match self.layout {
-            CsrLayout::Sorted => match edges.binary_search(&target) {
-                Ok(i) => edges.insert(i, target),
-                Err(i) => edges.insert(i, target),
-            },
-            CsrLayout::Unsorted => edges.push(target),
-            CsrLayout::Deduplicated => match edges.binary_search(&target) {
-                Ok(_) => {}
-                Err(i) => edges.insert(i, target),
-            },
-        };
+        Self::apply_layout(self.layout, &mut edges, target);
     }
 
     #[inline]
     pub(crate) fn insert_mut(&mut self, source: NI, target: Target<NI, EV>) {
         let edges = self.edges[source.index()].get_mut().unwrap();
-
-        match self.layout {
-            CsrLayout::Sorted => match edges.binary_search(&target) {
-                Ok(i) => edges.insert(i, target),
-                Err(i) => edges.insert(i, target),
-            },
-            CsrLayout::Unsorted => edges.push(target),
-            CsrLayout::Deduplicated => match edges.binary_search(&target) {
-                Ok(_) => {}
-                Err(i) => edges.insert(i, target),
-            },
-        };
+        Self::apply_layout(self.layout, edges, target);
     }
 
     #[inline]
@@ -97,6 +75,21 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
             });
         };
         Ok(())
+    }
+
+    #[inline]
+    fn apply_layout(layout: CsrLayout, edges: &mut Vec<Target<NI, EV>>, target: Target<NI, EV>) {
+        match layout {
+            CsrLayout::Sorted => match edges.binary_search(&target) {
+                Ok(i) => edges.insert(i, target),
+                Err(i) => edges.insert(i, target),
+            },
+            CsrLayout::Unsorted => edges.push(target),
+            CsrLayout::Deduplicated => match edges.binary_search(&target) {
+                Ok(_) => {}
+                Err(i) => edges.insert(i, target),
+            },
+        };
     }
 }
 
