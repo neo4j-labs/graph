@@ -420,6 +420,16 @@ pub trait EdgeMutation<NI: Idx> {
     /// If either the source or the target node does not exist,
     /// the method will return [`Error::MissingNode`].
     fn add_edge(&self, source: NI, target: NI) -> Result<(), Error>;
+
+    /// Adds a new edge between the given source and target node.
+    ///
+    /// Does not require locking the node-local list due to `&mut self`.
+    ///
+    /// # Errors
+    ///
+    /// If either the source or the target node does not exist,
+    /// the method will return [`Error::MissingNode`].
+    fn add_edge_mut(&mut self, source: NI, target: NI) -> Result<(), Error>;
 }
 
 /// Allows adding new edges to a graph.
@@ -432,6 +442,17 @@ pub trait EdgeMutationWithValues<NI: Idx, EV> {
     /// If either the source or the target node does not exist,
     /// the method will return [`Error::MissingNode`].
     fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), Error>;
+
+    /// Adds a new edge between the given source and target node
+    /// and assigns the given value to it.
+    ///
+    /// Does not require locking the node-local list due to `&mut self`.
+    ///
+    /// # Errors
+    ///
+    /// If either the source or the target node does not exist,
+    /// the method will return [`Error::MissingNode`].
+    fn add_edge_with_value_mut(&mut self, source: NI, target: NI, value: EV) -> Result<(), Error>;
 }
 
 #[repr(transparent)]
