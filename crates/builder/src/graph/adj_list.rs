@@ -71,6 +71,33 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
             },
         };
     }
+
+    #[inline]
+    pub(crate) fn insert_mut(&mut self, source: NI, target: Target<NI, EV>) {
+        let edges = self.edges[source.index()].get_mut().unwrap();
+
+        match self.layout {
+            CsrLayout::Sorted => match edges.binary_search(&target) {
+                Ok(i) => edges.insert(i, target),
+                Err(i) => edges.insert(i, target),
+            },
+            CsrLayout::Unsorted => edges.push(target),
+            CsrLayout::Deduplicated => match edges.binary_search(&target) {
+                Ok(_) => {}
+                Err(i) => edges.insert(i, target),
+            },
+        };
+    }
+
+    #[inline]
+    fn check_bounds(&self, node: NI) -> Result<(), crate::Error> {
+        if node >= self.node_count() {
+            return Err(crate::Error::MissingNode {
+                node: format!("{}", node.index()),
+            });
+        };
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -345,23 +372,32 @@ impl<NI: Idx, NV> EdgeMutation<NI> for DirectedALGraph<NI, NV> {
     fn add_edge(&self, source: NI, target: NI) -> Result<(), crate::Error> {
         self.add_edge_with_value(source, target, ())
     }
+
+    fn add_edge_mut(&mut self, source: NI, target: NI) -> Result<(), crate::Error> {
+        self.add_edge_with_value_mut(source, target, ())
+    }
 }
 
 impl<NI: Idx, NV, EV: Copy> EdgeMutationWithValues<NI, EV> for DirectedALGraph<NI, NV, EV> {
     fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), crate::Error> {
-        if source >= self.al_out.node_count() {
-            return Err(crate::Error::MissingNode {
-                node: format!("{}", source.index()),
-            });
-        }
-        if target >= self.al_inc.node_count() {
-            return Err(crate::Error::MissingNode {
-                node: format!("{}", target.index()),
-            });
-        }
-
+        self.al_out.check_bounds(source)?;
+        self.al_inc.check_bounds(target)?;
         self.al_out.insert(source, Target::new(target, value));
         self.al_inc.insert(target, Target::new(source, value));
+
+        Ok(())
+    }
+
+    fn add_edge_with_value_mut(
+        &mut self,
+        source: NI,
+        target: NI,
+        value: EV,
+    ) -> Result<(), crate::Error> {
+        self.al_out.check_bounds(source)?;
+        self.al_inc.check_bounds(target)?;
+        self.al_out.insert_mut(source, Target::new(target, value));
+        self.al_inc.insert_mut(target, Target::new(source, value));
 
         Ok(())
     }
@@ -482,23 +518,32 @@ impl<NI: Idx, NV> EdgeMutation<NI> for UndirectedALGraph<NI, NV, ()> {
     fn add_edge(&self, source: NI, target: NI) -> Result<(), crate::Error> {
         self.add_edge_with_value(source, target, ())
     }
+
+    fn add_edge_mut(&mut self, source: NI, target: NI) -> Result<(), crate::Error> {
+        self.add_edge_with_value_mut(source, target, ())
+    }
 }
 
 impl<NI: Idx, NV, EV: Copy> EdgeMutationWithValues<NI, EV> for UndirectedALGraph<NI, NV, EV> {
     fn add_edge_with_value(&self, source: NI, target: NI, value: EV) -> Result<(), crate::Error> {
-        if source >= self.al.node_count() {
-            return Err(crate::Error::MissingNode {
-                node: format!("{}", source.index()),
-            });
-        }
-        if target >= self.al.node_count() {
-            return Err(crate::Error::MissingNode {
-                node: format!("{}", target.index()),
-            });
-        }
-
+        self.al.check_bounds(source)?;
+        self.al.check_bounds(target)?;
         self.al.insert(source, Target::new(target, value));
         self.al.insert(target, Target::new(source, value));
+
+        Ok(())
+    }
+
+    fn add_edge_with_value_mut(
+        &mut self,
+        source: NI,
+        target: NI,
+        value: EV,
+    ) -> Result<(), crate::Error> {
+        self.al.check_bounds(source)?;
+        self.al.check_bounds(target)?;
+        self.al.insert_mut(source, Target::new(target, value));
+        self.al.insert_mut(target, Target::new(source, value));
 
         Ok(())
     }
