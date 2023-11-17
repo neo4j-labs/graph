@@ -3,7 +3,7 @@ black
 black[jupyter]
 flake8
 isort
-maturin==0.14.0b7
+maturin
 mypy
 pandas
 pytest
