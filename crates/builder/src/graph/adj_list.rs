@@ -6,7 +6,7 @@ use crate::{
 use crate::{EdgeMutation, EdgeMutationWithValues};
 
 use log::info;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{RwLock, RwLockReadGuard};
 use std::time::Instant;
 
 use crate::graph::csr::NodeValues;
@@ -14,7 +14,7 @@ use rayon::prelude::*;
 
 #[derive(Debug)]
 pub struct AdjacencyList<NI, EV> {
-    edges: Vec<Mutex<Vec<Target<NI, EV>>>>,
+    edges: Vec<RwLock<Vec<Target<NI, EV>>>>,
     layout: CsrLayout,
 }
 
@@ -32,7 +32,7 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
     }
 
     pub fn with_layout(edges: Vec<Vec<Target<NI, EV>>>, layout: CsrLayout) -> Self {
-        let edges = edges.into_iter().map(Mutex::new).collect::<_>();
+        let edges = edges.into_iter().map(RwLock::new).collect::<_>();
         Self { edges, layout }
     }
 
@@ -47,17 +47,17 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
         NI: Send + Sync,
         EV: Send + Sync,
     {
-        NI::new(self.edges.par_iter().map(|v| v.lock().unwrap().len()).sum())
+        NI::new(self.edges.par_iter().map(|v| v.read().unwrap().len()).sum())
     }
 
     #[inline]
     pub(crate) fn degree(&self, node: NI) -> NI {
-        NI::new(self.edges[node.index()].lock().unwrap().len())
+        NI::new(self.edges[node.index()].read().unwrap().len())
     }
 
     #[inline]
     pub(crate) fn insert(&self, source: NI, target: Target<NI, EV>) {
-        let mut edges = self.edges[source.index()].lock().unwrap();
+        let mut edges = self.edges[source.index()].write().unwrap();
 
         match self.layout {
             CsrLayout::Sorted => match edges.binary_search(&target) {
@@ -75,7 +75,7 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
 
 #[derive(Debug)]
 pub struct Targets<'slice, NI: Idx> {
-    targets: MutexGuard<'slice, Vec<Target<NI, ()>>>,
+    targets: RwLockReadGuard<'slice, Vec<Target<NI, ()>>>,
 }
 
 impl<'slice, NI: Idx> Targets<'slice, NI> {
@@ -132,7 +132,7 @@ impl<'slice, NI: Idx> Iterator for TargetsIter<'slice, NI> {
 impl<NI: Idx> AdjacencyList<NI, ()> {
     #[inline]
     pub(crate) fn targets(&self, node: NI) -> Targets<'_, NI> {
-        let targets = self.edges[node.index()].lock().unwrap();
+        let targets = self.edges[node.index()].read().unwrap();
 
         Targets { targets }
     }
@@ -140,7 +140,7 @@ impl<NI: Idx> AdjacencyList<NI, ()> {
 
 #[derive(Debug)]
 pub struct TargetsWithValues<'slice, NI: Idx, EV> {
-    targets: MutexGuard<'slice, Vec<Target<NI, EV>>>,
+    targets: RwLockReadGuard<'slice, Vec<Target<NI, EV>>>,
 }
 
 impl<'slice, NI: Idx, EV> TargetsWithValues<'slice, NI, EV> {
@@ -188,7 +188,7 @@ impl<NI: Idx, EV> AdjacencyList<NI, EV> {
     #[inline]
     pub(crate) fn targets_with_values(&self, node: NI) -> TargetsWithValues<'_, NI, EV> {
         TargetsWithValues {
-            targets: self.edges[node.index()].lock().unwrap(),
+            targets: self.edges[node.index()].read().unwrap(),
         }
     }
 }
@@ -206,7 +206,7 @@ where
         let thread_safe_vec = edge_list
             .degrees(node_count, direction)
             .into_par_iter()
-            .map(|degree| Mutex::new(Vec::with_capacity(degree.into_inner().index())))
+            .map(|degree| RwLock::new(Vec::with_capacity(degree.into_inner().index())))
             .collect::<Vec<_>>();
         info!("Initialized adjacency list in {:?}", start.elapsed());
 
@@ -214,13 +214,13 @@ where
         edge_list.edges().for_each(|(s, t, v)| {
             if matches!(direction, Direction::Outgoing | Direction::Undirected) {
                 thread_safe_vec[s.index()]
-                    .lock()
+                    .write()
                     .unwrap()
                     .push(Target::new(t, v));
             }
             if matches!(direction, Direction::Incoming | Direction::Undirected) {
                 thread_safe_vec[t.index()]
-                    .lock()
+                    .write()
                     .unwrap()
                     .push(Target::new(s, v));
             }
