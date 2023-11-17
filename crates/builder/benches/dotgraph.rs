@@ -1,9 +1,11 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
 use graph_builder::prelude::*;
 
-use bench_util::*;
 use graph_builder::input::dotgraph::{LabelStats, NodeLabelIndex};
 use rand::Rng;
+
+mod common;
+use common::*;
 
 fn label_stats(c: &mut Criterion) {
     let mut group = c.benchmark_group("label_stats");

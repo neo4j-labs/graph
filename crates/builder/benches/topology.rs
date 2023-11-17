@@ -3,8 +3,10 @@ use criterion::*;
 use graph_builder::graph::csr::Csr;
 use graph_builder::prelude::*;
 
-use bench_util::*;
 use graph_builder::graph::adj_list::{AdjacencyList, DirectedALGraph};
+
+mod common;
+use common::*;
 
 fn csr(c: &mut Criterion) {
     let mut group = c.benchmark_group("csr_from_edge_list");

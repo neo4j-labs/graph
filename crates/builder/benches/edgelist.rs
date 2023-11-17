@@ -1,7 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
 use graph_builder::prelude::*;
 
-use bench_util::*;
+mod common;
+use common::*;
 
 fn max_node_id(c: &mut Criterion) {
     let mut group = c.benchmark_group("max_node_id");
