@@ -206,7 +206,6 @@ jobs:
         with:
           target: x86_64
           args: ${{ env.MATURIN_ARGS }} --sdist
-          maturin-version: "v0.14.0-beta.7"
       - name: Install built wheel - x86_64
         run: |
           pip install dist/${{ env.PY_PACKAGE_NAME }}-*.whl --force-reinstall
@@ -241,7 +240,6 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           args: ${{ env.MATURIN_ARGS }} --universal2
-          maturin-version: "v0.14.0-beta.7"
       - name: Install built wheel - universal2
         run: |
           pip install dist/${{ env.PY_PACKAGE_NAME }}-*universal2.whl --force-reinstall
@@ -280,7 +278,6 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: ${{ env.MATURIN_ARGS }}
-          maturin-version: "v0.14.0-beta.7"
       - name: Install built wheel
         shell: bash
         run: |
@@ -321,7 +318,6 @@ jobs:
           target: ${{ matrix.target }}
           manylinux: auto
           args: ${{ env.MATURIN_ARGS }}
-          maturin-version: "v0.14.0-beta.7"
       - name: Install built wheel
         if: matrix.target == 'x86_64'
         run: |
