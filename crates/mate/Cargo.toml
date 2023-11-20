@@ -21,7 +21,7 @@ default = []
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
-graph = { path = "../algos", version = "^0.3.0" }
+graph = { path = "../algos", version = "^0.3.1" }
 log.workspace = true
 numpy.workspace = true
 pyo3-log.workspace = true
