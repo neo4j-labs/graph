@@ -23,7 +23,7 @@ polars.workspace = true
 
 [dependencies.graph]
 path = "../algos"
-version = "^0.3.0"
+version = "^0.3.1"
 features = ["clap"]
 
 [dependencies.kommandozeile]

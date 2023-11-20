@@ -19,7 +19,7 @@ async-trait.workspace = true
 clap.workspace = true
 env_logger.workspace = true
 futures.workspace = true
-graph = { path = "../algos", version = "^0.3.0", features = ["serde"] }
+graph = { path = "../algos", version = "^0.3.1", features = ["serde"] }
 itertools.workspace = true
 log.workspace = true
 parking_lot.workspace = true
