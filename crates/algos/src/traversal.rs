@@ -1,7 +1,6 @@
-use std::{
-    collections::{HashSet, VecDeque},
-    hash::Hash,
-};
+use std::{collections::VecDeque, hash::Hash};
+
+use bitvec::prelude::*;
 
 use crate::prelude::*;
 
@@ -19,7 +18,7 @@ where
 
 pub struct DirectedDepthFirst<'a, G, NI> {
     graph: &'a G,
-    visited: HashSet<NI>,
+    visited: BitVec<usize>,
     stack: Vec<NI>,
     direction: Direction,
 }
@@ -32,7 +31,7 @@ where
     pub fn new(graph: &'a G, node_id: NI, direction: Direction) -> Self {
         Self {
             graph,
-            visited: HashSet::new(),
+            visited: BitVec::repeat(false, graph.node_count().index()),
             stack: Vec::from_iter([node_id]),
             direction,
         }
@@ -42,7 +41,7 @@ where
         loop {
             let node_id = self.stack.pop()?;
 
-            if self.visited.insert(node_id) {
+            if !self.visited.replace(node_id.index(), true) {
                 return Some(node_id);
             }
         }
@@ -52,7 +51,7 @@ where
         let neighbors = self
             .graph
             .out_neighbors(node_id)
-            .filter(|&node_id| !self.visited.contains(node_id));
+            .filter(|&node_id| !self.visited[node_id.index()]);
         self.stack.extend(neighbors);
     }
 
@@ -60,7 +59,7 @@ where
         let neighbors = self
             .graph
             .in_neighbors(node_id)
-            .filter(|&node_id| !self.visited.contains(node_id));
+            .filter(|&node_id| !self.visited[node_id.index()]);
         self.stack.extend(neighbors);
     }
 }
@@ -98,7 +97,7 @@ where
 
 pub struct UndirectedDepthFirst<'a, G, NI> {
     graph: &'a G,
-    visited: HashSet<NI>,
+    visited: BitVec<usize>,
     stack: Vec<NI>,
 }
 
@@ -110,7 +109,7 @@ where
     pub fn new(graph: &'a G, node_id: NI) -> Self {
         Self {
             graph,
-            visited: HashSet::new(),
+            visited: BitVec::repeat(false, graph.node_count().index()),
             stack: Vec::from_iter([node_id]),
         }
     }
@@ -119,7 +118,7 @@ where
         loop {
             let node_id = self.stack.pop()?;
 
-            if self.visited.insert(node_id) {
+            if !self.visited.replace(node_id.index(), true) {
                 return Some(node_id);
             }
         }
@@ -129,7 +128,7 @@ where
         let neighbors = self
             .graph
             .neighbors(node_id)
-            .filter(|&node_id| !self.visited.contains(node_id));
+            .filter(|&node_id| !self.visited[node_id.index()]);
         self.stack.extend(neighbors);
     }
 }
@@ -164,7 +163,7 @@ where
 
 pub struct DirectedBreadthFirst<'a, G, NI> {
     graph: &'a G,
-    visited: HashSet<NI>,
+    visited: BitVec<usize>,
     queue: VecDeque<NI>,
     direction: Direction,
 }
@@ -177,7 +176,7 @@ where
     pub fn new(graph: &'a G, node_id: NI, direction: Direction) -> Self {
         Self {
             graph,
-            visited: HashSet::new(),
+            visited: BitVec::repeat(false, graph.node_count().index()),
             queue: VecDeque::from_iter([node_id]),
             direction,
         }
@@ -187,7 +186,7 @@ where
         loop {
             let node_id = self.queue.pop_front()?;
 
-            if self.visited.insert(node_id) {
+            if !self.visited.replace(node_id.index(), true) {
                 return Some(node_id);
             }
         }
@@ -197,7 +196,7 @@ where
         let neighbors = self
             .graph
             .out_neighbors(node_id)
-            .filter(|&node_id| !self.visited.contains(node_id));
+            .filter(|&node_id| !self.visited[node_id.index()]);
         self.queue.extend(neighbors);
     }
 
@@ -205,7 +204,7 @@ where
         let neighbors = self
             .graph
             .in_neighbors(node_id)
-            .filter(|&node_id| !self.visited.contains(node_id));
+            .filter(|&node_id| !self.visited[node_id.index()]);
         self.queue.extend(neighbors);
     }
 }
@@ -243,7 +242,7 @@ where
 
 pub struct UndirectedBreadthFirst<'a, G, NI> {
     graph: &'a G,
-    visited: HashSet<NI>,
+    visited: BitVec<usize>,
     queue: VecDeque<NI>,
 }
 
@@ -255,7 +254,7 @@ where
     pub fn new(graph: &'a G, node_id: NI) -> Self {
         Self {
             graph,
-            visited: HashSet::new(),
+            visited: BitVec::repeat(false, graph.node_count().index()),
             queue: VecDeque::from_iter([node_id]),
         }
     }
@@ -264,7 +263,7 @@ where
         loop {
             let node_id = self.queue.pop_front()?;
 
-            if self.visited.insert(node_id) {
+            if !self.visited.replace(node_id.index(), true) {
                 return Some(node_id);
             }
         }
@@ -274,7 +273,7 @@ where
         let neighbors = self
             .graph
             .neighbors(node_id)
-            .filter(|&node_id| !self.visited.contains(node_id));
+            .filter(|&node_id| !self.visited[node_id.index()]);
 
         let neighbors: Vec<_> = neighbors.collect();
 
