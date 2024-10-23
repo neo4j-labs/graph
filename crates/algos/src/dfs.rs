@@ -1,23 +1,24 @@
-use std::{collections::VecDeque, hash::Hash};
+use std::hash::Hash;
 
 use bitvec::prelude::*;
 
 use crate::prelude::*;
 
-pub fn depth_first_directed<NI, G>(
+pub fn dfs_directed<NI, G>(
     graph: &G,
-    node_id: NI,
+    node_ids: impl IntoIterator<Item = NI>,
     direction: Direction,
 ) -> DirectedDepthFirst<'_, G, NI>
 where
     NI: Idx + Hash,
     G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
 {
-    DirectedDepthFirst::new(graph, node_id, direction)
+    DirectedDepthFirst::new(graph, node_ids, direction)
 }
 
 pub struct DirectedDepthFirst<'a, G, NI> {
     graph: &'a G,
+    seen: BitVec<usize>,
     visited: BitVec<usize>,
     stack: Vec<NI>,
     direction: Direction,
@@ -28,11 +29,19 @@ where
     NI: Idx + Hash,
     G: Graph<NI> + DirectedNeighbors<NI> + Sync,
 {
-    pub fn new(graph: &'a G, node_id: NI, direction: Direction) -> Self {
+    pub fn new(graph: &'a G, node_ids: impl IntoIterator<Item = NI>, direction: Direction) -> Self {
+        let bitvec = BitVec::repeat(false, graph.node_count().index());
+        let visited = bitvec.clone();
+
+        let mut seen = bitvec;
+        let mut stack = Vec::new();
+        Self::enqueue_into(&mut seen, &mut stack, node_ids);
+
         Self {
             graph,
-            visited: BitVec::repeat(false, graph.node_count().index()),
-            stack: Vec::from_iter([node_id]),
+            seen,
+            visited,
+            stack,
             direction,
         }
     }
@@ -40,27 +49,42 @@ where
     fn dequeue(&mut self) -> Option<NI> {
         loop {
             let node_id = self.stack.pop()?;
-
             if !self.visited.replace(node_id.index(), true) {
                 return Some(node_id);
             }
         }
     }
 
-    fn enqueue_out_neighbors(&mut self, node_id: NI) {
-        let neighbors = self
-            .graph
-            .out_neighbors(node_id)
-            .filter(|&node_id| !self.visited[node_id.index()]);
-        self.stack.extend(neighbors);
+    fn enqueue_into(
+        seen: &mut BitVec<usize>,
+        stack: &mut Vec<NI>,
+        node_ids: impl IntoIterator<Item = NI>,
+    ) {
+        for node_id in node_ids {
+            if !seen.replace(node_id.index(), true) {
+                stack.push(node_id);
+            }
+        }
     }
 
-    fn enqueue_in_neighbors(&mut self, node_id: NI) {
-        let neighbors = self
+    fn enqueue_out_neighbors_of(&mut self, node_id: NI) {
+        let node_ids = self
+            .graph
+            .out_neighbors(node_id)
+            .copied()
+            .filter(|node_id| !self.visited[node_id.index()]);
+
+        Self::enqueue_into(&mut self.seen, &mut self.stack, node_ids);
+    }
+
+    fn enqueue_in_neighbors_of(&mut self, node_id: NI) {
+        let node_ids = self
             .graph
             .in_neighbors(node_id)
-            .filter(|&node_id| !self.visited[node_id.index()]);
-        self.stack.extend(neighbors);
+            .copied()
+            .filter(|node_id| !self.visited[node_id.index()]);
+
+        Self::enqueue_into(&mut self.seen, &mut self.stack, node_ids);
     }
 }
 
@@ -75,11 +99,11 @@ where
         let node_id = self.dequeue()?;
 
         match self.direction {
-            Direction::Outgoing => self.enqueue_out_neighbors(node_id),
-            Direction::Incoming => self.enqueue_in_neighbors(node_id),
+            Direction::Outgoing => self.enqueue_out_neighbors_of(node_id),
+            Direction::Incoming => self.enqueue_in_neighbors_of(node_id),
             Direction::Undirected => {
-                self.enqueue_out_neighbors(node_id);
-                self.enqueue_in_neighbors(node_id);
+                self.enqueue_out_neighbors_of(node_id);
+                self.enqueue_in_neighbors_of(node_id);
             }
         }
 
@@ -87,16 +111,20 @@ where
     }
 }
 
-pub fn depth_first_undirected<NI, G>(graph: &G, node_id: NI) -> UndirectedDepthFirst<'_, G, NI>
+pub fn dfs_undirected<NI, G>(
+    graph: &G,
+    node_ids: impl IntoIterator<Item = NI>,
+) -> UndirectedDepthFirst<'_, G, NI>
 where
     NI: Idx + Hash,
     G: Graph<NI> + UndirectedDegrees<NI> + UndirectedNeighbors<NI> + Sync,
 {
-    UndirectedDepthFirst::new(graph, node_id)
+    UndirectedDepthFirst::new(graph, node_ids)
 }
 
 pub struct UndirectedDepthFirst<'a, G, NI> {
     graph: &'a G,
+    seen: BitVec<usize>,
     visited: BitVec<usize>,
     stack: Vec<NI>,
 }
@@ -106,11 +134,19 @@ where
     NI: Idx + Hash,
     G: Graph<NI> + UndirectedNeighbors<NI> + Sync,
 {
-    pub fn new(graph: &'a G, node_id: NI) -> Self {
+    pub fn new(graph: &'a G, node_ids: impl IntoIterator<Item = NI>) -> Self {
+        let bitvec = BitVec::repeat(false, graph.node_count().index());
+        let visited = bitvec.clone();
+
+        let mut seen = bitvec;
+        let mut stack = Vec::new();
+        Self::enqueue_into(&mut seen, &mut stack, node_ids);
+
         Self {
             graph,
-            visited: BitVec::repeat(false, graph.node_count().index()),
-            stack: Vec::from_iter([node_id]),
+            seen,
+            visited,
+            stack,
         }
     }
 
@@ -124,12 +160,26 @@ where
         }
     }
 
-    fn enqueue_neighbors(&mut self, node_id: NI) {
-        let neighbors = self
+    fn enqueue_into(
+        seen: &mut BitVec<usize>,
+        stack: &mut Vec<NI>,
+        node_ids: impl IntoIterator<Item = NI>,
+    ) {
+        for node_id in node_ids {
+            if !seen.replace(node_id.index(), true) {
+                stack.push(node_id);
+            }
+        }
+    }
+
+    fn enqueue_neighbors_of(&mut self, node_id: NI) {
+        let node_ids = self
             .graph
             .neighbors(node_id)
+            .copied()
             .filter(|&node_id| !self.visited[node_id.index()]);
-        self.stack.extend(neighbors);
+
+        Self::enqueue_into(&mut self.seen, &mut self.stack, node_ids);
     }
 }
 
@@ -143,7 +193,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let node_id = self.dequeue()?;
 
-        self.enqueue_neighbors(node_id);
+        self.enqueue_neighbors_of(node_id);
 
         Some(node_id)
     }
@@ -151,8 +201,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use graph::prelude::{CsrLayout, GraphBuilder};
+
     use super::*;
-    use crate::prelude::{CsrLayout, GraphBuilder};
 
     mod directed {
         use super::*;
@@ -164,7 +215,7 @@ mod tests {
                 .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (2, 1), (3, 1)])
                 .build();
 
-            let actual: Vec<usize> = depth_first_directed(&graph, 0, Direction::Outgoing).collect();
+            let actual: Vec<usize> = dfs_directed(&graph, [0], Direction::Outgoing).collect();
             let expected: Vec<usize> = vec![0, 2, 3, 1];
 
             assert_eq!(actual, expected);
@@ -177,7 +228,7 @@ mod tests {
                 .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 1), (2, 1), (3, 1)])
                 .build();
 
-            let actual: Vec<usize> = depth_first_directed(&graph, 0, Direction::Outgoing).collect();
+            let actual: Vec<usize> = dfs_directed(&graph, [0], Direction::Outgoing).collect();
             let expected: Vec<usize> = vec![0, 2, 1, 3];
 
             assert_eq!(actual, expected);
@@ -191,7 +242,7 @@ mod tests {
             .edges(vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (2, 1), (3, 1)])
             .build();
 
-        let actual: Vec<usize> = depth_first_undirected(&graph, 0).collect();
+        let actual: Vec<usize> = dfs_undirected(&graph, [0]).collect();
         let expected: Vec<usize> = vec![0, 2, 3, 1];
 
         assert_eq!(actual, expected);
