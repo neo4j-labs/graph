@@ -158,7 +158,7 @@ where
     I: IntoIterator<Item = (NI, NI, EV)>,
 {
     fn from(iter: EdgeWithValueIterator<NI, EV, I>) -> Self {
-        EdgeList::new(iter.0.into_iter().map(|(s, t, v)| (s, t, v)).collect())
+        EdgeList::new(iter.0.into_iter().collect())
     }
 }
 

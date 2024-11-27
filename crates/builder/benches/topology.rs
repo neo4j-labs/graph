@@ -134,7 +134,7 @@ fn bench_all_targets<G>(
                     Direction::Incoming => graph.in_neighbors(node),
                     Direction::Undirected => unreachable!(),
                 };
-                black_box(neighbors);
+                black_box(neighbors.collect::<Vec<_>>());
             }
         },
         criterion::BatchSize::SmallInput,
