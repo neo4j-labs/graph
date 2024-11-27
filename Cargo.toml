@@ -8,7 +8,7 @@ authors = [
     "Martin Junghanns <github@s1ck.dev>",
     "Paul Horn <developer@knutwalker.de>",
 ]
-rust-version = "1.65"
+rust-version = "1.70"
 repository = "https://github.com/neo4j-labs/graph"
 edition = "2021"
 license = "MIT"
