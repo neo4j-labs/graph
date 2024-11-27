@@ -39,7 +39,7 @@ macro_rules! gen_runner {
     };
 
     (__run_file_format_all: $algo_config:ty, $ev_type:ty) => {
-        fn run_<NI: Idx>(
+        fn run_<NI>(
             args: $crate::CommonArgs,
             config: $algo_config,
         ) -> ::kommandozeile::Result<()>
@@ -58,7 +58,7 @@ macro_rules! gen_runner {
     };
 
     (__run_file_format_edge_list: $algo_config:ty, $ev_type:ty) => {
-        fn run_<NI: Idx>(
+        fn run_<NI>(
             args: $crate::CommonArgs,
             config: $algo_config,
         ) -> ::kommandozeile::Result<()>
