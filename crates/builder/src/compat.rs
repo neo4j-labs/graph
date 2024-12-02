@@ -144,13 +144,13 @@ mod tests {
             }
         }
 
-        impl<'a> PartialEq for Foo<'a> {
+        impl PartialEq for Foo<'_> {
             fn eq(&self, other: &Self) -> bool {
                 self.i.eq(&other.i)
             }
         }
 
-        impl<'a> Drop for Foo<'a> {
+        impl Drop for Foo<'_> {
             fn drop(&mut self) {
                 self.c.fetch_add(1, atomic::Ordering::SeqCst);
             }

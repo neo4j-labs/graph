@@ -409,7 +409,7 @@ struct ToUndirectedEdges<'g, NI: Idx, NV, EV> {
     g: &'g DirectedCsrGraph<NI, NV, EV>,
 }
 
-impl<'g, NI, NV, EV> Edges for ToUndirectedEdges<'g, NI, NV, EV>
+impl<NI, NV, EV> Edges for ToUndirectedEdges<'_, NI, NV, EV>
 where
     NI: Idx,
     NV: Send + Sync,
@@ -419,7 +419,8 @@ where
 
     type EV = EV;
 
-    type EdgeIter<'a> = ToUndirectedEdgesIter<'a, NI, NV, EV>
+    type EdgeIter<'a>
+        = ToUndirectedEdgesIter<'a, NI, NV, EV>
     where
         Self: 'a;
 
@@ -441,8 +442,8 @@ struct ToUndirectedEdgesIter<'g, NI: Idx, NV, EV> {
     g: &'g DirectedCsrGraph<NI, NV, EV>,
 }
 
-impl<'g, NI: Idx, NV: Send + Sync, EV: Copy + Send + Sync> ParallelIterator
-    for ToUndirectedEdgesIter<'g, NI, NV, EV>
+impl<NI: Idx, NV: Send + Sync, EV: Copy + Send + Sync> ParallelIterator
+    for ToUndirectedEdgesIter<'_, NI, NV, EV>
 {
     type Item = (NI, NI, EV);
 
@@ -488,7 +489,10 @@ impl<NI: Idx, NV, EV> DirectedDegrees<NI> for DirectedCsrGraph<NI, NV, EV> {
 }
 
 impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedCsrGraph<NI, NV, ()> {
-    type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
+    type NeighborsIterator<'a>
+        = std::slice::Iter<'a, NI>
+    where
+        NV: 'a;
 
     fn out_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr_out.targets(node).iter()
@@ -500,7 +504,11 @@ impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedCsrGraph<NI, NV, ()> {
 }
 
 impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedCsrGraph<NI, NV, EV> {
-    type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV:'a, EV: 'a;
+    type NeighborsIterator<'a>
+        = std::slice::Iter<'a, Target<NI, EV>>
+    where
+        NV: 'a,
+        EV: 'a;
 
     fn out_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr_out.targets_with_values(node).iter()
@@ -694,7 +702,10 @@ impl<NI: Idx, NV, EV> UndirectedDegrees<NI> for UndirectedCsrGraph<NI, NV, EV> {
 }
 
 impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedCsrGraph<NI, NV> {
-    type NeighborsIterator<'a> = std::slice::Iter<'a, NI> where NV: 'a;
+    type NeighborsIterator<'a>
+        = std::slice::Iter<'a, NI>
+    where
+        NV: 'a;
 
     fn neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr.targets(node).iter()
@@ -702,7 +713,11 @@ impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedCsrGraph<NI, NV> {
 }
 
 impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedCsrGraph<NI, NV, EV> {
-    type NeighborsIterator<'a> = std::slice::Iter<'a, Target<NI, EV>> where NV: 'a, EV: 'a;
+    type NeighborsIterator<'a>
+        = std::slice::Iter<'a, Target<NI, EV>>
+    where
+        NV: 'a,
+        EV: 'a;
 
     fn neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.csr.targets_with_values(node).iter()
