@@ -175,7 +175,7 @@
 //! matrix and are typically very sparse, i.e., not all possible pairs of nodes are connected
 //! by an edge, the CSR representation is very well suited for representing a real-world graph topology.
 //!
-//! In our current implementation, we use two arrays two model the edges. One array stores the adjacency
+//! In our current implementation, we use two arrays to model the edges. One array stores the adjacency
 //! lists for all nodes consecutively which requires `O(edge_count)` space. The other array stores the
 //! offset for each node in the first array where the corresponding adjacency list can be found which
 //! requires `O(node_count)` space. The degree of a node can be inferred from the offset array.
