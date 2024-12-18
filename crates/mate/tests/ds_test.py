@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 
-from graph_mate import DiGraph, Graph
+from graph_mate import DiGraph, Graph, Layout
 
 
 def test_numpy_graph():
     el = np.array([[0, 1], [2, 3], [4, 1]], dtype=np.uint32)
-    g = Graph.from_numpy(el)
+    g = Graph.from_numpy(el, layout=Layout.Sorted)
 
     assert g.node_count() == 5
     assert g.edge_count() == 3
@@ -20,7 +20,7 @@ def test_numpy_graph():
 
 def test_pandas_graph():
     df = pd.DataFrame({"source": [0, 2, 4], "target": [1, 3, 1]})
-    g = Graph.from_pandas(df)
+    g = Graph.from_pandas(df, layout=Layout.Sorted)
 
     assert g.node_count() == 5
     assert g.edge_count() == 3
@@ -34,7 +34,7 @@ def test_pandas_graph():
 
 def test_numpy_digraph():
     el = np.array([[0, 1], [2, 3], [4, 1]], dtype=np.uint32)
-    g = DiGraph.from_numpy(el)
+    g = DiGraph.from_numpy(el, layout=Layout.Sorted)
 
     assert g.node_count() == 5
     assert g.edge_count() == 3
@@ -49,7 +49,7 @@ def test_numpy_digraph():
 
 def test_pandas_digraph():
     df = pd.DataFrame({"source": [0, 2, 4], "target": [1, 3, 1]})
-    g = DiGraph.from_pandas(df)
+    g = DiGraph.from_pandas(df, layout=Layout.Sorted)
 
     assert g.node_count() == 5
     assert g.edge_count() == 3
