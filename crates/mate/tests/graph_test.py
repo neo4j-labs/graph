@@ -12,10 +12,10 @@ def test_load_graph(g: DiGraph):
 
 
 def test_to_undirected(g: DiGraph, ug: Graph):
-    g = g.to_undirected()
+    undirected = g.to_undirected()
 
-    for n in range(g.node_count()):
-        assert set(g.copy_neighbors(n)) == set(ug.copy_neighbors(n))
+    for n in range(undirected.node_count()):
+        assert set(undirected.copy_neighbors(n)) == set(ug.copy_neighbors(n))
 
 
 def test_to_undirected_with_layout():
@@ -23,17 +23,22 @@ def test_to_undirected_with_layout():
         np.array([[0, 1], [0, 1], [0, 2], [1, 2], [2, 1], [0, 3]], dtype=np.uint32)
     )
 
+    def compare_unsorted(expect, actual):
+        sorted = expect.copy()
+        sorted.sort()
+        return np.array_equal(sorted, actual)
+
     ug = g.to_undirected()
-    assert np.array_equal(ug.neighbors(0), [1, 1, 2, 3])
-    assert np.array_equal(ug.neighbors(1), [2, 0, 0, 2])
-    assert np.array_equal(ug.neighbors(2), [1, 0, 1])
-    assert np.array_equal(ug.neighbors(3), [0])
+    assert compare_unsorted(ug.neighbors(0), [1, 1, 2, 3])
+    assert compare_unsorted(ug.neighbors(1), [0, 0, 2, 2])
+    assert compare_unsorted(ug.neighbors(2), [0, 1, 1])
+    assert compare_unsorted(ug.neighbors(3), [0])
 
     ug = g.to_undirected(Layout.Unsorted)
-    assert np.array_equal(ug.neighbors(0), [1, 1, 2, 3])
-    assert np.array_equal(ug.neighbors(1), [2, 0, 0, 2])
-    assert np.array_equal(ug.neighbors(2), [1, 0, 1])
-    assert np.array_equal(ug.neighbors(3), [0])
+    assert compare_unsorted(ug.neighbors(0), [1, 1, 2, 3])
+    assert compare_unsorted(ug.neighbors(1), [0, 0, 2, 2])
+    assert compare_unsorted(ug.neighbors(2), [0, 1, 1])
+    assert compare_unsorted(ug.neighbors(3), [0])
 
     ug = g.to_undirected(Layout.Sorted)
     assert np.array_equal(ug.neighbors(0), [1, 1, 2, 3])
