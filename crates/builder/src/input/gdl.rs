@@ -16,7 +16,7 @@ use std::hash::Hash;
 /// A wrapper around [`gdl::CypherValue`] to allow custom From implementations.
 pub struct MyCypherValue<'a>(&'a CypherValue);
 
-impl<'a> From<MyCypherValue<'a>> for () {
+impl From<MyCypherValue<'_>> for () {
     fn from(_: MyCypherValue) -> Self {}
 }
 

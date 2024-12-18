@@ -338,7 +338,10 @@ impl<NI: Idx, NV, EV> DirectedDegrees<NI> for DirectedALGraph<NI, NV, EV> {
 }
 
 impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedALGraph<NI, NV, ()> {
-    type NeighborsIterator<'a> = TargetsIter<'a, NI> where NV: 'a;
+    type NeighborsIterator<'a>
+        = TargetsIter<'a, NI>
+    where
+        NV: 'a;
 
     fn out_neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.al_out.targets(node).into_iter()
@@ -350,7 +353,11 @@ impl<NI: Idx, NV> DirectedNeighbors<NI> for DirectedALGraph<NI, NV, ()> {
 }
 
 impl<NI: Idx, NV, EV> DirectedNeighborsWithValues<NI, EV> for DirectedALGraph<NI, NV, EV> {
-    type NeighborsIterator<'a> = TargetsWithValuesIter<'a, NI, EV> where NV: 'a, EV: 'a;
+    type NeighborsIterator<'a>
+        = TargetsWithValuesIter<'a, NI, EV>
+    where
+        NV: 'a,
+        EV: 'a;
 
     fn out_neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.al_out.targets_with_values(node).into_iter()
@@ -492,7 +499,10 @@ impl<NI: Idx, NV, EV> UndirectedDegrees<NI> for UndirectedALGraph<NI, NV, EV> {
 }
 
 impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedALGraph<NI, NV, ()> {
-    type NeighborsIterator<'a> = TargetsIter<'a, NI> where NV: 'a;
+    type NeighborsIterator<'a>
+        = TargetsIter<'a, NI>
+    where
+        NV: 'a;
 
     fn neighbors(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.al.targets(node).into_iter()
@@ -500,7 +510,11 @@ impl<NI: Idx, NV> UndirectedNeighbors<NI> for UndirectedALGraph<NI, NV, ()> {
 }
 
 impl<NI: Idx, NV, EV> UndirectedNeighborsWithValues<NI, EV> for UndirectedALGraph<NI, NV, EV> {
-    type NeighborsIterator<'a> = TargetsWithValuesIter<'a, NI, EV> where NV: 'a, EV: 'a;
+    type NeighborsIterator<'a>
+        = TargetsWithValuesIter<'a, NI, EV>
+    where
+        NV: 'a,
+        EV: 'a;
 
     fn neighbors_with_values(&self, node: NI) -> Self::NeighborsIterator<'_> {
         self.al.targets_with_values(node).into_iter()

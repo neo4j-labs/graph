@@ -450,7 +450,7 @@ impl<'a, T> ArrayEdgeList<'a, T> {
 
 struct ArrayRows<'a, T>(AxisIter<'a, T, Ix1>);
 
-impl<'a, T: Copy + Debug> Iterator for ArrayRows<'a, T> {
+impl<T: Copy + Debug> Iterator for ArrayRows<'_, T> {
     type Item = (T, T, ());
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -459,12 +459,13 @@ impl<'a, T: Copy + Debug> Iterator for ArrayRows<'a, T> {
     }
 }
 
-impl<'outer, T: Idx> Edges for ArrayEdgeList<'outer, T> {
+impl<T: Idx> Edges for ArrayEdgeList<'_, T> {
     type NI = T;
 
     type EV = ();
 
-    type EdgeIter<'a> = rayon::iter::IterBridge<ArrayRows<'a, T>>
+    type EdgeIter<'a>
+        = rayon::iter::IterBridge<ArrayRows<'a, T>>
     where
         Self: 'a;
 

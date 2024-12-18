@@ -27,9 +27,10 @@ impl<NI: Idx> Edges for Graph500<NI> {
 
     type EV = ();
 
-    type EdgeIter<'a> = rayon::iter::Copied<rayon::slice::Iter<'a, (Self::NI, Self::NI, Self::EV)>>
-        where
-            Self: 'a;
+    type EdgeIter<'a>
+        = rayon::iter::Copied<rayon::slice::Iter<'a, (Self::NI, Self::NI, Self::EV)>>
+    where
+        Self: 'a;
 
     fn edges(&self) -> Self::EdgeIter<'_> {
         self.0.edges()
