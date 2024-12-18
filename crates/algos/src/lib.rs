@@ -141,6 +141,8 @@
 //! ```
 
 pub mod afforest;
+pub mod bfs;
+pub mod dfs;
 pub mod dss;
 pub mod page_rank;
 pub mod prelude;
