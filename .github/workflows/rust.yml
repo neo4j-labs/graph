@@ -184,7 +184,7 @@ jobs:
   macos-x86_64:
     name: Package graph_mate for Mac x86_64
     runs-on: macos-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: startsWith(github.ref, 'refs/tags/') && inputs.crate == 'graph_mate'
     needs: test_python
     steps:
       - name: Checkout code
@@ -219,7 +219,7 @@ jobs:
   macos-universal:
     name: Package graph_mate for Mac Universal
     runs-on: macos-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: startsWith(github.ref, 'refs/tags/') && inputs.crate == 'graph_mate'
     needs: test_python
     steps:
       - name: Checkout code
@@ -254,7 +254,7 @@ jobs:
   windows:
     name: Package graph_mate for Windows
     runs-on: windows-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: startsWith(github.ref, 'refs/tags/') && inputs.crate == 'graph_mate'
     needs: test_python
     strategy:
       matrix:
@@ -293,7 +293,7 @@ jobs:
   linux:
     name: Package graph_mate for Linux
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: startsWith(github.ref, 'refs/tags/') && inputs.crate == 'graph_mate'
     needs: test_python
     strategy:
       matrix:
@@ -341,10 +341,6 @@ jobs:
       - fmt
       - clippy
       - test_python
-      - macos-universal
-      - macos-x86_64
-      - windows
-      - linux
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
