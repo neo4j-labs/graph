@@ -15,7 +15,7 @@ license.workspace = true
 ahash.workspace = true
 atomic_float.workspace = true
 clap = { workspace = true, optional = true }
-graph_builder = { path = "../builder", version = "^0.4.0" }
+graph_builder = { path = "../builder", version = "^0.4.1" }
 log.workspace = true
 num-format.workspace = true
 nanorand.workspace = true
@@ -24,6 +24,6 @@ serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 env_logger.workspace = true
-graph_builder = { path = "../builder", version = "^0.4.0", features = ["gdl"] }
+graph_builder = { path = "../builder", version = "^0.4.1", features = ["gdl"] }
 log.workspace = true
 polars.workspace = true
