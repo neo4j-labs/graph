@@ -15,7 +15,7 @@ atomic.workspace = true
 byte-slice-cast.workspace = true
 dashmap.workspace = true
 delegate.workspace = true
-fast-float.workspace = true
+fast-float2.workspace = true
 fxhash.workspace = true
 gdl = { workspace = true, optional = true }
 linereader.workspace = true
