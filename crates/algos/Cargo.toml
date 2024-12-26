@@ -14,6 +14,7 @@ license.workspace = true
 [dependencies]
 ahash.workspace = true
 atomic_float.workspace = true
+bitvec.workspace = true
 clap = { workspace = true, optional = true }
 graph_builder = { path = "../builder", version = "^0.4.1" }
 log.workspace = true
