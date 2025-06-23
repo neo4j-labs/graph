@@ -141,6 +141,7 @@
 //! ```
 
 pub mod afforest;
+pub mod coloring;
 pub mod dss;
 pub mod page_rank;
 pub mod prelude;
@@ -148,7 +149,6 @@ pub mod sssp;
 pub mod triangle_count;
 pub mod utils;
 pub mod wcc;
-
 const DEFAULT_PARALLELISM: usize = 4;
 
 // Related to https://github.com/rust-lang/rust/issues/72686
