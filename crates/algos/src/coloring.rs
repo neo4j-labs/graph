@@ -36,7 +36,7 @@ pub struct ColoringConfig {
     // #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::DEFAULT_SAMPLING_SIZE))]
     // pub sampling_size: usize,
 
-    /// Maximum number of colors to use (affects memory usage).
+    /// Number of samples to draw from the DSS to find the largest component.
     #[cfg_attr(feature = "clap", clap(long, default_value_t = ColoringConfig::DEFAULT_MAX_COLORS))]
     pub max_colors: usize,
 }
@@ -64,13 +64,12 @@ impl ColoringConfig {
 }
 
 struct BitField {
-    data: Vec<AtomicU64>, //(must be 64 bit!) but color as usize might be fine.
+    data: Vec<AtomicU64>,
 }
 
 impl BitField {
     fn new(capacity: usize) -> Self {
         BitField {
-            //capacity / 64 = capacity >> 6 (64->32->16->8->4->2->1)
             data: (0..(capacity >> 6)).map(|_| AtomicU64::new(0)).collect(),
         }
     }
@@ -78,8 +77,7 @@ impl BitField {
     fn update(&self, new_ids: &Vec<usize>) {
         let mut data = vec![0u64; self.data.len()];
         for &idx in new_ids {
-            data[idx >> 6] |= 1 << (idx & 63); //iff 63 = 2**uint - 1
-                                               // data[color / 64] |= 1 << (color % 64);
+            data[idx >> 6] |= 1 << (idx & 63);
         }
         for (idx, &new_word) in data.iter().enumerate() {
             self.data[idx].store(new_word, Release);
@@ -99,7 +97,6 @@ impl BitField {
         for (big_idx, bit_field_ref) in self.data.iter().enumerate() {
             let bit_field = bit_field_ref.load(Acquire).clone();
             if bit_field != u64::MAX {
-                //not all ones
                 return Some((big_idx << 6) + ((!bit_field).trailing_zeros() as usize));
             }
         }
@@ -107,36 +104,26 @@ impl BitField {
     }
 }
 
-//Parallel speculation/correction-based greedy graph coloring
-// todo: add better description
 #[inline(never)]
 pub fn coloring<NI, G>(graph: &G, config: ColoringConfig) -> Result<Vec<usize>, String>
 where
     NI: Idx,
     G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + Sync,
 {
-    let max_colors = config.max_colors.index(); //todo: add option to automatically pick and rerun if it was too small?
+    let max_colors = config.max_colors.index();
     let node_count = graph.node_count().index();
-    let mut colors: Vec<usize> = vec![0; node_count]; //mutated through 'unsafe' use of pointer //init values not used, malloc?
+    let mut colors: Vec<usize> = vec![0; node_count];
     let colors_ptr = SharedMut::new(colors.as_mut_ptr());
     let mut color_forbidden = (0..node_count)
-        .into_par_iter() //todo: parallelization had non-measurable impact on performance. also unlimited threads
+        .into_par_iter()
         .map(|_| BitField::new(max_colors))
         .collect();
     let mut nodes_to_color: Vec<NI> = (0..node_count).map(NI::new).collect();
-    if let Err(err) =
-        assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)
-    {
-        return Err(err);
-    }
+    _ = assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)?;
     nodes_to_color = find_incorrect_nodes(nodes_to_color, &colors_ptr, &color_forbidden);
     while !nodes_to_color.is_empty() {
-        if let Err(err) =
-            assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)
-        {
-            return Err(err);
-        }
-        update_forbidden_colors(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden); //nodes to color, whose neighbors have been corrected, needs to get their forbidden_colors updated.
+        _ = assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)?;
+        update_forbidden_colors(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden);
         nodes_to_color = find_incorrect_nodes(nodes_to_color, &colors_ptr, &color_forbidden);
     }
     colors = make_consecutive(colors);
@@ -182,11 +169,10 @@ where
             });
         }
     });
-    if success.load(Relaxed) {
-        Ok(())
-    } else {
-        Err("Not enough colors :/".to_string())
-    }
+    success
+        .load(Relaxed)
+        .then_some(())
+        .ok_or_else(|| "Not enough colors!".to_string())
 }
 
 fn find_incorrect_nodes<NI>(
@@ -198,7 +184,7 @@ where
     NI: Idx,
 {
     nodes
-        .into_par_iter() //todo: restrict #threads?
+        .into_par_iter()
         .filter(|v| color_forbidden[v.index()].is_set(unsafe { colors_ptr.add(v.index()).read() }))
         .collect()
 }
@@ -214,13 +200,11 @@ fn update_forbidden_colors<G, NI>(
 {
     {
         nodes_to_color.into_par_iter().for_each(|v| unsafe {
-            //todo: restrict #threads?
-            //we only care for nodes_just_colored, but filter on them is probably more expensive than using all
             let nearby_colors = graph
                 .neighbors(*v)
                 .map(|u| colors_ptr.add(u.index()).read())
                 .collect();
-            color_forbidden[v.index()].update(&nearby_colors); //each node writes to separate entry. Should be safe.
+            color_forbidden[v.index()].update(&nearby_colors);
         });
     }
 }
