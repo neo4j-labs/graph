@@ -24,9 +24,45 @@ use std::thread::available_parallelism;
 
 const CHUNK_SIZE: usize = 16384;
 
-pub struct GraphColoringConfig<NI> {
-    pub(crate) max_colors: NI,
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "clap", derive(clap::Args))]
+pub struct ColoringConfig {
+    /// Number of nodes to be processed in batch by a single thread.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = ColoringConfig::DEFAULT_CHUNK_SIZE))]
+    pub chunk_size: usize,
+
+    /// Number of samples to draw from the DSS to find the largest component.
+    // #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::DEFAULT_SAMPLING_SIZE))]
+    // pub sampling_size: usize,
+
+    /// Maximum number of colors to use (affects memory usage).
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = ColoringConfig::DEFAULT_MAX_COLORS))]
+    pub max_colors: usize,
 }
+
+impl Default for ColoringConfig {
+    fn default() -> Self {
+        Self {
+            chunk_size: ColoringConfig::DEFAULT_CHUNK_SIZE,
+            max_colors: ColoringConfig::DEFAULT_MAX_COLORS,
+        }
+    }
+}
+
+impl ColoringConfig {
+    pub const DEFAULT_CHUNK_SIZE: usize = 16384;
+    pub const DEFAULT_MAX_COLORS: usize = 1024;
+
+    pub fn new(chunk_size: usize, max_colors: usize) -> Self {
+        let max_colors = (max_colors + 63) / 64 * 64; // round up to next multiple of 64
+        Self {
+            chunk_size,
+            max_colors,
+        }
+    }
+}
+
 struct BitField {
     data: Vec<AtomicU64>, //(must be 64 bit!) but color as usize might be fine.
 }
@@ -74,13 +110,12 @@ impl BitField {
 //Parallel speculation/correction-based greedy graph coloring
 // todo: add better description
 #[inline(never)]
-pub fn coloring<NI, G>(graph: &G, config: GraphColoringConfig<NI>) -> Result<Vec<usize>, String>
+pub fn coloring<NI, G>(graph: &G, config: ColoringConfig) -> Result<Vec<usize>, String>
 where
     NI: Idx,
     G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + Sync,
 {
     let max_colors = config.max_colors.index(); //todo: add option to automatically pick and rerun if it was too small?
-    assert_eq!(max_colors % 64, 0);
     let node_count = graph.node_count().index();
     let mut colors: Vec<usize> = vec![0; node_count]; //mutated through 'unsafe' use of pointer //init values not used, malloc?
     let colors_ptr = SharedMut::new(colors.as_mut_ptr());
@@ -207,7 +242,7 @@ fn make_consecutive(mut colors: Vec<usize>) -> Vec<usize> {
 }
 
 pub mod tests {
-    use crate::coloring::{coloring, GraphColoringConfig};
+    use crate::coloring::{coloring, ColoringConfig};
     use graph_builder::prelude::*;
 
     pub fn check_correct<NI: Idx, G: Graph<NI> + UndirectedNeighbors<NI>>(
@@ -233,9 +268,7 @@ pub mod tests {
             .build()
             .unwrap();
 
-        let coloring = coloring(&graph, GraphColoringConfig { max_colors: 64 })
-            .ok()
-            .unwrap();
+        let coloring = coloring(&graph, ColoringConfig::default()).ok().unwrap();
         assert!(check_correct(&graph, &coloring));
     }
 }
