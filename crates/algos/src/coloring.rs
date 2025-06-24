@@ -9,6 +9,19 @@ use std::sync::atomic::{
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::thread::available_parallelism;
 
+/// Graph coloring assigns a color to every node so that
+/// 1. No node has a neighbor with the same color
+/// 2. The total number of colors is as low as possible.
+///
+/// Finding the lowest possible number of colors is an NP-complete problem. This implementation,
+/// based on the speculation/correction paradigm of [1], instead uses a parallel greedy algorithm
+/// to find a solution with few-enough colors. See [2] for a Java implementation.
+///
+/// [1]  Gebremedhin, A.H. and Manne, F. (2000), Scalable parallel graph coloring algorithms.
+///      Concurrency: Pract. Exper., 12: 1131-1146.
+///      https://doi.org/10.1002/1096-9128(200010)12:12<1131::AID-CPE528>3.0.CO;2-2
+/// [2] [Java] (https://github.com/neo4j/graph-data-science/blob/2dd419ed5a55d43bbaf0575d4bc34e517768d69f/algo/src/main/java/org/neo4j/gds/k1coloring/K1Coloring.java)
+
 const CHUNK_SIZE: usize = 16384;
 
 pub struct GraphColoringConfig<NI> {
