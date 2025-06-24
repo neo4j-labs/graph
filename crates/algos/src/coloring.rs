@@ -1,10 +1,9 @@
 use graph_builder::SharedMut;
 use graph_builder::prelude::*;
 use rayon::prelude::*;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::atomic::{AtomicBool, Ordering::{Relaxed, Acquire, Release}};
 use std::thread::available_parallelism;
-use std::time::Instant;
 use crate::DEFAULT_PARALLELISM;
 
 const CHUNK_SIZE: usize = 16384;
@@ -13,25 +12,25 @@ pub struct GraphColoringConfig<NI> {
     pub(crate) max_colors: NI,
 }
 struct BitField {
-    data: Vec<AtomicUsize>,
+    data: Vec<AtomicU64>, //(must be 64 bit!) but color as usize might be fine.
 }
 
 impl BitField {
     fn new(capacity: usize) -> Self {
         BitField {
             //capacity / 64 = capacity >> 6 (64->32->16->8->4->2->1)
-            data: (0..(capacity >> 6)).map(|_| AtomicUsize::new(0)).collect(),
+            data: (0..(capacity >> 6)).map(|_| AtomicU64::new(0)).collect(),
         }
     }
 
     fn update(&self, new_ids: Vec<usize>) {
-        let mut data = vec![0usize; self.data.len()];
+        let mut data = vec![0u64; self.data.len()];
         for idx in new_ids {
             data[idx >> 6] |= 1 << (idx & 63); //iff 63 = 2**uint - 1
             // data[color / 64] |= 1 << (color % 64);
         }
         for (idx, &new_word) in data.iter().enumerate() {
-            self.data[idx].store(new_word, Release); //little difference to relaxed
+            self.data[idx].store(new_word, Release);
         }
     }
 
@@ -41,16 +40,15 @@ impl BitField {
     }
 
     fn set(&self, idx: usize) {
-        // self.data[idx / 64].fetch_or(1 << (idx % 64), Relaxed);
         self.data[idx >> 6].fetch_or(1 << (idx & 63), Relaxed);
     }
 
     fn trailing_zeros(&self) -> Option<usize> {
-        for (big_idx, bit_field_) in self.data.iter().enumerate() {
-            let bit_field = bit_field_.load(Acquire).clone(); //little difference to relaxed
-            if bit_field != usize::MAX {
+        for (big_idx, bit_field_ref) in self.data.iter().enumerate() {
+            let bit_field = bit_field_ref.load(Acquire).clone();
+            if bit_field != u64::MAX {
                 //not all ones
-                return Some((64 * big_idx) + ((!bit_field).trailing_zeros() as usize));
+                return Some((big_idx << 6) + ((!bit_field).trailing_zeros() as usize));
             }
         }
         None
@@ -65,17 +63,15 @@ where
     NI: Idx,
     G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + Sync,
 {
-    let max_colors = config.max_colors.index();
+    let max_colors = config.max_colors.index(); //todo: add option to automatically pick and rerun if it was too small
     assert_eq!(max_colors % 64, 0);
     let node_count = graph.node_count().index();
     let mut colors: Vec<usize> = vec![0; node_count]; //mutated through 'unsafe' use of pointer //init values not used, malloc?
     let colors_ptr = SharedMut::new(colors.as_mut_ptr());
-    let start = Instant::now();
     let mut color_forbidden = (0..node_count)
         .into_par_iter() //todo: parallelization had non-measurable impact on performance. also unlimited threads
         .map(|_| BitField::new(max_colors))
         .collect();
-    println!("{:?}", Instant::now()-start);
     let mut nodes_to_color: Vec<NI> = (0..node_count).map(NI::new).collect();
     if let Err(err) =
         assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)
@@ -156,9 +152,6 @@ where
         .into_par_iter() //todo: restrict #threads?
         .filter(|v| color_forbidden[v.index()].is_set(unsafe { colors_ptr.add(v.index()).read() }))
         .collect()
-    // above is 4x faster (a few percentages in total on graph22
-    // nodes.retain(|v| color_forbidden[v.index()].is_set( unsafe { colors_ptr.add(v.index()).read() })); < this is neat though
-    // nodes
 }
 
 fn update_forbidden_colors<G, NI>(
