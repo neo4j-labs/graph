@@ -1,10 +1,13 @@
-use graph_builder::SharedMut;
-use graph_builder::prelude::*;
-use rayon::prelude::*;
-use std::sync::atomic::{AtomicU64, AtomicUsize};
-use std::sync::atomic::{AtomicBool, Ordering::{Relaxed, Acquire, Release}};
-use std::thread::available_parallelism;
 use crate::DEFAULT_PARALLELISM;
+use graph_builder::prelude::*;
+use graph_builder::SharedMut;
+use rayon::prelude::*;
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering::{Acquire, Relaxed, Release},
+};
+use std::sync::atomic::{AtomicU64, AtomicUsize};
+use std::thread::available_parallelism;
 
 const CHUNK_SIZE: usize = 16384;
 
@@ -23,11 +26,11 @@ impl BitField {
         }
     }
 
-    fn update(&self, new_ids: Vec<usize>) {
+    fn update(&self, new_ids: &Vec<usize>) {
         let mut data = vec![0u64; self.data.len()];
-        for idx in new_ids {
+        for &idx in new_ids {
             data[idx >> 6] |= 1 << (idx & 63); //iff 63 = 2**uint - 1
-            // data[color / 64] |= 1 << (color % 64);
+                                               // data[color / 64] |= 1 << (color % 64);
         }
         for (idx, &new_word) in data.iter().enumerate() {
             self.data[idx].store(new_word, Release);
@@ -63,7 +66,7 @@ where
     NI: Idx,
     G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + Sync,
 {
-    let max_colors = config.max_colors.index(); //todo: add option to automatically pick and rerun if it was too small
+    let max_colors = config.max_colors.index(); //todo: add option to automatically pick and rerun if it was too small?
     assert_eq!(max_colors % 64, 0);
     let node_count = graph.node_count().index();
     let mut colors: Vec<usize> = vec![0; node_count]; //mutated through 'unsafe' use of pointer //init values not used, malloc?
@@ -88,7 +91,7 @@ where
         update_forbidden_colors(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden); //nodes to color, whose neighbors have been corrected, needs to get their forbidden_colors updated.
         nodes_to_color = find_incorrect_nodes(nodes_to_color, &colors_ptr, &color_forbidden);
     }
-    //todo: if any colors are 'free', reassign so that the highest colors get lower numbers.
+    colors = make_consecutive(colors);
     Ok(colors)
 }
 
@@ -108,26 +111,24 @@ where
     std::thread::scope(|s| {
         let num_threads = available_parallelism().map_or(DEFAULT_PARALLELISM, |p| p.get());
         for _ in 0..num_threads {
-            s.spawn(|| {
-                loop {
-                    let start = AtomicUsize::fetch_add(&next_chunk, CHUNK_SIZE, Acquire);
-                    if start >= nodes.len() {
-                        break;
-                    }
-                    let end = (start + CHUNK_SIZE).min(nodes.len());
+            s.spawn(|| loop {
+                let start = AtomicUsize::fetch_add(&next_chunk, CHUNK_SIZE, Acquire);
+                if start >= nodes.len() {
+                    break;
+                }
+                let end = (start + CHUNK_SIZE).min(nodes.len());
 
-                    for i in start..end {
-                        let u = nodes[i];
-                        if let Some(color) = color_forbidden[u.index()].trailing_zeros() {
-                            for v in graph.neighbors(u) {
-                                color_forbidden[v.index()].set(color);
-                            }
-                            unsafe {
-                                colors_ptr.add(u.index()).write(color);
-                            }
-                        } else {
-                            success.store(false, Relaxed);
+                for i in start..end {
+                    let u = nodes[i];
+                    if let Some(color) = color_forbidden[u.index()].trailing_zeros() {
+                        for v in graph.neighbors(u) {
+                            color_forbidden[v.index()].set(color);
                         }
+                        unsafe {
+                            colors_ptr.add(u.index()).write(color);
+                        }
+                    } else {
+                        success.store(false, Relaxed);
                     }
                 }
             });
@@ -164,15 +165,32 @@ fn update_forbidden_colors<G, NI>(
     NI: Idx,
 {
     {
-        nodes_to_color.into_par_iter().for_each(|v| unsafe { //todo: restrict #threads?
+        nodes_to_color.into_par_iter().for_each(|v| unsafe {
+            //todo: restrict #threads?
             //we only care for nodes_just_colored, but filter on them is probably more expensive than using all
             let nearby_colors = graph
                 .neighbors(*v)
                 .map(|u| colors_ptr.add(u.index()).read())
                 .collect();
-            color_forbidden[v.index()].update(nearby_colors); //each node writes to separate entry. Should be safe.
+            color_forbidden[v.index()].update(&nearby_colors); //each node writes to separate entry. Should be safe.
         });
     }
+}
+
+fn make_consecutive(mut colors: Vec<usize>) -> Vec<usize> {
+    let mut top_color = *colors.iter().max().unwrap();
+    let used_colors = BitField::new((top_color + 1) - (top_color + 1) % 64 + 64);
+    used_colors.update(&colors);
+    let free_colors = (0..=top_color).filter(|&color| !used_colors.is_set(color));
+    let mut color_map: Vec<usize> = (0..=top_color).collect();
+    for free_color in free_colors {
+        color_map[top_color] = free_color;
+        top_color -= 1;
+    }
+    colors
+        .iter_mut()
+        .for_each(|color| *color = color_map[*color]);
+    colors
 }
 
 pub mod tests {
@@ -202,7 +220,9 @@ pub mod tests {
             .build()
             .unwrap();
 
-        let coloring = coloring(&graph, GraphColoringConfig { max_colors: 64 }).ok().unwrap();
+        let coloring = coloring(&graph, GraphColoringConfig { max_colors: 64 })
+            .ok()
+            .unwrap();
         assert!(check_correct(&graph, &coloring));
     }
 }
