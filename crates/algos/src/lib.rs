@@ -148,6 +148,7 @@ pub mod sssp;
 pub mod triangle_count;
 pub mod utils;
 pub mod wcc;
+pub mod fast_rp_gds;
 
 const DEFAULT_PARALLELISM: usize = 4;
 
