@@ -12,6 +12,7 @@ mod graphs;
 mod page_rank;
 mod triangle_count;
 mod wcc;
+mod fast_rp;
 
 struct GraphError(GError);
 
@@ -38,6 +39,7 @@ fn graph_mate(py: Python, m: &PyModule) -> PyResult<()> {
     page_rank::register(py, m)?;
     wcc::register(py, m)?;
     triangle_count::register(py, m)?;
+    fast_rp::register(py, m)?;
 
     Ok(())
 }

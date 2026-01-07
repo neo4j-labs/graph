@@ -3,20 +3,38 @@ use numpy::ndarray::Array2;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::mem;
 
-const SPARSITY: usize = 3;
-const ENTRY_PROBABILITY: f64 = 1.0 / (2 * SPARSITY) as f64;
-const DOUBLE_PRECISION: i32 = 53;
-const DOUBLE_UNIT: f64 = f64::EPSILON * 0.5; // 2^(-53)
-
+#[derive(Clone, Debug)] //not Copy bc vector inside
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "clap", derive(clap::Args))]
 pub struct FastRPConfig {
+    /// The length of the output vectors.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_OUT_DIM))]
     out_dim: usize,
-    coefficients: Vec<f32>, //a0 + a1*x + a2*x^2 + ...
+
+    /// Coefficients of the polynomial.
+    /// Result is (a0 * I  +  a1 * P  +  a2 * P^2  + ...) * L_norm * X_init
+    /// where P is the transition matrix used.
+    #[cfg_attr(feature = "clap", clap(long, default_values_t = FastRPConfig::DEFAULT_COEFFICIENTS.to_vec()))]
+    coefficients: Vec<f32>,
+
+    /// Normalization strength of initial features.
+    /// Initial features for node u is scales with ( degree(u) / sum(degrees) ) ^ normalization_strength
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_NORMALIZATION_STRENGTH))]
     normalization_strength: f32,
+
+    /// Random seed.
+    /// Decides the random features together with the node id.
+    /// The algorithm is deterministic for given random features.
+    #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_RANDOM_SEED))]
     random_seed: i64,
 }
 
 impl FastRPConfig {
-    pub(crate) fn new(
+    pub const DEFAULT_OUT_DIM: usize = 128;
+    pub const DEFAULT_COEFFICIENTS: [f32; 5] = [0., 0., 0., 1., 0.15];
+    pub const DEFAULT_NORMALIZATION_STRENGTH: f32 = 0.;
+    pub const DEFAULT_RANDOM_SEED: i64 = 0; //fixme: No default. If not given, sample.
+    pub fn new(
         out_dim: usize,
         coefficients: Vec<f32>,
         normalization_strength: f32,
@@ -34,10 +52,10 @@ impl FastRPConfig {
 impl Default for FastRPConfig {
     fn default() -> Self {
         Self {
-            out_dim: 128,
-            coefficients: vec![0., 0., 0., 1., 0.15],
-            normalization_strength: 0.,
-            random_seed: 0,
+            out_dim: FastRPConfig::DEFAULT_OUT_DIM,
+            coefficients: FastRPConfig::DEFAULT_COEFFICIENTS.to_vec(),
+            normalization_strength: FastRPConfig::DEFAULT_NORMALIZATION_STRENGTH,
+            random_seed: FastRPConfig::DEFAULT_RANDOM_SEED,
         }
     }
 }
@@ -50,6 +68,8 @@ struct RandomGenerator {
 }
 
 impl RandomGenerator {
+    const DOUBLE_PRECISION: i32 = 53;
+    const DOUBLE_UNIT: f64 = f64::EPSILON * 0.5; // 2^(-53)
     fn new(seed: i64) -> Self {
         let mut x = RandomGenerator {
             u: 0,
@@ -89,8 +109,8 @@ impl RandomGenerator {
     }
 
     pub fn next_double(self: &mut Self) -> f64 {
-        (((self.next(DOUBLE_PRECISION - 27) as i64) << 27) + (self.next(27) as i64)) as f64
-            * DOUBLE_UNIT
+        (((self.next(Self::DOUBLE_PRECISION - 27) as i64) << 27) + (self.next(27) as i64)) as f64
+            * Self::DOUBLE_UNIT
     }
 }
 
@@ -101,6 +121,9 @@ fn rnd_original_vec(
     normalization_strength: f32,
     random_seed: i64,
 ) -> Vec<f32> {
+    const SPARSITY: usize = 3;
+    const ENTRY_PROBABILITY: f64 = 1.0 / (2 * SPARSITY) as f64;
+
     let improved_random_seed = RandomGenerator::new(random_seed).next_long();
     let mut random = RandomGenerator::new((improved_random_seed) ^ (node_id as i64));
     let scaling = if degree == 0 {

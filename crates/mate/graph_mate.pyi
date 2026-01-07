@@ -112,6 +112,10 @@ class DiGraph:
         self, *, chunk_size: int, neighbor_rounds: int, sampling_size: int
     ) -> WccResult:
         """Run Weakly Connected Components on this graph."""
+    def fast_rp(
+        self, *, out_dim: int, coefficients: npt.NDArray[np.float32], normalization_strength: float, random_seed: int
+    ) -> FastRPResult:
+        """Run Fast-RP on this graph."""
 
 class Graph:
     """
@@ -163,6 +167,15 @@ class Graph:
         """
     def global_triangle_count(self) -> TriangleCountResult:
         """Count the number of global triangles of this graph."""
+
+class FastRPResult:
+    def embeddings(self) -> npt.NDArray[np.float32]:
+        pass
+    @property
+    def micros(self) -> int:
+        pass
+    def __repr__(self) -> str:
+        pass
 
 class PageRankResult:
     def scores(self) -> npt.NDArray[np.float32]:

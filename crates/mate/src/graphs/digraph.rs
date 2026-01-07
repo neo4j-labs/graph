@@ -1,9 +1,10 @@
 use super::{FileFormat, Graph, Layout, PyGraph};
-use crate::{page_rank::PageRankResult, wcc::WccResult};
+use crate::{page_rank::PageRankResult, wcc::WccResult, fast_rp::FastRPResult};
 use graph::{
     page_rank::PageRankConfig,
     prelude::{CsrLayout, DirectedCsrGraph},
     wcc::WccConfig,
+    fast_rp_gds::FastRPConfig
 };
 use numpy::{PyArray1, PyArray2};
 use pyo3::{prelude::*, types::PyList};
@@ -157,6 +158,26 @@ impl DiGraph {
     ) -> WccResult {
         let config = WccConfig::new(chunk_size, neighbor_rounds, sampling_size);
         WccResult::new(crate::wcc::wcc(py, self.inner.g(), config))
+    }
+
+    /// Run FastRP on this graph.
+    #[args(
+        "*",
+        out_dim = "FastRPConfig::DEFAULT_OUT_DIM",
+        coefficients = "FastRPConfig::DEFAULT_COEFFICIENTS.to_vec()",
+        normalization_strength = "FastRPConfig::DEFAULT_NORMALIZATION_STRENGTH",
+        random_seed = "FastRPConfig::DEFAULT_RANDOM_SEED"
+    )]
+    pub fn fast_rp(
+        &self,
+        py: Python<'_>,
+        out_dim: usize,
+        coefficients: Vec<f32>,
+        normalization_strength: f32,
+        random_seed: i64,
+    ) -> FastRPResult {
+        let config = FastRPConfig::new(out_dim, coefficients, normalization_strength, random_seed);
+        crate::fast_rp::fast_rp(py, self.inner.g(), config)
     }
 }
 
