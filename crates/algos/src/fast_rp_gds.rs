@@ -1,5 +1,5 @@
 use graph_builder::prelude::*;
-use ndarray::Array2;
+use numpy::ndarray::Array2;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::mem;
 
@@ -124,7 +124,7 @@ fn rnd_original_vec(
         .collect()
 }
 
-pub(crate) fn fast_rp<NI, G>(graph: &G, config: FastRPConfig) -> Array2<f32>
+pub fn fast_rp<NI, G>(graph: &G, config: FastRPConfig) -> Array2<f32>
 where
     NI: Idx,
     G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
