@@ -26,6 +26,7 @@ log.workspace = true
 numpy.workspace = true
 pyo3-log.workspace = true
 rayon.workspace = true
+ndarray.workspace = true
 
 [dependencies.pyo3]
 workspace = true

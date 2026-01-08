@@ -1,5 +1,5 @@
 use graph_builder::prelude::*;
-use numpy::ndarray::Array2;
+use ndarray::Array2;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::mem;
 

@@ -21,8 +21,7 @@ num-format.workspace = true
 nanorand.workspace = true
 rayon.workspace = true
 serde = { workspace = true, optional = true }
-#ndarray = "0.17.1"
-numpy.workspace = true
+ndarray.workspace = true
 
 [dev-dependencies]
 env_logger.workspace = true

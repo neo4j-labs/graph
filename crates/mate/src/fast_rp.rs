@@ -1,7 +1,8 @@
 use graph::prelude::{
-    fast_rp as graph_fast_rp, DirectedDegrees, DirectedNeighbors, Graph as GraphTrait, Idx, FastRPConfig
+    fast_rp as graph_fast_rp, DirectedDegrees, DirectedNeighbors, FastRPConfig, Graph as GraphTrait, Idx
 };
-use numpy::{IntoPyArray, PyArray2, ndarray::Array2};
+use ndarray::Array2;
+use numpy::PyArray2;
 use pyo3::prelude::*;
 use std::time::{Duration, Instant};
 
@@ -54,7 +55,7 @@ impl std::fmt::Debug for FastRPResult {
 #[pymethods]
 impl FastRPResult {
     pub fn embeddings<'py>(&self, py: Python<'py>) -> PyResult<&'py PyArray2<f32>> {
-        Ok(self.embeddings.clone().into_pyarray(py)) //fixme: don't clone
+        Ok(PyArray2::from_owned_array(py, self.embeddings.clone())) //fixme: don't clone!
     }
 
     fn __repr__(&self) -> String {
