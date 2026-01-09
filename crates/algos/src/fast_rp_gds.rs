@@ -93,15 +93,15 @@ impl RandomGenerator {
     }
 
     fn next_long(self: &mut Self) -> i64 {
-        self.u = self.u * 2862933555777941757i64 + 7046029254386353087i64;
+        self.u = self.u.wrapping_mul(2862933555777941757i64).wrapping_add(7046029254386353087i64);
         self.v ^= ((self.v as u64) >> 17) as i64;
         self.v ^= self.v << 31;
         self.v ^= ((self.v as u64) >> 8) as i64;
-        self.w = 4294957665i64 * self.w + (((self.w as u64) >> 32) as i64);
+        self.w = 4294957665i64.wrapping_mul(self.w).wrapping_add((((self.w as u64) >> 32) as i64));
         let mut x = self.u ^ (self.u << 21);
         x ^= ((x as u64) >> 35) as i64;
         x ^= x << 4;
-        (x + self.v) ^ self.w
+        (x.wrapping_add(self.v)) ^ self.w
     }
 
     fn next(self: &mut Self, bits: i32) -> i32 {
