@@ -1,11 +1,19 @@
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::IndexedParallelIterator;
 use graph_builder::prelude::*;
 use ndarray::Array2;
-use rayon::prelude::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::mem;
+use rayon::iter::IntoParallelRefMutIterator;
 
 #[derive(Clone, Debug)] //not Copy bc vector inside
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "clap", derive(clap::Args))]
+
+// TODO:
+//  * use original ids for random seed in gds algo
+//  * improve parallelization: batch process
+//  * write a simpler, paper like version to use as default
+
 pub struct FastRPConfig {
     /// The length of the output vectors.
     #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_OUT_DIM))]
@@ -97,7 +105,7 @@ impl RandomGenerator {
         self.v ^= ((self.v as u64) >> 17) as i64;
         self.v ^= self.v << 31;
         self.v ^= ((self.v as u64) >> 8) as i64;
-        self.w = 4294957665i64.wrapping_mul(self.w).wrapping_add((((self.w as u64) >> 32) as i64));
+        self.w = 4294957665i64.wrapping_mul(self.w).wrapping_add(((self.w as u64) >> 32) as i64);
         let mut x = self.u ^ (self.u << 21);
         x ^= ((x as u64) >> 35) as i64;
         x ^= x << 4;
@@ -113,6 +121,39 @@ impl RandomGenerator {
             * Self::DOUBLE_UNIT
     }
 }
+
+trait NodeSeed<NI: Idx> {
+    fn node_seed(&self, node_id: NI) -> u64;
+}
+
+//
+// impl<NI, G> NodeSeed<NI> for G
+// where
+//     NI: Idx,
+//     G: Graph<NI> + Sync
+// {
+//     fn node_seed(&self, node_id: NI) -> u64 {
+//         node_id.index() as u64
+//     }
+// }
+
+// impl<NI, G> NodeSeed<NI> for G
+// where
+//     NI: Idx,
+//     G: Graph<NI> + NodeValues<NI, u64> + Sync
+// {
+//     fn node_seed(&self, node_id: NI) -> u64 {
+//         self.node_value(node_id).clone()
+//     }
+// }
+
+// fn node_seed_from_value<NI, G>(graph: &G, node_id: NI)
+// where
+//     NI: Idx,
+//     G: Graph<NI> + NodeValues<NI, u64>
+// {
+//
+// }
 
 fn rnd_original_vec(
     dim: usize,
@@ -159,6 +200,7 @@ where
     let node_count = graph.node_count().index();
 
     let mut read_matrix: Vec<_> = (0..node_count)
+        .into_par_iter()
         .map(|u| {
             rnd_original_vec(
                 dim,
@@ -210,6 +252,7 @@ where
     let dim = read_matrix[0].len();
 
     write_matrix
+        // .iter_mut()
         .par_iter_mut()
         .enumerate()
         .for_each(|(u, write_vec_u)| {
