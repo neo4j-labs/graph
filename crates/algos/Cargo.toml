@@ -22,6 +22,8 @@ nanorand.workspace = true
 rayon.workspace = true
 serde = { workspace = true, optional = true }
 ndarray.workspace = true
+rand_distr = "0.5.1"
+rand = {workspace = true, features = ["small_rng"]}
 
 [dev-dependencies]
 env_logger.workspace = true
@@ -29,7 +31,6 @@ graph_builder = { path = "../builder", version = "^0.4.1", features = ["gdl"] }
 log.workspace = true
 polars.workspace = true
 criterion.workspace = true
-rand="0.8.0"
 
 [[bench]]
 name = "fast_rp"

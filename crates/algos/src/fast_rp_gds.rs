@@ -1,9 +1,13 @@
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rayon::iter::IndexedParallelIterator;
 use graph_builder::prelude::*;
-use ndarray::Array2;
+use ndarray::{Array2, Axis};
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
+use rand_distr::StandardNormal;
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, ParallelIterator,
+};
 use std::mem;
-use rayon::iter::IntoParallelRefMutIterator;
+use rayon::prelude::ParallelSliceMut;
 
 #[derive(Clone, Debug)] //not Copy bc vector inside
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -101,11 +105,16 @@ impl RandomGenerator {
     }
 
     fn next_long(self: &mut Self) -> i64 {
-        self.u = self.u.wrapping_mul(2862933555777941757i64).wrapping_add(7046029254386353087i64);
+        self.u = self
+            .u
+            .wrapping_mul(2862933555777941757i64)
+            .wrapping_add(7046029254386353087i64);
         self.v ^= ((self.v as u64) >> 17) as i64;
         self.v ^= self.v << 31;
         self.v ^= ((self.v as u64) >> 8) as i64;
-        self.w = 4294957665i64.wrapping_mul(self.w).wrapping_add(((self.w as u64) >> 32) as i64);
+        self.w = 4294957665i64
+            .wrapping_mul(self.w)
+            .wrapping_add(((self.w as u64) >> 32) as i64);
         let mut x = self.u ^ (self.u << 21);
         x ^= ((x as u64) >> 35) as i64;
         x ^= x << 4;
@@ -122,51 +131,19 @@ impl RandomGenerator {
     }
 }
 
-trait NodeSeed<NI: Idx> {
-    fn node_seed(&self, node_id: NI) -> u64;
-}
-
-//
-// impl<NI, G> NodeSeed<NI> for G
-// where
-//     NI: Idx,
-//     G: Graph<NI> + Sync
-// {
-//     fn node_seed(&self, node_id: NI) -> u64 {
-//         node_id.index() as u64
-//     }
-// }
-
-// impl<NI, G> NodeSeed<NI> for G
-// where
-//     NI: Idx,
-//     G: Graph<NI> + NodeValues<NI, u64> + Sync
-// {
-//     fn node_seed(&self, node_id: NI) -> u64 {
-//         self.node_value(node_id).clone()
-//     }
-// }
-
-// fn node_seed_from_value<NI, G>(graph: &G, node_id: NI)
-// where
-//     NI: Idx,
-//     G: Graph<NI> + NodeValues<NI, u64>
-// {
-//
-// }
-
 fn rnd_original_vec(
+    write_vec: &mut [f32],
     dim: usize,
-    node_id: usize,
+    node_seed: usize,
+    random_seed: i64,
     degree: usize,
     normalization_strength: f32,
-    random_seed: i64,
-) -> Vec<f32> {
+) {
     const SPARSITY: usize = 3;
     const ENTRY_PROBABILITY: f64 = 1.0 / (2 * SPARSITY) as f64;
 
     let improved_random_seed = RandomGenerator::new(random_seed).next_long();
-    let mut random = RandomGenerator::new((improved_random_seed) ^ (node_id as i64));
+    let mut random = RandomGenerator::new((improved_random_seed) ^ (node_seed as i64));
     let scaling = if degree == 0 {
         1.
     } else {
@@ -174,18 +151,35 @@ fn rnd_original_vec(
     };
     let entry_value = scaling * (SPARSITY as f32).sqrt() / (dim as f32).sqrt();
 
-    (0..dim)
-        .map(|_| {
-            let random_value = random.next_double();
-            if random_value < ENTRY_PROBABILITY {
-                entry_value
-            } else if random_value < 2. * ENTRY_PROBABILITY {
-                -entry_value
-            } else {
-                0f32
-            }
-        })
-        .collect()
+    write_vec.iter_mut().for_each(|x| {
+        let random_value = random.next_double();
+        *x = if random_value < ENTRY_PROBABILITY {
+            entry_value
+        } else if random_value < 2. * ENTRY_PROBABILITY {
+            -entry_value
+        } else {
+            0f32
+        }
+    })
+}
+
+fn rnd_gaussian_vec(
+    write_vec: &mut [f32],
+    node_seed: usize,
+    random_seed: i64,
+    degree: usize,
+    normalization_strength: f32,
+) {
+    let seed = random_seed ^ (node_seed as i64);
+    let mut rng = SmallRng::seed_from_u64(seed as u64);
+    let scaling = if degree == 0 {
+        1.
+    } else {
+        (degree as f32).powf(normalization_strength)
+    };
+    write_vec.iter_mut().for_each(|x| {
+        *x = scaling * rng.sample::<f32, StandardNormal>(StandardNormal)
+    })
 }
 
 pub fn fast_rp<NI, G>(graph: &G, config: FastRPConfig) -> Array2<f32>
@@ -199,72 +193,122 @@ where
     let random_seed = config.random_seed;
     let node_count = graph.node_count().index();
 
-    let mut read_matrix: Vec<_> = (0..node_count)
-        .into_par_iter()
-        .map(|u| {
+    let mut data: Vec<f32> = vec![f32::default(); node_count * dim];
+    data
+        .par_chunks_mut(dim)
+        .enumerate()
+        .for_each(|(u, chunk)| {
             rnd_original_vec(
+                chunk,
                 dim,
                 u,
+                random_seed,
                 graph.out_degree(NI::new(u)).index(),
                 normalization_strength,
-                random_seed,
             )
-        })
-        .collect();
-    let mut write_matrix = vec![vec![0f32; dim]; node_count];
+        });
+    let mut read_matrix = Array2::from_shape_vec((node_count, dim), data).unwrap();
+    let mut write_matrix = Array2::zeros((node_count, dim));
+
 
     let mut result_matrix: Array2<f32> = if coefs[0] == 0. {
         Array2::zeros((node_count, dim))
     } else {
-        Array2::from_shape_fn((node_count, dim), |(u, d)| coefs[0] * read_matrix[u][d])
+        Array2::from_shape_fn((node_count, dim), |(u, d)| {
+            coefs[0] * read_matrix.get((u, d)).unwrap()
+        })
     };
 
-    for &coef in coefs[1..].iter() {
+    for &coef in coefs.iter().skip(1) {
         //R, P*R, P^2 * R, P^3 * R ...
-        (read_matrix, write_matrix) = propagate(graph, read_matrix, write_matrix);
+        (read_matrix, write_matrix) = propagate_gds(graph, read_matrix, write_matrix);
         mem::swap(&mut read_matrix, &mut write_matrix);
 
         if coef != 0. {
             for u in 0..node_count {
-                let l2sqr = (0..dim).map(|d| read_matrix[u][d].powi(2)).sum::<f32>();
-                let safe_inv_l2 = if l2sqr == 0. { 1. } else { 1. / l2sqr.sqrt() };
-                let scalar = coef * safe_inv_l2;
+                let scalar: f32 = if true { //if replicating gds
+                    let l2sqr = (0..dim)
+                        .map(|d| read_matrix.get((u, d)).unwrap().powi(2))
+                        .sum::<f32>();
+                    let safe_inv_l2 = if l2sqr == 0. { 1. } else { 1. / l2sqr.sqrt() };
+                    coef * safe_inv_l2
+                } else {
+                    coef
+                };
 
                 for (d, value) in result_matrix.row_mut(u).iter_mut().enumerate() {
-                    *value += scalar * read_matrix[u][d];
+                    *value += scalar * read_matrix.get((u, d)).unwrap();
                 }
             }
         }
-        (0..node_count).for_each(|u| (0..dim).for_each(|d| write_matrix[u][d] = 0.));
+        write_matrix
+            .axis_iter_mut(Axis(0))
+            .into_par_iter()
+            .for_each(|mut write_vec_u| {
+                for w_ud in write_vec_u.iter_mut() {
+                    *w_ud = 0f32;
+                }
+            })
     }
     result_matrix
 }
 
-fn propagate<NI, G>(
+fn propagate_gds<NI, G>(
     graph: &G,
-    read_matrix: Vec<Vec<f32>>,
-    mut write_matrix: Vec<Vec<f32>>,
-) -> (Vec<Vec<f32>>, Vec<Vec<f32>>)
+    mut read_matrix: Array2<f32>,
+    mut write_matrix: Array2<f32>,
+) -> (Array2<f32>, Array2<f32>)
 where
     NI: Idx,
     G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
 {
-    let dim = read_matrix[0].len();
+    write_matrix
+        .axis_iter_mut(Axis(0))
+        .into_par_iter()
+        .enumerate()
+        .for_each(|(u, mut write_vec_u)| {
+            for v in graph.out_neighbors(NI::new(u)) {
+                let inv_deg = 1f32 / graph.out_degree(NI::new(u)).index() as f32;
+                let read_vec_v = read_matrix.row(v.index());
+                for (w_ud, r_ud) in write_vec_u.iter_mut().zip(read_vec_v.iter()) {
+                    *w_ud += inv_deg * r_ud;
+                }
+            }
+        });
+
+    (read_matrix, write_matrix)
+}
+
+fn propagate<NI, G>(
+    graph: &G,
+    mut read_matrix: Array2<f32>,
+    mut write_matrix: Array2<f32>,
+) -> (Array2<f32>, Array2<f32>)
+where
+    NI: Idx,
+    G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
+{
+    read_matrix
+        .axis_iter_mut(Axis(0))
+        .into_par_iter()
+        .enumerate()
+        .for_each(|(u, mut read_vec_u)| {
+            let inv_deg = 1f32 / graph.out_degree(NI::new(u)).index() as f32;
+            for r_ud in read_vec_u.iter_mut() {
+                *r_ud *= inv_deg;
+            }
+        });
 
     write_matrix
-        // .iter_mut()
-        .par_iter_mut()
+        .axis_iter_mut(Axis(0))
+        .into_par_iter()
         .enumerate()
-        .for_each(|(u, write_vec_u)| {
-            graph.out_neighbors(NI::new(u)).for_each(|v| {
-                (0..dim).for_each(|d| write_vec_u[d] += read_matrix[v.index()][d])
-                //scale after instead
-            });
-
-            let deg = graph.out_degree(NI::new(u)).index() as f32;
-            let inv_deg = if deg == 0. { 1. } else { 1. / deg };
-            for d in 0..dim {
-                write_vec_u[d] = inv_deg * write_vec_u[d]
+        .for_each(|(u, mut write_vec_u)| {
+            for v in graph.out_neighbors(NI::new(u)) {
+                let read_vec_v = read_matrix.row(v.index());
+                for (w_ud, r_ud) in write_vec_u.iter_mut().zip(read_vec_v.iter()) {
+                    *w_ud += r_ud;
+                }
             }
         });
     (read_matrix, write_matrix)
@@ -274,7 +318,7 @@ where
 mod tests {
     use crate::fast_rp_gds::{fast_rp, FastRPConfig};
     use crate::prelude::*;
-    const TOLERANCE: f32 = 1e-4;
+    const TOLERANCE: f32 = 1e-6;
 
     #[test]
     fn test_fast_rp_0() {
