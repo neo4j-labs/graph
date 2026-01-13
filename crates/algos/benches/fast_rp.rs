@@ -10,7 +10,8 @@ const C: u32 = (0.19 * u32::MAX as f64) as u32;
 fn edge(e: u8) -> (usize, usize) {
     let mut s = 0usize;
     let mut t = 0usize;
-    for bit in 0..e { //better to set e at compile time?
+    for bit in 0..e {
+        //better to set e at compile time?
         let rand = rand::random::<u32>();
         if rand < A {
         } else if rand < A + B {
@@ -22,7 +23,7 @@ fn edge(e: u8) -> (usize, usize) {
             t += 1usize << bit;
         }
     }
-    (s,t)
+    (s, t)
 }
 
 fn edge_list(e: u8, m: usize) -> Vec<(usize, usize)> {
@@ -36,18 +37,20 @@ pub fn kronecker_graph(e: u8, m: usize) -> DirectedCsrGraph<usize> {
         .build()
 }
 
-fn bench_fast_rp(c : &mut Criterion) {
-
+fn bench_fast_rp(c: &mut Criterion) {
     let e = 18u8; //n = 2**16 ~ 64k
     let d = 4;
     let m = d * (2usize).pow(e as u32); //m = 2**18 ~ 256k
     let graph = kronecker_graph(e, m);
 
-
     c.bench_function("compute_fast_rp", |b| {
-        b.iter(|| black_box(fast_rp(&graph, FastRPConfig::default())))
+        b.iter(|| {
+            black_box(fast_rp(
+                &graph,
+                FastRPConfig::new(128, vec![0., 0., 0., 1., 0.15], 0., Some(0), None, true),
+            ))
+        })
     });
-
 }
 criterion_group! {
     name = benches;

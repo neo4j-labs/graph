@@ -113,9 +113,12 @@ class DiGraph:
     ) -> WccResult:
         """Run Weakly Connected Components on this graph."""
     def fast_rp(
-        self, *, out_dim: int, coefficients: npt.NDArray[np.float32], normalization_strength: float, random_seed: int
+            self, *, out_dim: int, coefficients: npt.NDArray[np.float32], normalization_strength: float,
+            common_random_seed: Optional[int] = None, node_random_seeds: Optional[npt.NDArray[np.int64]] = None,
+            gds_consistent: bool = False
     ) -> FastRPResult:
         """Run Fast-RP on this graph."""
+
 
 class Graph:
     """

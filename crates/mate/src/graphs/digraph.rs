@@ -1,10 +1,10 @@
 use super::{FileFormat, Graph, Layout, PyGraph};
-use crate::{page_rank::PageRankResult, wcc::WccResult, fast_rp::FastRPResult};
+use crate::{fast_rp::FastRPResult, page_rank::PageRankResult, wcc::WccResult};
 use graph::{
+    fast_rp::FastRPConfig,
     page_rank::PageRankConfig,
     prelude::{CsrLayout, DirectedCsrGraph},
     wcc::WccConfig,
-    fast_rp_gds::FastRPConfig
 };
 use numpy::{PyArray1, PyArray2};
 use pyo3::{prelude::*, types::PyList};
@@ -166,7 +166,9 @@ impl DiGraph {
         out_dim = "FastRPConfig::DEFAULT_OUT_DIM",
         coefficients = "FastRPConfig::DEFAULT_COEFFICIENTS.to_vec()",
         normalization_strength = "FastRPConfig::DEFAULT_NORMALIZATION_STRENGTH",
-        random_seed = "FastRPConfig::DEFAULT_RANDOM_SEED"
+        common_random_seed = "None",
+        node_random_seeds = "None",
+        gds_consistent = "FastRPConfig::DEFAULT_GDS_CONSISTENT"
     )]
     pub fn fast_rp(
         &self,
@@ -174,9 +176,18 @@ impl DiGraph {
         out_dim: usize,
         coefficients: Vec<f32>,
         normalization_strength: f32,
-        random_seed: i64,
+        common_random_seed: Option<i64>,
+        node_random_seeds: Option<Vec<i64>>,
+        gds_consistent: bool,
     ) -> FastRPResult {
-        let config = FastRPConfig::new(out_dim, coefficients, normalization_strength, random_seed);
+        let config = FastRPConfig::new(
+            out_dim,
+            coefficients,
+            normalization_strength,
+            common_random_seed,
+            node_random_seeds,
+            gds_consistent,
+        );
         crate::fast_rp::fast_rp(py, self.inner.g(), config)
     }
 }
