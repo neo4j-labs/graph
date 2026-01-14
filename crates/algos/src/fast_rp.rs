@@ -1,3 +1,39 @@
+//! Fast Random Projections (FastRP) algorithm.
+//!
+//! FastRP[1] computes node embeddings as random projections of powers of the graph
+//! transition matrix P (n x n), i.e. the column-normalized adjacency matrix. The
+//! per-node embeddings are defined as  (a0 * P^0 + a1 * P^1 + a2 * P^2 + ...) * X_0,
+//! where X_0 (n x d, d << n) are random vectors X_init scaled with
+//! (degree(u) / edge_count) ^ `normalization_strength`
+//!
+//! The implementation uses sparse x dense matrix multiplication, efficiently
+//! computing (P^i * X_0) as P * (P^(i-1) * X_0). The result is then computed as a
+//! weighted sum of the different (P^i * X_0).
+//!
+//! Compute time should scale as O(`out_dim` * edge_count * `coefficients.len()`), and
+//! memory usage as O(out_dim * node_count + edge_count). Where `out_dim` is the desired
+//! length of the embeddings.
+//!
+//! This algorithm offers two implementations. One default, designed to be similar to
+//! the paper [1] and one alternative, which is implemented to be consistent with the
+//! Neo4j Graph Data Science library see [2].
+//!
+//! For the default implementation, the embeddings are initialized as random Gaussian
+//! vectors (mean=0, std=1). For the GDS-consistent implementation, the embeddings are
+//! initialized as sparse vectors with values +-`SPARSITY` or 0, see [2], also
+//! suggested in [1].
+//!
+//! The random initialization is determined by the `common_random_seed` and the
+//! `node_random_seed`. This assures consistency between runs even when the node ids
+//! are changed. If `node_random_seed` is set to `None`, it defaults to using node ids.
+//! If `common_random_seed` is set to `None` it is instead randomly generated.
+//!
+//! [1] Haochen Chen, Syed Fahad Sultan, Yingtao Tian, Muhao Chen, and Steven Skiena.
+//! 2019. Fast and Accurate Network Embeddings via Very Sparse Random Projection.
+//! In Proceedings of the 28th ACM International Conference on Information and Knowledge Management (CIKM '19).
+//! Association for Computing Machinery, New York, NY, USA, 399–408. https://doi.org/10.1145/3357384.3357879
+//! [2] https://neo4j.com/docs/graph-data-science/current/machine-learning/node-embeddings/fastrp/
+
 use graph_builder::prelude::*;
 use ndarray::{Array2, ArrayView1, ArrayViewMut1, Axis, Zip};
 use rand::rngs::SmallRng;
@@ -11,31 +47,33 @@ use std::mem;
 #[cfg_attr(feature = "clap", derive(clap::Args))]
 
 pub struct FastRPConfig {
-    /// The length of the output vectors.
+    /// The length of the output vectors. A larger graph, usually requires a larger embedding space,
+    /// but this does not scale linearly (curse of dimensionality). Closely related to
+    /// compute time and memory usage, see documentation above.
     #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_OUT_DIM))]
     out_dim: usize,
 
-    /// Coefficients of the polynomial.
-    /// Result is (a0 * I  +  a1 * P  +  a2 * P^2  + ...) * L_norm * X_init
-    /// where P is the transition matrix used.
+    /// Coefficients of the polynomial, input as [a0, a1, ...].
+    /// Default is [0., 0., 0., 1., 0.15] -> x^3 + 0.15 x^4
     #[cfg_attr(feature = "clap", clap(long, default_values_t = FastRPConfig::DEFAULT_COEFFICIENTS.to_vec()
     ))]
     coefficients: Vec<f32>,
 
     /// Normalization strength of initial features.
-    /// Initial features for node u is scales with ( degree(u) / sum(degrees) ) ^ normalization_strength
+    /// Scales the random vectors with L = ( degree(u) / edge_count ) ^ normalization_strength.
     #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_NORMALIZATION_STRENGTH
     ))]
     normalization_strength: f32,
 
     /// Common random seed
-    /// Determines the random initialization together with node seeds (if given, otherwise node ids).
+    /// Determines the random initialization together with node seeds.
     /// If not given, it is randomly initialized.
     #[cfg_attr(feature = "clap", clap(long))]
     common_random_seed: Option<i64>,
 
     /// Node random seeds
     /// The node specific feature that determines the initialization of the random vectors.
+    /// The common random seed must also be set for consistency between runs.
     /// If not given, the node id is used.
     #[cfg_attr(feature = "clap", clap(long))]
     node_random_seeds: Option<Vec<i64>>,
@@ -89,15 +127,18 @@ where
     NI: Idx,
     G: Graph<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
 {
+    let FastRPConfig {
+        out_dim: dim,
+        coefficients,
+        normalization_strength,
+        common_random_seed: maybe_common_random_seed,
+        node_random_seeds: maybe_node_random_seeds,
+        gds_consistent,
+    } = config;
+
     let node_count = graph.node_count().index();
-    let dim = config.out_dim;
-    let coefs = config.coefficients;
-    let normalization_strength = config.normalization_strength;
-    let common_random_seed = config
-        .common_random_seed
-        .unwrap_or_else(|| rand::rng().random());
-    let maybe_node_seeds = config.node_random_seeds;
-    if let Some(node_seeds) = &maybe_node_seeds {
+    let common_random_seed = maybe_common_random_seed.unwrap_or_else(|| rand::rng().random());
+    if let Some(node_seeds) = &maybe_node_random_seeds {
         assert_eq!(node_seeds.len(), node_count);
         //fixme: warn if common_random_seed not set but node specific is
     }
@@ -106,7 +147,7 @@ where
         fn(&mut [f32], i64, i64, usize, f32),
         fn(&G, Array2<f32>, Array2<f32>) -> (Array2<f32>, Array2<f32>),
         fn(ArrayViewMut1<f32>, ArrayView1<f32>, f32),
-    ) = match config.gds_consistent {
+    ) = match gds_consistent {
         true => (rnd_vec_gds, propagate_gds, scale_vec_gds),
         false => (rnd_gaussian_vec, propagate, scale_vec),
     };
@@ -117,7 +158,7 @@ where
         .into_par_iter()
         .enumerate()
         .for_each(|(u, mut row)| {
-            let node_seed = match &maybe_node_seeds {
+            let node_seed = match &maybe_node_random_seeds {
                 None => u as i64,
                 Some(node_seeds) => node_seeds[u],
             };
@@ -132,7 +173,7 @@ where
     let mut write_matrix = Array2::zeros((node_count, dim));
     let mut result_matrix: Array2<f32> = Array2::zeros((node_count, dim));
 
-    if let Some(coef) = coefs.first() {
+    if let Some(coef) = coefficients.first() {
         if *coef != 0f32 {
             Zip::from(&mut result_matrix)
                 .and(&read_matrix)
@@ -142,7 +183,7 @@ where
         }
     };
 
-    for &coef in coefs.iter().skip(1) {
+    for &coef in coefficients.iter().skip(1) {
         //R, P*R, P^2 * R, P^3 * R ...
         (read_matrix, write_matrix) = propagate_fn(graph, read_matrix, write_matrix);
         mem::swap(&mut read_matrix, &mut write_matrix);
@@ -338,7 +379,7 @@ where
         .for_each(|(u, mut write_vec_u)| {
             for v in graph.out_neighbors(NI::new(u)) {
                 let deg = graph.out_degree(NI::new(u)).index();
-                let inv_deg = if deg > 0 { 1f32 / deg as f32} else { 1f32 };
+                let inv_deg = if deg > 0 { 1f32 / deg as f32 } else { 1f32 };
                 let read_vec_v = read_matrix.row(v.index());
                 for (w_ud, r_ud) in write_vec_u.iter_mut().zip(read_vec_v.iter()) {
                     *w_ud += inv_deg * r_ud;
