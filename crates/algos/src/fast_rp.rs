@@ -4,7 +4,7 @@
 //! transition matrix P (n x n), i.e. the column-normalized adjacency matrix. The
 //! per-node embeddings are defined as  (a0 * P^0 + a1 * P^1 + a2 * P^2 + ...) * X_0,
 //! where X_0 (n x d, d << n) are random vectors X_init scaled with
-//! (degree(u) / edge_count) ^ `normalization_strength`
+//! degree(u) ^ `normalization_strength`
 //!
 //! The implementation uses sparse x dense matrix multiplication, efficiently
 //! computing (P^i * X_0) as P * (P^(i-1) * X_0). The result is then computed as a
@@ -60,7 +60,7 @@ pub struct FastRPConfig {
     coefficients: Vec<f32>,
 
     /// Normalization strength of initial features.
-    /// Scales the random vectors with L = ( degree(u) / edge_count ) ^ normalization_strength.
+    /// Scales the random vectors with L = ( degree(u) / (2*edge_count) ) ^ normalization_strength.
     #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_NORMALIZATION_STRENGTH
     ))]
     normalization_strength: f32,
