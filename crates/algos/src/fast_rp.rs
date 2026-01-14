@@ -4,7 +4,7 @@
 //! transition matrix P (n x n), i.e. the column-normalized adjacency matrix. The
 //! per-node embeddings are defined as  (a0 * P^0 + a1 * P^1 + a2 * P^2 + ...) * X_0,
 //! where X_0 (n x d, d << n) are random vectors X_init scaled with
-//! degree(u) ^ `normalization_strength`
+//! (degree(u) / (2 * edge_count)) ^ `normalization_strength`
 //!
 //! The implementation uses sparse x dense matrix multiplication, efficiently
 //! computing (P^i * X_0) as P * (P^(i-1) * X_0). The result is then computed as a
@@ -79,7 +79,10 @@ pub struct FastRPConfig {
     node_random_seeds: Option<Vec<i64>>,
 
     /// Use legacy gds version
-    #[cfg_attr(feature = "clap", clap(long, default_value_t = FastRPConfig::DEFAULT_GDS_CONSISTENT))]
+    #[cfg_attr(
+        feature = "clap",
+        clap(long, default_value_t = FastRPConfig::DEFAULT_GDS_CONSISTENT)
+    )]
     gds_consistent: bool,
 }
 
@@ -144,7 +147,7 @@ where
     }
 
     let (rnd_vec_fn, propagate_fn, scale_fn): (
-        fn(&mut [f32], i64, i64, usize, f32),
+        fn(&mut [f32], i64, i64, usize, f32, f32),
         fn(&G, Array2<f32>, Array2<f32>) -> (Array2<f32>, Array2<f32>),
         fn(ArrayViewMut1<f32>, ArrayView1<f32>, f32),
     ) = match gds_consistent {
@@ -152,6 +155,7 @@ where
         false => (rnd_gaussian_vec, propagate, scale_vec),
     };
 
+    let inv_degree_sum = 1. / ( 2 * graph.edge_count().index()) as f32;
     let mut read_matrix = Array2::zeros((node_count, dim));
     read_matrix
         .axis_iter_mut(Axis(0))
@@ -167,6 +171,7 @@ where
                 node_seed,
                 common_random_seed,
                 graph.out_degree(NI::new(u)).index(),
+                inv_degree_sum,
                 normalization_strength,
             )
         });
@@ -214,15 +219,12 @@ fn rnd_gaussian_vec(
     node_seed: i64,
     random_seed: i64,
     degree: usize,
+    inv_degree_sum: f32,
     normalization_strength: f32,
 ) {
     let seed = random_seed ^ node_seed;
     let mut rng = SmallRng::seed_from_u64(seed as u64);
-    let scaling = if degree == 0 {
-        1.
-    } else {
-        (degree as f32).powf(normalization_strength)
-    };
+    let scaling = (degree.max(1) as f32 * inv_degree_sum).powf(normalization_strength);
     write_vec
         .iter_mut()
         .for_each(|x| *x = scaling * rng.sample::<f32, StandardNormal>(StandardNormal))
@@ -336,6 +338,7 @@ fn rnd_vec_gds(
     node_seed: i64,
     random_seed: i64,
     degree: usize,
+    _inv_degree_sum: f32,
     normalization_strength: f32,
 ) {
     const SPARSITY: usize = 3;
@@ -401,13 +404,18 @@ fn scale_vec_gds(result_vec_u: ArrayViewMut1<f32>, read_vec_u: ArrayView1<f32>, 
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Mul;
     use crate::fast_rp::{fast_rp, FastRPConfig};
     use crate::prelude::*;
+    use approx::RelativeEq;
+    use ndarray::{s, Array2};
     const TOLERANCE: f32 = 1e-6;
+    const MAX_RELATIVE_TOLERANCE: f32 = 1e-4;
 
     #[test]
-    fn test_fast_rp_0() {
-        let gdl = "(a0),(a1),\n(a0)-[:R]->(a1),(a1)-[:R]->(a0)";
+    fn test_coefficients_on_bipartite() {
+        let gdl = "(a0), (a1), (a2), (a3), \
+        (a0)-->(a1), (a1)-->(a0), (a2)-->(a3), (a3)-->(a2)";
 
         let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
             .csr_layout(CsrLayout::Sorted)
@@ -415,51 +423,55 @@ mod tests {
             .build()
             .unwrap();
 
-        for u in 0..graph.node_count().index() {
-            for v in graph.out_neighbors(u) {
-                println!("    ({u}) --> ({v})")
-            }
-        }
-
-        let nd_vectors = fast_rp(
+        let result_1: Array2<f32> = fast_rp(
             &graph,
-            FastRPConfig::new(8, vec![0., 0., 0., 1., 0.15], 0., Some(0), None, true),
+            FastRPConfig::new(8, vec![1.], 0., Some(0), None, false)
         );
-        let vectors: Vec<Vec<f32>> = nd_vectors
-            .rows()
-            .into_iter()
-            .map(|row| row.to_vec())
-            .collect();
 
-        for (u, vector) in vectors.iter().enumerate() {
-            println!("{u}: {vector:?}");
-        }
+        let result_2: Array2<f32> = fast_rp(
+            &graph,
+            FastRPConfig::new(8, vec![0., 0., 1.], 0., Some(0), None, false)
+        );
 
-        let expected_vecs: Vec<Vec<f32>> = vec![
-            vec![
-                0.0,
-                0.08660254,
-                -0.49074772,
-                0.0,
-                0.57735026,
-                0.0,
-                0.6639528,
-                0.0,
-            ],
-            vec![
-                0.0, 0.57735026, 0.49074772, 0.0, 0.08660254, 0.0, 0.6639528, 0.0,
-            ],
-        ];
-
-        for i in 0..2 {
-            for (actual, expected) in vectors[i].iter().zip(expected_vecs[i].clone()) {
-                assert!((actual - expected).abs() < TOLERANCE)
-            }
-        }
+        assert!(result_1.relative_eq(&result_2, TOLERANCE, MAX_RELATIVE_TOLERANCE));
     }
 
     #[test]
-    fn test_fast_rp() {
+    fn test_normalization_strength() {
+        let gdl_1 = "(a0), (a1), (a2), (a3), (a4)\
+        (a0)-->(a1), (a1)-->(a0), (a2)-->(a3), (a3)-->(a2), (a4)-->(a4)";
+
+        let gdl_2 = "(a0), (a1), (a2), (a3), (a4)\
+        (a0)-->(a1), (a1)-->(a0), (a2)-->(a3), (a3)-->(a2), (a0)-->(a4)";
+
+        let graph_1: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .gdl_str::<usize, _>(gdl_1)
+            .build()
+            .unwrap();
+
+        let graph_2: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .gdl_str::<usize, _>(gdl_2)
+            .build()
+            .unwrap();
+
+        let result_1: Array2<f32> = fast_rp(
+            &graph_1,
+            FastRPConfig::new(8, vec![1.], 0., Some(0), None, false)
+        );
+
+        let result_2: Array2<f32> = fast_rp(
+            &graph_2,
+            FastRPConfig::new(8, vec![1.], 1., Some(0), None, false)
+        );
+
+        assert!(result_1.row(0).relative_eq(&result_2.row(0).mul(10./2.), TOLERANCE, MAX_RELATIVE_TOLERANCE));
+        assert!(result_1.slice(s![1..,..]).relative_eq(&result_2.slice(s![1..,..]).mul(10./1.), TOLERANCE, MAX_RELATIVE_TOLERANCE));
+    }
+
+    #[test]
+    fn test_common_random_seed() {
         let gdl = "(a0),(a1),(a2),(a3),\
         (a0)-->(a1),(a1)-->(a0),(a0)-->(a2),(a3)-->(a2)";
 
@@ -469,57 +481,100 @@ mod tests {
             .build()
             .unwrap();
 
-        for u in 0..graph.node_count().index() {
-            for v in graph.out_neighbors(u) {
-                println!("    ({u}) --> ({v})")
-            }
+        let config_42 = FastRPConfig::new(8, vec![0., 0., 1.], 0., Some(42), None, false);
+        let config_rnd = FastRPConfig::new(8, vec![0., 0., 1.], 0., None, None, false);
+
+        assert!(fast_rp(&graph, config_42.clone()).relative_eq(&fast_rp(&graph, config_42.clone()), TOLERANCE, MAX_RELATIVE_TOLERANCE));
+        assert!(fast_rp(&graph, config_42.clone()).relative_ne(&fast_rp(&graph, config_rnd.clone()), TOLERANCE, MAX_RELATIVE_TOLERANCE)); //could fail if unlucky, hmm
+    }
+
+    #[test]
+    fn test_node_random_seed() {
+        let gdl_1 = "(a0),(a1),(a2),(a3),\
+        (a0)-->(a1),(a1)-->(a0),(a0)-->(a2),(a3)-->(a2)";
+
+        //gets node id based on order of definition
+        let gdl_2 = "(a3),(a2),(a1),(a0),\
+        (a0)-->(a1),(a1)-->(a0),(a0)-->(a2),(a3)-->(a2)";
+
+        let graph_1: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .gdl_str::<usize, _>(gdl_1)
+            .build()
+            .unwrap();
+
+        let graph_2: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .gdl_str::<usize, _>(gdl_2)
+            .build()
+            .unwrap();
+
+        let node_seeds_1 = vec![100, 11, 22, 30];
+        let node_seeds_2 = vec![30, 22, 11, 100];
+        let result_1= fast_rp(&graph_1, FastRPConfig::new(8, vec![0., 0., 1.], 0., Some(42), Some(node_seeds_1), false));
+        let result_2= fast_rp(&graph_2, FastRPConfig::new(8, vec![0., 0., 1.], 0., Some(42), Some(node_seeds_2), false));
+
+        for (i,j) in (0..4).zip(4..0) {
+            assert!(result_1.row(i).relative_eq(&result_2.row(j), TOLERANCE, MAX_RELATIVE_TOLERANCE));
         }
 
-        let nd_vectors = fast_rp(
+    }
+
+    #[test]
+    fn test_gds_consistency() {
+        let gdl = "(a0),(a1),(a2),(a3),\
+        (a0)-->(a1),(a1)-->(a0),(a0)-->(a2),(a3)-->(a2)";
+
+        let graph: DirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Sorted)
+            .gdl_str::<usize, _>(gdl)
+            .build()
+            .unwrap();
+
+        let result: Array2<f32> = fast_rp(
             &graph,
-            FastRPConfig::new(128, vec![0., 0., 0., 1., 0.15], 0., Some(0), None, true),
+            FastRPConfig::new(8, vec![0., 0., 0., 1., 0.15], 0., Some(0), None, true),
         );
-        let vectors: Vec<Vec<f32>> = nd_vectors
-            .rows()
-            .into_iter()
-            .map(|row| row.to_vec())
-            .collect();
 
-        for (u, vector) in vectors.iter().enumerate() {
-            println!("{u}: {vector:?}");
-        }
-
-        let expected_vecs: Vec<Vec<f32>> = vec![
+        let gds_result: Array2<f32> = Array2::from_shape_vec(
+            (4, 8),
             vec![
                 0.0,
-                0.12577915,
-                -0.18040705,
-                0.10206207,
-                0.10206207,
+                0.44015592336654663,
+                -0.6205042600631714,
+                0.3535533845424652,
+                0.3535533845424652,
                 0.0,
-                0.023717085,
-                0.10206207,
+                0.08660253882408142,
+                0.3535533845424652,
+                0.0,
+                0.6303832530975342,
+                0.47128424048423767,
+                0.0530330091714859,
+                0.0530330091714859,
+                0.0,
+                0.5773502588272095,
+                0.0530330091714859,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
             ],
-            vec![
-                0.0,
-                0.1734232,
-                0.12749526,
-                0.015309311,
-                0.015309311,
-                0.0,
-                0.15811388,
-                0.015309311,
-            ],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        ];
+        )
+        .unwrap();
 
-        for i in 0..4 {
-            for (actual, expected) in vectors[i][..8].iter().zip(expected_vecs[i].clone()) {
-                if (actual - expected).abs() > TOLERANCE {
-                    panic!("Actual: {actual}, Expected: {expected} at vector {i}")
-                }
-            }
-        }
+        assert!(result.relative_eq(&gds_result, TOLERANCE, MAX_RELATIVE_TOLERANCE));
     }
 }
