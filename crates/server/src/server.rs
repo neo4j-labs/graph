@@ -16,8 +16,8 @@ use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions};
 use arrow_flight::utils::flight_data_to_arrow_batch;
 use arrow_flight::{
     flight_service_server::FlightService, Action, ActionType, Criteria, Empty, FlightData,
-    FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc,
-    SchemaResult, Ticket,
+    FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PollInfo, PutResult,
+    SchemaAsIpc, SchemaResult, Ticket,
 };
 use futures::stream::BoxStream;
 use futures::StreamExt;
@@ -54,7 +54,6 @@ impl Default for FlightServiceImpl {
         Self::new()
     }
 }
-
 pub(crate) type FlightResult<T> = Result<T, Status>;
 
 #[tonic::async_trait]
@@ -275,6 +274,13 @@ impl FlightService for FlightServiceImpl {
         &self,
         _request: Request<FlightDescriptor>,
     ) -> FlightResult<Response<FlightInfo>> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn poll_flight_info(
+        &self,
+        _request: Request<FlightDescriptor>,
+    ) -> FlightResult<Response<PollInfo>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 

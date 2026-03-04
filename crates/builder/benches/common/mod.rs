@@ -37,7 +37,7 @@ pub fn create_graph_500(scale: usize) -> Result<PathBuf> {
         rt.block_on(async { download_and_decompress(&from, &download_dir).await })?;
     }
 
-    Ok(download_dir.join(format!("graph500-{}.e", scale)))
+    Ok(download_dir.join(format!("graph500-{scale}.e")))
 }
 
 async fn download_and_decompress<P: AsRef<Path>>(url: &str, download: P) -> Result<()> {

@@ -122,7 +122,7 @@ impl<NI: Idx, EV: Copy + Send + Sync> Edges for EdgeList<NI, EV> {
         Self: 'a;
 
     fn edges(&self) -> Self::EdgeIter<'_> {
-        self.list.into_par_iter().copied()
+        self.list.as_ref().into_par_iter().copied()
     }
 
     #[cfg(test)]
