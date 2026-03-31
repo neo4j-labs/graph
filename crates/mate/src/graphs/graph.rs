@@ -5,7 +5,7 @@ use numpy::{PyArray1, PyArray2};
 use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
 
-pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn register(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Graph>()?;
     Ok(())
 }
@@ -28,7 +28,7 @@ impl Graph {
 impl Graph {
     /// Load a graph in the provided format
     #[staticmethod]
-    #[args(layout = "None", file_format = "FileFormat::Graph500")]
+    #[pyo3(signature = (path, layout=None, file_format=FileFormat::Graph500))]
     pub fn load(
         py: Python<'_>,
         path: PathBuf,
@@ -41,16 +41,16 @@ impl Graph {
 
     /// Convert a numpy 2d-array into a graph.
     #[staticmethod]
-    #[args(layout = "None")]
-    pub fn from_numpy(np: &PyArray2<u32>, layout: Option<Layout>) -> PyResult<Self> {
+    #[pyo3(signature = (np, layout=None))]
+    pub fn from_numpy(np: Bound<PyArray2<u32>>, layout: Option<Layout>) -> PyResult<Self> {
         let g = PyGraph::from_numpy(np, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
 
     /// Convert a pandas dataframe into a graph.
     #[staticmethod]
-    #[args(layout = "None")]
-    pub fn from_pandas(py: Python<'_>, data: PyObject, layout: Option<Layout>) -> PyResult<Self> {
+    #[pyo3(signature = (data, layout=None))]
+    pub fn from_pandas(py: Python<'_>, data: Py<PyAny>, layout: Option<Layout>) -> PyResult<Self> {
         let g = PyGraph::from_pandas(py, data, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
@@ -74,14 +74,18 @@ impl Graph {
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    pub fn neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
+    pub fn neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: u32,
+    ) -> Result<Bound<'py, PyArray1<u32>>, PyErr> {
         self.inner.neighbors(py, node)
     }
 
     /// Returns all nodes connected to the given node.
     ///
     /// This function returns a copy of the data as a Python list.
-    pub fn copy_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
+    pub fn copy_neighbors<'py>(&self, py: Python<'py>, node: u32) -> Bound<'py, PyList> {
         self.inner.copy_neighbors(py, node)
     }
 

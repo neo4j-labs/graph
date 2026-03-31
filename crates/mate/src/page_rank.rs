@@ -7,7 +7,7 @@ use numpy::PyArray1;
 use pyo3::prelude::*;
 use std::time::{Duration, Instant};
 
-pub(crate) fn register(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+pub(crate) fn register(_py: Python<'_>, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PageRankResult>()?;
     Ok(())
 }
@@ -18,7 +18,7 @@ where
     G: GraphTrait<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
     C: Into<Option<PageRankConfig>> + Send,
 {
-    py.allow_threads(move || inner_page_rank(graph, config))
+    py.detach(move || inner_page_rank(graph, config))
 }
 
 fn inner_page_rank<NI, G>(graph: &G, config: impl Into<Option<PageRankConfig>>) -> PageRankResult
@@ -64,7 +64,7 @@ impl std::fmt::Debug for PageRankResult {
 
 #[pymethods]
 impl PageRankResult {
-    pub fn scores<'py>(&self, py: Python<'py>) -> PyResult<&'py PyArray1<f32>> {
+    pub fn scores<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyArray1<f32>>, PyErr> {
         self.scores.clone().into_numpy(py)
     }
 
