@@ -32,23 +32,22 @@ fn main() -> AppResult {
     info!("PageRank ran iterations: {iterations}");
 
     // Let's convert the scores to a polars DataFrame.
-    let df = DataFrame::new(vec![Series::new("scores", scores)])?;
+    let df = df!["scores" => scores]?;
     // We can now calculate some statistics on the result.
     info!("size = {}", df.height());
-    info!("min = {}", df.min());
-    info!("max = {}", df.max());
-    info!("mean = {}", df.mean());
-    info!("median = {}", df.median());
+    info!("min = {}", df.column("scores")?.f32()?.min().unwrap());
+    info!("max = {}", df.column("scores")?.f32()?.max().unwrap());
+    info!("mean = {}", df.column("scores")?.f32()?.mean().unwrap());
+    info!("median = {}", df.column("scores")?.f32()?.median().unwrap());
 
     // Now we want to run Weakly Connected Components on the graph.
     // Similar to the Page Rank result, we get the component id for each node.
     let components = time(|| wcc_afforest(&g, WccConfig::default())).to_vec();
 
     // Calculate some statistics on the computed components.
-    let df = DataFrame::new(vec![Series::new("components", components)])?;
+    let df = df!["scores" => components]?;
     info!("size = {}", df.height());
-    let df = df.unique(None, UniqueKeepStrategy::First)?;
-    info!("component count = {}", df.height());
+    info!("component count = {}", df.column("scores")?.n_unique()?);
 
     // Now we want to count the total number of triangles in the graph.
     // We have to convert the graph to an undirected graph first.
