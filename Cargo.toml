@@ -20,8 +20,9 @@ arrow-flight = "58.1.0"
 async-compression = { version = "0.4.41", features = ["tokio", "zstd"] }
 async-trait = "0.1.89"
 atoi = "2.0.0"
-atomic = "0.5.3"
+atomic = "0.6.1"
 atomic_float = "1.1.0"
+bytemuck = "1.25.0"
 byte-slice-cast = "1.2.3"
 clap = { version = "4.4", features = ["derive"] }
 criterion = { version = "0.8.2", features = ["html_reports"] }

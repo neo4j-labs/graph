@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 
 use atoi::FromRadix10;
 use atomic::Atomic;
+use bytemuck::Pod;
 
 pub trait Idx:
     Copy
@@ -19,6 +20,7 @@ pub trait Idx:
     + Sum
     + Sync
     + Sized
+    + Pod
     + 'static
 {
     fn new(idx: usize) -> Self;
@@ -89,7 +91,6 @@ macro_rules! impl_idx {
         }
     };
 }
-
 impl_idx!(u8);
 impl_idx!(u16);
 impl_idx!(u32);

@@ -12,6 +12,7 @@ license.workspace = true
 [dependencies]
 atoi.workspace = true
 atomic.workspace = true
+bytemuck.workspace = true
 byte-slice-cast.workspace = true
 dashmap.workspace = true
 delegate.workspace = true
