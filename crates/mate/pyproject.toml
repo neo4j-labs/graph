@@ -19,8 +19,23 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries",
 ]
-dependencies = ["numpy >= 1.23.0"]
+dependencies = [
+    "numpy>=1.23.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/s1ck/graph"
 "Bug Tracker" = "https://github.com/s1ck/graph/issues"
+
+[dependency-groups]
+dev = [
+    "black[jupyter]>=24.8.0",
+    "flake8>=5.0.4",
+    "isort>=5.13.2",
+    "maturin>=1.12.6",
+    "mypy>=1.14.1",
+    "numpy>=1.23.0",
+    "pandas>=2.0.3",
+    "pytest>=8.3.5",
+    "tox>=4.25.0",
+]
