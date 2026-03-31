@@ -17,7 +17,7 @@ license = "MIT"
 ahash = "0.8.12"
 arrow = "58.1.0"
 arrow-flight = "58.1.0"
-async-compression = { version = "0.3.15", features = ["tokio", "stream", "zstd"] }
+async-compression = { version = "0.4.41", features = ["tokio", "zstd"] }
 async-trait = "0.1.89"
 atoi = "2.0.0"
 atomic = "0.5.3"
