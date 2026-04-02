@@ -99,8 +99,8 @@ where
 
     (0..edge_count)
         .map(|_| {
-            let source = NI::new(rng.gen_range(0..node_count));
-            let target = NI::new(rng.gen_range(0..node_count));
+            let source = NI::new(rng.random_range(0..node_count));
+            let target = NI::new(rng.random_range(0..node_count));
 
             (source, target, edge_value(source, target))
         })
