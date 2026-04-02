@@ -1,0 +1,18 @@
+[package]
+name = "graph_cypher"
+version = "0.1.0"
+description = "Topology-only Cypher query engine for graph_builder CSR graphs."
+keywords = ["graph", "cypher", "query"]
+authors.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+fxhash.workspace = true
+graph_builder = { path = "../builder", version = "^0.4.1" }
+thiserror.workspace = true
+
+[dev-dependencies]
+graph_builder = { path = "../builder", version = "^0.4.1" }
