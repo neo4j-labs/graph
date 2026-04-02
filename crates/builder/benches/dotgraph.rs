@@ -1,5 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
+use criterion::{criterion_group, criterion_main, Criterion, SamplingMode};
 use graph_builder::prelude::*;
+use std::hint::black_box;
 
 use graph_builder::input::dotgraph::{LabelStats, NodeLabelIndex};
 use rand::RngExt;

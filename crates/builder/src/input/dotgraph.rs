@@ -359,7 +359,7 @@ where
         self.len() == 0
     }
 
-    pub fn iter(&self) -> std::collections::hash_map::Iter<Label, usize> {
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, Label, usize> {
         self.map.iter()
     }
 }

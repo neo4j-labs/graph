@@ -42,7 +42,7 @@ pub(crate) fn register(py: Python, m: Bound<PyModule>) -> PyResult<()> {
 /// Defines how the neighbor list of individual nodes are organized within the
 /// CSR target array.
 #[derive(Clone, Copy, Debug)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub enum Layout {
     /// Neighbor lists are sorted and may contain duplicate target ids.
     Sorted,
@@ -56,7 +56,7 @@ pub enum Layout {
 
 /// Defines the file format of an input file.
 #[derive(Clone, Copy, Debug)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub enum FileFormat {
     /// The input in a binary Graph500 format.
     Graph500,

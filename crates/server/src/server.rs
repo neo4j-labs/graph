@@ -12,6 +12,7 @@ use arrow::datatypes::Int64Type;
 use arrow::datatypes::UInt64Type;
 use arrow::error::ArrowError;
 use arrow::ipc::writer;
+use arrow::ipc::writer::CompressionContext;
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions};
 use arrow_flight::utils::flight_data_to_arrow_batch;
 use arrow_flight::{
@@ -86,7 +87,12 @@ impl FlightService for FlightServiceImpl {
             .iter()
             .map(|batch| {
                 let (_, encoded_batch) = data_gen
-                    .encoded_batch(batch, &mut dictionary_tracker, &ipc_write_options)
+                    .encode(
+                        batch,
+                        &mut dictionary_tracker,
+                        &ipc_write_options,
+                        &mut CompressionContext::default(),
+                    )
                     .expect("DictionaryTracker configured above to not error on replacement");
                 encoded_batch.into()
             })
@@ -292,6 +298,7 @@ impl FlightService for FlightServiceImpl {
         Err(Status::unimplemented("Not yet implemented"))
     }
 
+    #[allow(unused_variables)]
     async fn poll_flight_info(
         &self,
         request: Request<FlightDescriptor>,

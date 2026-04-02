@@ -26,7 +26,7 @@ where
     TriangleCountResult { triangles, micros }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct TriangleCountResult {
     #[pyo3(get)]

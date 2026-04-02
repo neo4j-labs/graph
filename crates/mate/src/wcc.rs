@@ -46,7 +46,7 @@ pub struct WccRes<NI> {
     _phantom: PhantomData<NI>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct WccResult {
     components: SharedSlice,
