@@ -571,15 +571,10 @@ fn eval_mod(l: &Value, r: &Value) -> Result<Value, Error> {
 }
 
 fn eval_pow(l: &Value, r: &Value) -> Result<Value, Error> {
+    // Cypher ^ always returns Float
     match (l, r) {
         (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
-        (Value::Integer(a), Value::Integer(b)) => {
-            if *b >= 0 {
-                Ok(Value::Integer(a.wrapping_pow(*b as u32)))
-            } else {
-                Ok(Value::Float((*a as f64).powf(*b as f64)))
-            }
-        }
+        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Float((*a as f64).powf(*b as f64))),
         (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a.powf(*b))),
         (Value::Integer(a), Value::Float(b)) => Ok(Value::Float((*a as f64).powf(*b))),
         (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a.powf(*b as f64))),

@@ -393,32 +393,58 @@ impl Parser {
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, Error> {
-        let mut left = self.parse_predicate()?;
+        let left = self.parse_predicate()?;
+
+        // Support chained comparisons: a < b < c -> (a < b) AND (b < c)
+        let mut chain_parts: Vec<Expr> = Vec::new();
+        let mut prev_right = left.clone();
+
+        #[derive(Clone, Copy)]
+        enum CmpOp { Eq, Neq, Lt, Gt, Lte, Gte }
 
         loop {
-            if self.eat(&Token::Eq) {
+            let op = if self.eat(&Token::Eq) { Some(CmpOp::Eq) }
+                else if self.eat(&Token::Neq) { Some(CmpOp::Neq) }
+                else if self.eat(&Token::Lt) { Some(CmpOp::Lt) }
+                else if self.eat(&Token::Gt) { Some(CmpOp::Gt) }
+                else if self.eat(&Token::Lte) { Some(CmpOp::Lte) }
+                else if self.eat(&Token::Gte) { Some(CmpOp::Gte) }
+                else { None };
+
+            if let Some(op) = op {
                 let right = self.parse_predicate()?;
-                left = Expr::Eq(Box::new(left), Box::new(right));
-            } else if self.eat(&Token::Neq) {
-                let right = self.parse_predicate()?;
-                left = Expr::Neq(Box::new(left), Box::new(right));
-            } else if self.eat(&Token::Lt) {
-                let right = self.parse_predicate()?;
-                left = Expr::Lt(Box::new(left), Box::new(right));
-            } else if self.eat(&Token::Gt) {
-                let right = self.parse_predicate()?;
-                left = Expr::Gt(Box::new(left), Box::new(right));
-            } else if self.eat(&Token::Lte) {
-                let right = self.parse_predicate()?;
-                left = Expr::Lte(Box::new(left), Box::new(right));
-            } else if self.eat(&Token::Gte) {
-                let right = self.parse_predicate()?;
-                left = Expr::Gte(Box::new(left), Box::new(right));
+                let make = |l: Expr, r: Expr, o: CmpOp| -> Expr {
+                    match o {
+                        CmpOp::Eq => Expr::Eq(Box::new(l), Box::new(r)),
+                        CmpOp::Neq => Expr::Neq(Box::new(l), Box::new(r)),
+                        CmpOp::Lt => Expr::Lt(Box::new(l), Box::new(r)),
+                        CmpOp::Gt => Expr::Gt(Box::new(l), Box::new(r)),
+                        CmpOp::Lte => Expr::Lte(Box::new(l), Box::new(r)),
+                        CmpOp::Gte => Expr::Gte(Box::new(l), Box::new(r)),
+                    }
+                };
+                if chain_parts.is_empty() {
+                    chain_parts.push(make(left.clone(), right.clone(), op));
+                } else {
+                    chain_parts.push(make(prev_right.clone(), right.clone(), op));
+                }
+                prev_right = right;
             } else {
                 break;
             }
         }
-        Ok(left)
+
+        if chain_parts.is_empty() {
+            Ok(left)
+        } else if chain_parts.len() == 1 {
+            Ok(chain_parts.into_iter().next().unwrap())
+        } else {
+            let mut result = chain_parts.remove(0);
+            for part in chain_parts {
+                result = Expr::And(Box::new(result), Box::new(part));
+            }
+            Ok(result)
+        }
     }
 
     /// Parse predicates: IS NULL, IS NOT NULL, IN, STARTS WITH, ENDS WITH, CONTAINS, =~
@@ -498,13 +524,12 @@ impl Parser {
     }
 
     fn parse_pow(&mut self) -> Result<Expr, Error> {
-        let base = self.parse_unary()?;
-        if self.eat(&Token::Caret) {
-            let exp = self.parse_pow()?; // right-associative
-            Ok(Expr::Pow(Box::new(base), Box::new(exp)))
-        } else {
-            Ok(base)
+        let mut left = self.parse_unary()?;
+        while self.eat(&Token::Caret) {
+            let right = self.parse_unary()?;
+            left = Expr::Pow(Box::new(left), Box::new(right));
         }
+        Ok(left)
     }
 
     fn parse_unary(&mut self) -> Result<Expr, Error> {
