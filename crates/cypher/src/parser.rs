@@ -894,7 +894,7 @@ impl Parser {
         } else {
             None
         };
-        self.expect(&Token::End)?;
+        self.expect_ident_matching("end")?;
         Ok(Expr::Case {
             operand,
             when_clauses,
@@ -1090,7 +1090,7 @@ impl Parser {
             Token::All => { self.advance(); Ok("all".to_string()) }
             Token::Asc => { self.advance(); Ok("asc".to_string()) }
             Token::Desc => { self.advance(); Ok("desc".to_string()) }
-            Token::End => { self.advance(); Ok("end".to_string()) }
+            // Token::End removed — END is now lexed as Ident to preserve case
             Token::Null => { self.advance(); Ok("null".to_string()) }
             Token::True => { self.advance(); Ok("true".to_string()) }
             Token::False => { self.advance(); Ok("false".to_string()) }

@@ -15,9 +15,18 @@ pub fn is_aggregation(expr: &Expr) -> bool {
         | Expr::Mul(l, r)
         | Expr::Div(l, r)
         | Expr::Mod(l, r)
-        | Expr::Pow(l, r) => is_aggregation(l) || is_aggregation(r),
+        | Expr::Pow(l, r)
+        | Expr::Eq(l, r)
+        | Expr::Neq(l, r)
+        | Expr::Lt(l, r)
+        | Expr::Gt(l, r)
+        | Expr::Lte(l, r)
+        | Expr::Gte(l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r) => is_aggregation(l) || is_aggregation(r),
         Expr::UnaryMinus(e) | Expr::UnaryPlus(e) | Expr::Not(e) => is_aggregation(e),
         Expr::Property(e, _) => is_aggregation(e),
+        Expr::IsNull(e) | Expr::IsNotNull(e) => is_aggregation(e),
         _ => false,
     }
 }
@@ -346,6 +355,55 @@ fn compute_aggregate(
                 params,
             )
         }
+        Expr::Div(l, r) => compute_binary(l, r, |a, b| Expr::Div(a, b), records, graph, params),
+        Expr::Mod(l, r) => compute_binary(l, r, |a, b| Expr::Mod(a, b), records, graph, params),
+        Expr::Pow(l, r) => compute_binary(l, r, |a, b| Expr::Pow(a, b), records, graph, params),
+        Expr::Eq(l, r) => compute_binary(l, r, |a, b| Expr::Eq(a, b), records, graph, params),
+        Expr::Neq(l, r) => compute_binary(l, r, |a, b| Expr::Neq(a, b), records, graph, params),
+        Expr::Lt(l, r) => compute_binary(l, r, |a, b| Expr::Lt(a, b), records, graph, params),
+        Expr::Gt(l, r) => compute_binary(l, r, |a, b| Expr::Gt(a, b), records, graph, params),
+        Expr::Lte(l, r) => compute_binary(l, r, |a, b| Expr::Lte(a, b), records, graph, params),
+        Expr::Gte(l, r) => compute_binary(l, r, |a, b| Expr::Gte(a, b), records, graph, params),
+        Expr::And(l, r) => compute_binary(l, r, |a, b| Expr::And(a, b), records, graph, params),
+        Expr::Or(l, r) => compute_binary(l, r, |a, b| Expr::Or(a, b), records, graph, params),
+        Expr::UnaryMinus(e) => {
+            let v = compute_or_eval(e, records, graph, params)?;
+            crate::expr::eval_expr(
+                &Expr::UnaryMinus(Box::new(Expr::Literal(v))),
+                &Record::new(),
+                graph,
+                params,
+            )
+        }
+        Expr::Not(e) => {
+            let v = compute_or_eval(e, records, graph, params)?;
+            crate::expr::eval_expr(
+                &Expr::Not(Box::new(Expr::Literal(v))),
+                &Record::new(),
+                graph,
+                params,
+            )
+        }
+        Expr::IsNull(e) => {
+            let v = compute_or_eval(e, records, graph, params)?;
+            Ok(if v.is_null() {
+                Value::Bool(true)
+            } else {
+                Value::Bool(false)
+            })
+        }
+        Expr::IsNotNull(e) => {
+            let v = compute_or_eval(e, records, graph, params)?;
+            Ok(if v.is_null() {
+                Value::Bool(false)
+            } else {
+                Value::Bool(true)
+            })
+        }
+        Expr::Property(base, prop) => {
+            let v = compute_or_eval(base, records, graph, params)?;
+            Ok(crate::expr::get_property(&v, prop))
+        }
 
         // Fallback: evaluate against first record
         other => {
@@ -356,6 +414,24 @@ fn compute_aggregate(
             }
         }
     }
+}
+
+fn compute_binary(
+    l: &Expr,
+    r: &Expr,
+    make: impl FnOnce(Box<Expr>, Box<Expr>) -> Expr,
+    records: &[Record],
+    graph: &PropertyGraph,
+    params: &Params,
+) -> Result<Value, Error> {
+    let lv = compute_or_eval(l, records, graph, params)?;
+    let rv = compute_or_eval(r, records, graph, params)?;
+    crate::expr::eval_expr(
+        &make(Box::new(Expr::Literal(lv)), Box::new(Expr::Literal(rv))),
+        &Record::new(),
+        graph,
+        params,
+    )
 }
 
 fn compute_or_eval(

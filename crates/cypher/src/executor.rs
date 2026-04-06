@@ -66,9 +66,11 @@ impl<'g> CypherEngine<'g> {
             if union.all {
                 rows.extend(union_rows);
             } else {
-                // UNION: deduplicate
-                for row in union_rows {
-                    let exists = rows.iter().any(|r| {
+                // UNION DISTINCT: combine and deduplicate all rows
+                rows.extend(union_rows);
+                let mut deduped: Vec<Row> = Vec::new();
+                for row in rows {
+                    let exists = deduped.iter().any(|r| {
                         r.columns == row.columns
                             && r.values
                                 .iter()
@@ -76,9 +78,10 @@ impl<'g> CypherEngine<'g> {
                                 .all(|(a, b)| a.structural_eq(b))
                     });
                     if !exists {
-                        rows.push(row);
+                        deduped.push(row);
                     }
                 }
+                rows = deduped;
             }
         }
 

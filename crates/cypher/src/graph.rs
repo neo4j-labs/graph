@@ -194,7 +194,7 @@ impl PropertyGraph {
             match clause {
                 Clause::Create(patterns) => {
                     // For each record in the pipeline, create the patterns
-                    for record in &records {
+                    for record in &mut records {
                         for pattern in patterns {
                             self.create_pattern_with_record(pattern, &mut var_map, record)?;
                         }
@@ -273,7 +273,7 @@ impl PropertyGraph {
         &mut self,
         pattern: &PatternPath,
         var_map: &mut HashMap<String, usize>,
-        record: &BTreeMap<String, Value>,
+        record: &mut BTreeMap<String, Value>,
     ) -> Result<(), Error> {
         let start_id = self.create_or_resolve_node_with_record(&pattern.start, var_map, record)?;
         let mut current_id = start_id;
@@ -291,6 +291,7 @@ impl PropertyGraph {
             let rel_id = self.add_relationship(source, target, rel_type, props);
             if let Some(ref var) = rel_pat.variable {
                 var_map.insert(var.clone(), rel_id);
+                record.insert(var.clone(), self.rel_to_value(rel_id));
             }
             current_id = other_id;
         }
@@ -302,7 +303,7 @@ impl PropertyGraph {
         &mut self,
         node_pat: &crate::ast::NodePattern,
         var_map: &mut HashMap<String, usize>,
-        record: &BTreeMap<String, Value>,
+        record: &mut BTreeMap<String, Value>,
     ) -> Result<usize, Error> {
         if let Some(ref var) = node_pat.variable {
             if let Some(&existing_id) = var_map.get(var) {
@@ -328,6 +329,7 @@ impl PropertyGraph {
 
         if let Some(ref var) = node_pat.variable {
             var_map.insert(var.clone(), node_id);
+            record.insert(var.clone(), self.node_to_value(node_id));
         }
 
         Ok(node_id)

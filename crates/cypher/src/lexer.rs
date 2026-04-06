@@ -491,7 +491,7 @@ impl<'a> Lexer<'a> {
             "WHEN" => Token::When,
             "THEN" => Token::Then,
             "ELSE" => Token::Else,
-            "END" => Token::End,
+            "END" => Token::Ident(name),  // Keep as ident; handled specially in CASE parser
             "STARTS" => Token::Starts,
             "ENDS" => Token::Ends,
             "CONTAINS" => Token::Contains,
