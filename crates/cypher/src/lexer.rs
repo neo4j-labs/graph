@@ -345,7 +345,14 @@ impl<'a> Lexer<'a> {
                     }
                     let hex_text =
                         std::str::from_utf8(&self.input[hex_start..self.pos]).unwrap();
-                    let n = i64::from_str_radix(hex_text, 16).map_err(|_| {
+                    let n = i64::from_str_radix(hex_text, 16).or_else(|_| {
+                        // Allow values that are exactly i64::MIN when negated
+                        u64::from_str_radix(hex_text, 16)
+                            .ok()
+                            .filter(|&v| v == (i64::MAX as u64) + 1)
+                            .map(|_| i64::MIN)
+                            .ok_or(())
+                    }).map_err(|_| {
                         Error::Lexer(format!("invalid hex integer: 0x{hex_text}"))
                     })?;
                     return Ok(Token::Integer(n));
@@ -365,7 +372,13 @@ impl<'a> Lexer<'a> {
                     }
                     let oct_text =
                         std::str::from_utf8(&self.input[oct_start..self.pos]).unwrap();
-                    let n = i64::from_str_radix(oct_text, 8).map_err(|_| {
+                    let n = i64::from_str_radix(oct_text, 8).or_else(|_| {
+                        u64::from_str_radix(oct_text, 8)
+                            .ok()
+                            .filter(|&v| v == (i64::MAX as u64) + 1)
+                            .map(|_| i64::MIN)
+                            .ok_or(())
+                    }).map_err(|_| {
                         Error::Lexer(format!("invalid octal integer: 0o{oct_text}"))
                     })?;
                     return Ok(Token::Integer(n));
@@ -417,10 +430,20 @@ impl<'a> Lexer<'a> {
             Ok(Token::Float(f))
         } else {
             let text = std::str::from_utf8(&self.input[start..self.pos]).unwrap();
-            let n: i64 = text
-                .parse()
-                .map_err(|_| Error::Lexer(format!("invalid integer: {text}")))?;
-            Ok(Token::Integer(n))
+            // Try i64 first, then allow i64::MAX + 1 for unary minus (i64::MIN)
+            match text.parse::<i64>() {
+                Ok(n) => Ok(Token::Integer(n)),
+                Err(_) => {
+                    // Check if it's exactly i64::MAX + 1 (for -9223372036854775808)
+                    if let Ok(n) = text.parse::<u64>() {
+                        if n == (i64::MAX as u64) + 1 {
+                            // Store as i64::MIN — parser's unary minus will handle correctly
+                            return Ok(Token::Integer(i64::MIN));
+                        }
+                    }
+                    Err(Error::Lexer(format!("invalid integer: {text}")))
+                }
+            }
         }
     }
 

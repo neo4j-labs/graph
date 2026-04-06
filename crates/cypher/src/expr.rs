@@ -65,7 +65,7 @@ pub fn eval_expr(
             let v = eval_expr(e, record, graph, params)?;
             match v {
                 Value::Null => Ok(Value::Null),
-                Value::Integer(n) => Ok(Value::Integer(-n)),
+                Value::Integer(n) => Ok(Value::Integer(n.wrapping_neg())),
                 Value::Float(f) => Ok(Value::Float(-f)),
                 _ => Err(Error::Type("unary minus requires a number".to_string())),
             }
@@ -148,7 +148,7 @@ pub fn eval_expr(
             match &v {
                 Value::Null => Ok(Value::Null),
                 Value::Node(n) => Ok(Value::Bool(n.labels.contains(label))),
-                _ => Err(Error::Type("label check requires a node".to_string())),
+                _ => Ok(Value::Bool(false)),
             }
         }
         Expr::HasLabels(e, labels) => {
@@ -158,7 +158,7 @@ pub fn eval_expr(
                 Value::Node(n) => Ok(Value::Bool(
                     labels.iter().all(|l| n.labels.contains(l)),
                 )),
-                _ => Err(Error::Type("label check requires a node".to_string())),
+                _ => Ok(Value::Bool(false)),
             }
         }
 
