@@ -235,8 +235,41 @@ pub fn expr_to_string(expr: &Expr) -> String {
         Expr::Mul(l, r) => format!("({} * {})", expr_to_string(l), expr_to_string(r)),
         Expr::Div(l, r) => format!("({} / {})", expr_to_string(l), expr_to_string(r)),
         Expr::Mod(l, r) => format!("({} % {})", expr_to_string(l), expr_to_string(r)),
+        Expr::Pow(l, r) => format!("({} ^ {})", expr_to_string(l), expr_to_string(r)),
         Expr::UnaryMinus(e) => format!("-{}", expr_to_string(e)),
+        Expr::UnaryPlus(e) => format!("+{}", expr_to_string(e)),
         Expr::Not(e) => format!("NOT {}", expr_to_string(e)),
+        Expr::IsNull(e) => format!("{} IS NULL", expr_to_string(e)),
+        Expr::IsNotNull(e) => format!("{} IS NOT NULL", expr_to_string(e)),
+        Expr::Eq(l, r) => format!("{} = {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Neq(l, r) => format!("{} <> {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Lt(l, r) => format!("{} < {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Gt(l, r) => format!("{} > {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Lte(l, r) => format!("{} <= {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Gte(l, r) => format!("{} >= {}", expr_to_string(l), expr_to_string(r)),
+        Expr::And(l, r) => format!("{} AND {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Or(l, r) => format!("{} OR {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Xor(l, r) => format!("{} XOR {}", expr_to_string(l), expr_to_string(r)),
+        Expr::In(l, r) => format!("{} IN {}", expr_to_string(l), expr_to_string(r)),
+        Expr::StartsWith(l, r) => format!("{} STARTS WITH {}", expr_to_string(l), expr_to_string(r)),
+        Expr::EndsWith(l, r) => format!("{} ENDS WITH {}", expr_to_string(l), expr_to_string(r)),
+        Expr::Contains(l, r) => format!("{} CONTAINS {}", expr_to_string(l), expr_to_string(r)),
+        Expr::RegexMatch(l, r) => format!("{} =~ {}", expr_to_string(l), expr_to_string(r)),
+        Expr::HasLabel(e, l) => format!("{}:{}", expr_to_string(e), l),
+        Expr::HasLabels(e, ls) => {
+            let labels = ls.iter().map(|l| format!(":{l}")).collect::<Vec<_>>().join("");
+            format!("{}{}", expr_to_string(e), labels)
+        }
+        Expr::ListLiteral(items) => {
+            let items_str: Vec<String> = items.iter().map(|i| expr_to_string(i)).collect();
+            format!("[{}]", items_str.join(", "))
+        }
+        Expr::MapLiteral(pairs) => {
+            let pairs_str: Vec<String> = pairs.iter().map(|(k, v)| format!("{}: {}", k, expr_to_string(v))).collect();
+            format!("{{{}}}", pairs_str.join(", "))
+        }
+        Expr::Index(base, idx) => format!("{}[{}]", expr_to_string(base), expr_to_string(idx)),
+        Expr::Case { .. } => "CASE".to_string(),
         _ => format!("{expr:?}"),
     }
 }
