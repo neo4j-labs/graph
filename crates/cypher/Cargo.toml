@@ -1,8 +1,8 @@
 [package]
 name = "graph_cypher"
 version = "0.1.0"
-description = "Topology-only Cypher query engine for graph_builder CSR graphs."
-keywords = ["graph", "cypher", "query"]
+description = "openCypher query engine for property graphs and CSR graphs."
+keywords = ["graph", "cypher", "query", "opencypher"]
 authors.workspace = true
 rust-version.workspace = true
 repository.workspace = true
@@ -12,7 +12,9 @@ license.workspace = true
 [dependencies]
 fxhash.workspace = true
 graph_builder = { path = "../builder", version = "^0.4.1" }
+regex = "1"
 thiserror.workspace = true
 
 [dev-dependencies]
+glob = "0.3"
 graph_builder = { path = "../builder", version = "^0.4.1" }
