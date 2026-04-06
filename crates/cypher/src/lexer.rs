@@ -279,6 +279,22 @@ impl<'a> Lexer<'a> {
                         s.push(esc as char);
                     }
                 }
+            } else if ch >= 0x80 {
+                // Multi-byte UTF-8 character - decode properly
+                self.pos -= 1; // back up to start of multi-byte sequence
+                let remaining = &self.input[self.pos..];
+                if let Ok(text) = std::str::from_utf8(remaining) {
+                    if let Some(c) = text.chars().next() {
+                        s.push(c);
+                        self.pos += c.len_utf8();
+                    } else {
+                        s.push(ch as char);
+                        self.pos += 1;
+                    }
+                } else {
+                    s.push(ch as char);
+                    self.pos += 1;
+                }
             } else {
                 s.push(ch as char);
             }

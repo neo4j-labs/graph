@@ -120,8 +120,9 @@ impl<'a> ValueParser<'a> {
         let quote = self.advance();
         let mut s = String::new();
         while self.pos < self.input.len() {
-            let ch = self.advance();
+            let ch = self.input[self.pos];
             if ch == quote {
+                self.pos += 1;
                 // Check for doubled quote
                 if self.peek() == Some(quote) {
                     self.advance();
@@ -129,7 +130,8 @@ impl<'a> ValueParser<'a> {
                 } else {
                     break;
                 }
-            } else if ch == b'\\' && self.pos < self.input.len() {
+            } else if ch == b'\\' && self.pos + 1 < self.input.len() {
+                self.pos += 1;
                 let esc = self.advance();
                 match esc {
                     b'n' => s.push('\n'),
@@ -143,8 +145,19 @@ impl<'a> ValueParser<'a> {
                         s.push(esc as char);
                     }
                 }
+            } else if ch >= 0x80 {
+                // Multi-byte UTF-8 character
+                let remaining = &self.input[self.pos..];
+                if let Some(c) = std::str::from_utf8(remaining).ok().and_then(|s| s.chars().next()) {
+                    s.push(c);
+                    self.pos += c.len_utf8();
+                } else {
+                    s.push(ch as char);
+                    self.pos += 1;
+                }
             } else {
                 s.push(ch as char);
+                self.pos += 1;
             }
         }
         Value::String(s)

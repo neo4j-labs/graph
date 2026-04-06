@@ -164,6 +164,18 @@ fn compute_aggregate(
             // If this is a non-aggregate function wrapping aggregate args,
             // compute the inner aggregates first, then call the outer function
             if !is_aggregate_function(name) {
+                // For quantifier predicates (all/any/none/single) with 3 args,
+                // compute aggregate args and re-evaluate as expression
+                if matches!(lower.as_str(), "all" | "any" | "none" | "single") && args.len() == 3 {
+                    let list_val = compute_or_eval(&args[1], records, graph, params)?;
+                    // Build a synthetic expression to evaluate the quantifier
+                    let synthetic = Expr::FunctionCall {
+                        name: name.clone(),
+                        distinct: *distinct,
+                        args: vec![args[0].clone(), Expr::Literal(list_val), args[2].clone()],
+                    };
+                    return eval_expr(&synthetic, &Record::new(), graph, params);
+                }
                 let computed_args: Vec<Value> = args
                     .iter()
                     .map(|a| compute_or_eval(a, records, graph, params))
