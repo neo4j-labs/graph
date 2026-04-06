@@ -261,8 +261,11 @@ impl<'g> CypherEngine<'g> {
         // Check for aggregation
         let has_agg = items.iter().any(|item| crate::aggregation::is_aggregation(&item.expr));
 
+        // Keep original records for ORDER BY (which can reference pre-projection vars)
+        let need_originals = clause.order_by.is_some();
+
         let mut result_records = if has_agg {
-            aggregate(records, &items, self.graph, params)?
+            aggregate(records.clone(), &items, self.graph, params)?
         } else {
             // Simple projection
             records
@@ -297,25 +300,56 @@ impl<'g> CypherEngine<'g> {
             });
         }
 
-        // ORDER BY
+        // ORDER BY - merge projected record with original for expression evaluation
         if let Some(ref order_items) = clause.order_by {
-            result_records.sort_by(|a, b| {
-                for sort_item in order_items {
-                    let va = eval_expr(&sort_item.expr, a, self.graph, params)
-                        .unwrap_or(Value::Null);
-                    let vb = eval_expr(&sort_item.expr, b, self.graph, params)
-                        .unwrap_or(Value::Null);
-                    let ord = va.order_cmp(&vb);
-                    let ord = match sort_item.direction {
-                        SortDirection::Asc => ord,
-                        SortDirection::Desc => ord.reverse(),
-                    };
-                    if ord != std::cmp::Ordering::Equal {
-                        return ord;
+            if need_originals && !has_agg && result_records.len() == records.len() {
+                // Build merged records for sorting (original + projected)
+                let mut pairs: Vec<(Record, Record)> = records
+                    .into_iter()
+                    .zip(result_records.into_iter())
+                    .collect();
+                pairs.sort_by(|(orig_a, proj_a), (orig_b, proj_b)| {
+                    for sort_item in order_items {
+                        // Try projected first, then original
+                        let mut merged_a = orig_a.clone();
+                        merged_a.extend(proj_a.iter().map(|(k, v)| (k.clone(), v.clone())));
+                        let mut merged_b = orig_b.clone();
+                        merged_b.extend(proj_b.iter().map(|(k, v)| (k.clone(), v.clone())));
+                        let va = eval_expr(&sort_item.expr, &merged_a, self.graph, params)
+                            .unwrap_or(Value::Null);
+                        let vb = eval_expr(&sort_item.expr, &merged_b, self.graph, params)
+                            .unwrap_or(Value::Null);
+                        let ord = va.order_cmp(&vb);
+                        let ord = match sort_item.direction {
+                            SortDirection::Asc => ord,
+                            SortDirection::Desc => ord.reverse(),
+                        };
+                        if ord != std::cmp::Ordering::Equal {
+                            return ord;
+                        }
                     }
-                }
-                std::cmp::Ordering::Equal
-            });
+                    std::cmp::Ordering::Equal
+                });
+                result_records = pairs.into_iter().map(|(_, proj)| proj).collect();
+            } else {
+                result_records.sort_by(|a, b| {
+                    for sort_item in order_items {
+                        let va = eval_expr(&sort_item.expr, a, self.graph, params)
+                            .unwrap_or(Value::Null);
+                        let vb = eval_expr(&sort_item.expr, b, self.graph, params)
+                            .unwrap_or(Value::Null);
+                        let ord = va.order_cmp(&vb);
+                        let ord = match sort_item.direction {
+                            SortDirection::Asc => ord,
+                            SortDirection::Desc => ord.reverse(),
+                        };
+                        if ord != std::cmp::Ordering::Equal {
+                            return ord;
+                        }
+                    }
+                    std::cmp::Ordering::Equal
+                });
+            }
         }
 
         // SKIP

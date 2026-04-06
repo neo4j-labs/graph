@@ -302,25 +302,23 @@ pub fn eval_expr(
                     match list_val {
                         Value::List(items) => {
                             let mut true_count = 0;
-                            let mut has_null = false;
+                            let mut false_count = 0;
+                            let mut null_count = 0;
                             for item in &items {
                                 let mut inner = record.clone();
                                 inner.insert(var_name.clone(), item.clone());
                                 let pred_val = eval_expr(&args[2], &inner, graph, params)?;
                                 match pred_val {
                                     Value::Bool(true) => true_count += 1,
-                                    Value::Bool(false) => {}
-                                    Value::Null => has_null = true,
-                                    _ => {}
+                                    Value::Bool(false) => false_count += 1,
+                                    _ => null_count += 1,
                                 }
                             }
                             return Ok(match lower.as_str() {
                                 "all" => {
-                                    if true_count == items.len() && !has_null {
-                                        Value::Bool(true)
-                                    } else if items.len() - true_count > 0 && !has_null {
+                                    if false_count > 0 {
                                         Value::Bool(false)
-                                    } else if has_null {
+                                    } else if null_count > 0 {
                                         Value::Null
                                     } else {
                                         Value::Bool(true)
@@ -329,7 +327,7 @@ pub fn eval_expr(
                                 "any" => {
                                     if true_count > 0 {
                                         Value::Bool(true)
-                                    } else if has_null {
+                                    } else if null_count > 0 {
                                         Value::Null
                                     } else {
                                         Value::Bool(false)
@@ -338,18 +336,18 @@ pub fn eval_expr(
                                 "none" => {
                                     if true_count > 0 {
                                         Value::Bool(false)
-                                    } else if has_null {
+                                    } else if null_count > 0 {
                                         Value::Null
                                     } else {
                                         Value::Bool(true)
                                     }
                                 }
                                 "single" => {
-                                    if true_count == 1 && !has_null {
-                                        Value::Bool(true)
-                                    } else if true_count > 1 {
+                                    if true_count > 1 {
                                         Value::Bool(false)
-                                    } else if has_null {
+                                    } else if true_count == 1 && null_count == 0 {
+                                        Value::Bool(true)
+                                    } else if null_count > 0 {
                                         Value::Null
                                     } else {
                                         Value::Bool(false)

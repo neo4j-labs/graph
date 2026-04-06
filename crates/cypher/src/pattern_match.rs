@@ -405,9 +405,8 @@ fn expand_variable_length(
                 if used.contains(&rel_id) {
                     continue;
                 }
-                // Check rel type
-                let rel = graph.relationship(rel_id);
-                if !rel_pat.rel_types.is_empty() && !rel_pat.rel_types.contains(&rel.rel_type) {
+                // Check rel type and properties
+                if !rel_matches(graph, rel_id, rel_pat, record, params) {
                     continue;
                 }
                 let mut new_used = used.clone();

@@ -659,14 +659,29 @@ fn fn_exists(args: &[Value]) -> Result<Value, Error> {
 /// the quantifier is handled in expr.rs instead.
 /// These stubs handle the pre-evaluated case.
 fn fn_all(args: &[Value]) -> Result<Value, Error> {
-    // When called with a single list argument (pre-evaluated)
     if args.len() == 1 {
         match &args[0] {
-            Value::List(list) => Ok(Value::Bool(list.iter().all(|v| v.is_truthy()))),
+            Value::List(list) => {
+                let mut has_false = false;
+                let mut has_null = false;
+                for v in list {
+                    if v.is_null() {
+                        has_null = true;
+                    } else if !v.is_truthy() {
+                        has_false = true;
+                    }
+                }
+                if has_false {
+                    Ok(Value::Bool(false))
+                } else if has_null {
+                    Ok(Value::Null)
+                } else {
+                    Ok(Value::Bool(true))
+                }
+            }
             _ => Ok(Value::Null),
         }
     } else {
-        // Quantifier form - handled by expr evaluator
         Ok(Value::Null)
     }
 }
@@ -674,7 +689,16 @@ fn fn_all(args: &[Value]) -> Result<Value, Error> {
 fn fn_any(args: &[Value]) -> Result<Value, Error> {
     if args.len() == 1 {
         match &args[0] {
-            Value::List(list) => Ok(Value::Bool(list.iter().any(|v| v.is_truthy()))),
+            Value::List(list) => {
+                let has_true = list.iter().any(|v| v.is_truthy());
+                if has_true {
+                    Ok(Value::Bool(true))
+                } else if list.iter().any(|v| v.is_null()) {
+                    Ok(Value::Null)
+                } else {
+                    Ok(Value::Bool(false))
+                }
+            }
             _ => Ok(Value::Null),
         }
     } else {
@@ -685,7 +709,15 @@ fn fn_any(args: &[Value]) -> Result<Value, Error> {
 fn fn_none(args: &[Value]) -> Result<Value, Error> {
     if args.len() == 1 {
         match &args[0] {
-            Value::List(list) => Ok(Value::Bool(!list.iter().any(|v| v.is_truthy()))),
+            Value::List(list) => {
+                if list.iter().any(|v| v.is_truthy()) {
+                    Ok(Value::Bool(false))
+                } else if list.iter().any(|v| v.is_null()) {
+                    Ok(Value::Null)
+                } else {
+                    Ok(Value::Bool(true))
+                }
+            }
             _ => Ok(Value::Null),
         }
     } else {
@@ -697,8 +729,17 @@ fn fn_single(args: &[Value]) -> Result<Value, Error> {
     if args.len() == 1 {
         match &args[0] {
             Value::List(list) => {
-                let count = list.iter().filter(|v| v.is_truthy()).count();
-                Ok(Value::Bool(count == 1))
+                let true_count = list.iter().filter(|v| v.is_truthy()).count();
+                let has_null = list.iter().any(|v| v.is_null());
+                if true_count > 1 {
+                    Ok(Value::Bool(false))
+                } else if true_count == 1 && !has_null {
+                    Ok(Value::Bool(true))
+                } else if has_null {
+                    Ok(Value::Null)
+                } else {
+                    Ok(Value::Bool(false))
+                }
             }
             _ => Ok(Value::Null),
         }
