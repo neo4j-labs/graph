@@ -25,7 +25,16 @@ pub fn is_aggregation(expr: &Expr) -> bool {
 fn is_aggregate_function(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
-        "count" | "sum" | "avg" | "min" | "max" | "collect" | "stdev" | "stdevp"
+        "count"
+            | "sum"
+            | "avg"
+            | "min"
+            | "max"
+            | "collect"
+            | "stdev"
+            | "stdevp"
+            | "percentiledisc"
+            | "percentilecont"
     )
 }
 
@@ -235,6 +244,60 @@ fn compute_aggregate(
                     let collected: Vec<Value> =
                         values.into_iter().filter(|v| !v.is_null()).collect();
                     Ok(Value::List(collected))
+                }
+                "percentiledisc" | "percentilecont" => {
+                    // Second arg is the percentile (constant)
+                    let pct = if args.len() > 1 {
+                        match eval_expr(&args[1], &records[0], graph, params)? {
+                            Value::Float(f) => f,
+                            Value::Integer(i) => i as f64,
+                            _ => {
+                                return Err(Error::Unsupported(
+                                    "percentile requires a numeric argument".into(),
+                                ))
+                            }
+                        }
+                    } else {
+                        return Err(Error::Unsupported(
+                            "percentile requires two arguments".into(),
+                        ));
+                    };
+
+                    let mut nums: Vec<f64> = values
+                        .iter()
+                        .filter_map(|v| match v {
+                            Value::Integer(n) => Some(*n as f64),
+                            Value::Float(f) => Some(*f),
+                            _ => None,
+                        })
+                        .collect();
+
+                    if nums.is_empty() {
+                        return Ok(Value::Null);
+                    }
+
+                    nums.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+                    if lower == "percentiledisc" {
+                        // Nearest rank method
+                        let idx = (pct * (nums.len() - 1) as f64).ceil() as usize;
+                        let idx = idx.min(nums.len() - 1);
+                        // Return integer if all inputs were integers
+                        let all_int = values.iter().all(|v| matches!(v, Value::Integer(_) | Value::Null));
+                        if all_int {
+                            Ok(Value::Integer(nums[idx] as i64))
+                        } else {
+                            Ok(Value::Float(nums[idx]))
+                        }
+                    } else {
+                        // percentileCont - linear interpolation
+                        let pos = pct * (nums.len() - 1) as f64;
+                        let lower_idx = pos.floor() as usize;
+                        let upper_idx = pos.ceil() as usize;
+                        let frac = pos - lower_idx as f64;
+                        let result = nums[lower_idx] * (1.0 - frac) + nums[upper_idx] * frac;
+                        Ok(Value::Float(result))
+                    }
                 }
                 _ => Err(Error::Unsupported(format!(
                     "unknown aggregate function: {name}"

@@ -71,7 +71,8 @@ pub fn call_function(name: &str, args: &[Value]) -> Result<Value, Error> {
         "single" => fn_single(args),
 
         // Aggregation functions called outside of aggregation context
-        "count" | "sum" | "avg" | "min" | "max" | "collect" | "stdev" | "stdevp" => {
+        "count" | "sum" | "avg" | "min" | "max" | "collect" | "stdev" | "stdevp"
+        | "percentiledisc" | "percentilecont" => {
             // These are handled by the aggregation module; if called here it's
             // an error or a non-aggregation context
             Err(Error::Runtime(format!(

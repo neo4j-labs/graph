@@ -122,6 +122,28 @@ impl PropertyGraph {
         })
     }
 
+    /// Get a NodeValue for a node by id.
+    pub fn node_value(&self, id: usize) -> NodeValue {
+        let node = &self.nodes[id];
+        NodeValue {
+            id: node.id,
+            labels: node.labels.clone(),
+            properties: node.properties.clone(),
+        }
+    }
+
+    /// Get a RelValue for a relationship by id.
+    pub fn rel_value(&self, id: usize) -> RelValue {
+        let rel = &self.relationships[id];
+        RelValue {
+            id: rel.id,
+            start_node: rel.source,
+            end_node: rel.target,
+            rel_type: rel.type_name().to_string(),
+            properties: rel.properties.clone(),
+        }
+    }
+
     /// Check if a node has a specific label.
     pub fn node_has_label(&self, node_id: usize, label: &str) -> bool {
         self.nodes[node_id].labels.iter().any(|l| l == label)

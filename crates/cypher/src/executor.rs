@@ -216,18 +216,21 @@ impl<'g> CypherEngine<'g> {
         records: Vec<Record>,
         params: &Params,
     ) -> Result<Vec<Record>, Error> {
-        let mut projected = self.run_projection(&with_clause.return_body, records, params)?;
+        // Apply WHERE clause BEFORE projection (WHERE sees pre-projection variables)
+        let filtered = if let Some(ref where_expr) = with_clause.where_clause {
+            records
+                .into_iter()
+                .filter(|r| {
+                    eval_expr(where_expr, r, self.graph, params)
+                        .map(|v| v.is_truthy())
+                        .unwrap_or(false)
+                })
+                .collect()
+        } else {
+            records
+        };
 
-        // Apply WHERE clause after WITH
-        if let Some(ref where_expr) = with_clause.where_clause {
-            projected.retain(|r| {
-                eval_expr(where_expr, r, self.graph, params)
-                    .map(|v| v.is_truthy())
-                    .unwrap_or(false)
-            });
-        }
-
-        Ok(projected)
+        self.run_projection(&with_clause.return_body, filtered, params)
     }
 
     fn run_projection(

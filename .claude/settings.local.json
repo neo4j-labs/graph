@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /home/s1ck/Devel/Rust/graph/crates/*/src/lib.rs /home/s1ck/Devel/Rust/graph/crates/*/src/main.rs)",
+      "Bash(cargo --version)",
+      "Bash(rustc --version)",
+      "Bash(cargo test:*)",
+      "Bash(find:*)",
+      "Bash(grep -l \"Then the result should be, in order\" /home/s1ck/Devel/Neo/openCypher/tck/features/clauses/return-orderby/*.feature)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo fix:*)",
+      "Bash(TCK_FEATURES_DIR=/home/s1ck/Devel/Neo/openCypher/tck/features cargo nextest run -p graph_cypher --all-features -- tck_summary)",
+      "Bash(TCK_FEATURES_DIR=/home/s1ck/Devel/Neo/openCypher/tck/features cargo test -p graph_cypher --all-features -- tck_summary --nocapture)",
+      "Bash(grep -v \"^$\")",
+      "Bash(tee /tmp/tck_output.txt)",
+      "Bash(RUST_MIN_STACK=16777216 TCK_FEATURES_DIR=/home/s1ck/Devel/Neo/openCypher/tck/features cargo test -p graph_cypher --all-features -- tck_summary --nocapture)",
+      "Bash(python3 -c ':*)",
+      "Bash(python3:*)",
+      "Bash(git commit:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(TCK_FEATURES_DIR=/home/s1ck/Devel/Neo/openCypher/tck/features cargo nextest run -p graph_cypher --all-features -E 'test\\(tck_summary\\)' --no-capture)",
+      "Bash(tee /dev/null)"
+    ]
+  }
+}

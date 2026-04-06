@@ -274,6 +274,7 @@ impl Value {
             (Value::Float(a), Value::Integer(b)) => Value::Bool(*a < (*b as f64)),
             (Value::String(a), Value::String(b)) => Value::Bool(a < b),
             (Value::Bool(a), Value::Bool(b)) => Value::Bool(!a & *b), // false < true
+            (Value::List(a), Value::List(b)) => list_compare_lt(a, b),
             _ => Value::Null,
         }
     }
@@ -289,6 +290,7 @@ impl Value {
             (Value::Float(a), Value::Integer(b)) => Value::Bool(*a <= (*b as f64)),
             (Value::String(a), Value::String(b)) => Value::Bool(a <= b),
             (Value::Bool(a), Value::Bool(b)) => Value::Bool(a <= b),
+            (Value::List(a), Value::List(b)) => list_compare_lte(a, b),
             _ => Value::Null,
         }
     }
@@ -299,6 +301,60 @@ impl Value {
 
     pub fn cypher_gte(&self, other: &Value) -> Value {
         other.cypher_lte(self)
+    }
+}
+
+/// Lexicographic list comparison for Cypher.
+/// Returns Bool(true) if a < b, Bool(false) if a >= b, Null if undetermined due to nulls.
+fn list_compare_lt(a: &[Value], b: &[Value]) -> Value {
+    for (x, y) in a.iter().zip(b.iter()) {
+        match x.cypher_lt(y) {
+            Value::Bool(true) => return Value::Bool(true),
+            Value::Bool(false) => {
+                // Check if equal
+                match x.cypher_eq(y) {
+                    Value::Bool(true) => continue,
+                    Value::Bool(false) => return Value::Bool(false),
+                    _ => return Value::Null,
+                }
+            }
+            _ => {
+                // null - check if we can determine from equality
+                match x.cypher_eq(y) {
+                    Value::Bool(false) => return Value::Null,
+                    Value::Bool(true) => continue,
+                    _ => return Value::Null,
+                }
+            }
+        }
+    }
+    // All compared elements equal; shorter list is less
+    Value::Bool(a.len() < b.len())
+}
+
+fn list_compare_lte(a: &[Value], b: &[Value]) -> Value {
+    match list_compare_lt(a, b) {
+        Value::Bool(true) => Value::Bool(true),
+        Value::Bool(false) => {
+            // Check equality
+            if a.len() != b.len() {
+                return Value::Bool(false);
+            }
+            let mut has_null = false;
+            for (x, y) in a.iter().zip(b.iter()) {
+                match x.cypher_eq(y) {
+                    Value::Bool(true) => {}
+                    Value::Bool(false) => return Value::Bool(false),
+                    _ => has_null = true,
+                }
+            }
+            if has_null {
+                Value::Null
+            } else {
+                Value::Bool(true)
+            }
+        }
+        other => other,
     }
 }
 

@@ -192,11 +192,7 @@ impl Parser {
             (true, false) => Direction::Incoming,
             (false, true) => Direction::Outgoing,
             (false, false) => Direction::Both,
-            (true, true) => {
-                return Err(Error::Parser(
-                    "invalid relationship direction: both < and >".to_string(),
-                ))
-            }
+            (true, true) => Direction::Both
         };
 
         Ok(RelPattern {

@@ -21,6 +21,9 @@ pub fn match_pattern_with_params(
     // Start with all candidate nodes for the start pattern
     let start_candidates = candidate_nodes(graph, &pattern.start, input, params);
 
+    // State: (record, current_node, used_rels, path_node_ids, path_rel_ids)
+    type State = (Record, usize, HashSet<usize>, Vec<usize>, Vec<usize>);
+
     for node_id in start_candidates {
         let mut record = input.clone();
         if let Some(ref var) = pattern.start.variable {
@@ -38,15 +41,24 @@ pub fn match_pattern_with_params(
         }
 
         if pattern.hops.is_empty() {
+            // Zero-length path
+            if let Some(ref path_var) = pattern.variable {
+                let path = PathValue {
+                    nodes: vec![graph.node_value(node_id)],
+                    relationships: vec![],
+                };
+                record.insert(path_var.clone(), Value::Path(path));
+            }
             results.push(record);
         } else {
             // Extend through hops
-            let mut current_records = vec![(record, node_id, HashSet::new())];
+            let mut current_records: Vec<State> =
+                vec![(record, node_id, HashSet::new(), vec![node_id], Vec::new())];
 
             for (rel_pat, node_pat) in &pattern.hops {
-                let mut next_records = Vec::new();
+                let mut next_records: Vec<State> = Vec::new();
 
-                for (rec, current_node, used_rels) in &current_records {
+                for (rec, current_node, used_rels, path_nodes, path_rels) in &current_records {
                     match &rel_pat.length {
                         None => {
                             // Single hop
@@ -79,7 +91,19 @@ pub fn match_pattern_with_params(
                                     new_rec
                                         .insert(var.clone(), graph.node_to_value(other_node));
                                 }
-                                next_records.push((new_rec, other_node, new_used));
+
+                                let mut new_path_nodes = path_nodes.clone();
+                                new_path_nodes.push(other_node);
+                                let mut new_path_rels = path_rels.clone();
+                                new_path_rels.push(rel_id);
+
+                                next_records.push((
+                                    new_rec,
+                                    other_node,
+                                    new_used,
+                                    new_path_nodes,
+                                    new_path_rels,
+                                ));
                             }
                         }
                         Some(length) => {
@@ -90,7 +114,7 @@ pub fn match_pattern_with_params(
                                     (min.unwrap_or(1), max.unwrap_or(15))
                                 }
                             };
-                            let path_results = expand_variable_length(
+                            let vl_results = expand_variable_length(
                                 graph,
                                 *current_node,
                                 rel_pat,
@@ -101,7 +125,21 @@ pub fn match_pattern_with_params(
                                 rec,
                                 params,
                             );
-                            next_records.extend(path_results);
+                            for (vl_rec, end_node, vl_used, vl_path_nodes, vl_path_rels) in
+                                vl_results
+                            {
+                                let mut new_path_nodes = path_nodes.clone();
+                                new_path_nodes.extend_from_slice(&vl_path_nodes);
+                                let mut new_path_rels = path_rels.clone();
+                                new_path_rels.extend_from_slice(&vl_path_rels);
+                                next_records.push((
+                                    vl_rec,
+                                    end_node,
+                                    vl_used,
+                                    new_path_nodes,
+                                    new_path_rels,
+                                ));
+                            }
                         }
                     }
                 }
@@ -109,10 +147,16 @@ pub fn match_pattern_with_params(
                 current_records = next_records;
             }
 
-            // Build path value if pattern has a variable
-            for (mut rec, _, _) in current_records {
+            // Build path value from tracked traversal
+            for (mut rec, _, _, path_nodes, path_rels) in current_records {
                 if let Some(ref path_var) = pattern.variable {
-                    let path = build_path_value(graph, pattern, &rec);
+                    let path = PathValue {
+                        nodes: path_nodes.iter().map(|&id| graph.node_value(id)).collect(),
+                        relationships: path_rels
+                            .iter()
+                            .map(|&id| graph.rel_value(id))
+                            .collect(),
+                    };
                     rec.insert(path_var.clone(), Value::Path(path));
                 }
                 results.push(rec);
@@ -303,6 +347,7 @@ fn get_edges(graph: &PropertyGraph, node: usize, direction: &Direction) -> Vec<(
 
 /// Expand variable-length paths using DFS.
 #[allow(clippy::too_many_arguments)]
+/// Returns (record, end_node, used_rels, path_node_ids, path_rel_ids)
 fn expand_variable_length(
     graph: &PropertyGraph,
     start: usize,
@@ -313,7 +358,7 @@ fn expand_variable_length(
     used_rels: &HashSet<usize>,
     record: &Record,
     params: &Params,
-) -> Vec<(Record, usize, HashSet<usize>)> {
+) -> Vec<(Record, usize, HashSet<usize>, Vec<usize>, Vec<usize>)> {
     let mut results = Vec::new();
 
     // DFS state: (current_node, depth, used_rels, path_rels, path_nodes)
@@ -343,7 +388,15 @@ fn expand_variable_length(
                 }
                 new_rec.insert(var.clone(), graph.node_to_value(current));
             }
-            results.push((new_rec, current, used.clone()));
+            // Return path nodes excluding start (caller prepends its own prefix)
+            // and all path rels from this variable-length expansion
+            results.push((
+                new_rec,
+                current,
+                used.clone(),
+                path_nodes[1..].to_vec(),
+                path_rels.clone(),
+            ));
         }
 
         if depth < max {
@@ -371,42 +424,3 @@ fn expand_variable_length(
     results
 }
 
-/// Build a PathValue from pattern variables in a record.
-fn build_path_value(_graph: &PropertyGraph, pattern: &PatternPath, record: &Record) -> PathValue {
-    let mut nodes = Vec::new();
-    let mut relationships = Vec::new();
-
-    if let Some(ref var) = pattern.start.variable {
-        if let Some(Value::Node(n)) = record.get(var) {
-            nodes.push(n.clone());
-        }
-    }
-
-    for (rel_pat, node_pat) in &pattern.hops {
-        if let Some(ref var) = rel_pat.variable {
-            if let Some(val) = record.get(var) {
-                match val {
-                    Value::Relationship(r) => relationships.push(r.clone()),
-                    Value::List(rels) => {
-                        for r in rels {
-                            if let Value::Relationship(r) = r {
-                                relationships.push(r.clone());
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        if let Some(ref var) = node_pat.variable {
-            if let Some(Value::Node(n)) = record.get(var) {
-                nodes.push(n.clone());
-            }
-        }
-    }
-
-    PathValue {
-        nodes,
-        relationships,
-    }
-}

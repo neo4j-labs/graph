@@ -336,9 +336,25 @@ impl<'a> ValueParser<'a> {
             }
         }
 
-        // Subsequent -[:REL]->(node) segments
-        while self.peek() == Some(b'-') {
+        // Subsequent relationship->(node) or <-relationship-(node) segments
+        loop {
+            // Check for outgoing: -[:REL]-> or incoming: <-[:REL]-
+            let is_incoming = self.peek() == Some(b'<');
+            let is_outgoing_start = self.peek() == Some(b'-');
+
+            if !is_incoming && !is_outgoing_start {
+                break;
+            }
+
+            if is_incoming {
+                self.advance(); // <
+            }
+
+            if self.peek() != Some(b'-') {
+                break;
+            }
             self.advance(); // -
+
             let mut rel_type = String::new();
             let mut rel_props = BTreeMap::new();
 
@@ -362,7 +378,7 @@ impl<'a> ValueParser<'a> {
             if self.peek() == Some(b'-') {
                 self.advance(); // -
             }
-            if self.peek() == Some(b'>') {
+            if !is_incoming && self.peek() == Some(b'>') {
                 self.advance(); // >
             }
 

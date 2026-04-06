@@ -312,6 +312,51 @@ impl<'a> Lexer<'a> {
 
     fn read_number(&mut self) -> Result<Token, Error> {
         let start = self.pos;
+
+        // Check for hex (0x/0X) or octal (0o/0O) prefix
+        if self.input[self.pos] == b'0' {
+            if let Some(next) = self.peek_at(1) {
+                if next == b'x' || next == b'X' {
+                    self.pos += 2; // skip '0x'
+                    let hex_start = self.pos;
+                    while self.pos < self.input.len()
+                        && self.input[self.pos].is_ascii_hexdigit()
+                    {
+                        self.pos += 1;
+                    }
+                    if self.pos == hex_start {
+                        return Err(Error::Lexer("invalid hex integer: no digits".to_string()));
+                    }
+                    let hex_text =
+                        std::str::from_utf8(&self.input[hex_start..self.pos]).unwrap();
+                    let n = i64::from_str_radix(hex_text, 16).map_err(|_| {
+                        Error::Lexer(format!("invalid hex integer: 0x{hex_text}"))
+                    })?;
+                    return Ok(Token::Integer(n));
+                } else if next == b'o' || next == b'O' {
+                    self.pos += 2; // skip '0o'
+                    let oct_start = self.pos;
+                    while self.pos < self.input.len()
+                        && self.input[self.pos] >= b'0'
+                        && self.input[self.pos] <= b'7'
+                    {
+                        self.pos += 1;
+                    }
+                    if self.pos == oct_start {
+                        return Err(Error::Lexer(
+                            "invalid octal integer: no digits".to_string(),
+                        ));
+                    }
+                    let oct_text =
+                        std::str::from_utf8(&self.input[oct_start..self.pos]).unwrap();
+                    let n = i64::from_str_radix(oct_text, 8).map_err(|_| {
+                        Error::Lexer(format!("invalid octal integer: 0o{oct_text}"))
+                    })?;
+                    return Ok(Token::Integer(n));
+                }
+            }
+        }
+
         while self.pos < self.input.len() && self.input[self.pos].is_ascii_digit() {
             self.pos += 1;
         }
@@ -356,21 +401,10 @@ impl<'a> Lexer<'a> {
             Ok(Token::Float(f))
         } else {
             let text = std::str::from_utf8(&self.input[start..self.pos]).unwrap();
-            // Try hex
-            if text.starts_with("0x") || text.starts_with("0X") {
-                let n = i64::from_str_radix(&text[2..], 16)
-                    .map_err(|_| Error::Lexer(format!("invalid hex integer: {text}")))?;
-                Ok(Token::Integer(n))
-            } else if text.starts_with("0o") || text.starts_with("0O") {
-                let n = i64::from_str_radix(&text[2..], 8)
-                    .map_err(|_| Error::Lexer(format!("invalid octal integer: {text}")))?;
-                Ok(Token::Integer(n))
-            } else {
-                let n: i64 = text
-                    .parse()
-                    .map_err(|_| Error::Lexer(format!("invalid integer: {text}")))?;
-                Ok(Token::Integer(n))
-            }
+            let n: i64 = text
+                .parse()
+                .map_err(|_| Error::Lexer(format!("invalid integer: {text}")))?;
+            Ok(Token::Integer(n))
         }
     }
 
