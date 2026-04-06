@@ -13,6 +13,7 @@ pub mod graph;
 pub mod lexer;
 pub mod parser;
 pub mod pattern_match;
+pub mod tck;
 pub mod token;
 pub mod value;
 
