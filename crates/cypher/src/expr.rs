@@ -450,6 +450,25 @@ pub fn eval_expr(
             }
         }
 
+        Expr::PatternComprehension {
+            pattern,
+            filter,
+            projection,
+        } => {
+            let matches = pattern_match::match_pattern(graph, pattern, record);
+            let mut result = Vec::new();
+            for matched_record in matches {
+                if let Some(ref pred) = filter {
+                    let pred_val = eval_expr(pred, &matched_record, graph, params)?;
+                    if !pred_val.is_truthy() {
+                        continue;
+                    }
+                }
+                result.push(eval_expr(projection, &matched_record, graph, params)?);
+            }
+            Ok(Value::List(result))
+        }
+
         Expr::ExistsSubquery(match_clause) => {
             let matches = pattern_match::match_patterns(graph, &match_clause.patterns, record);
             let filtered = if let Some(ref where_expr) = match_clause.where_clause {
@@ -469,7 +488,7 @@ pub fn eval_expr(
     }
 }
 
-fn get_property(value: &Value, prop: &str) -> Value {
+pub fn get_property(value: &Value, prop: &str) -> Value {
     match value {
         Value::Null => Value::Null,
         Value::Node(n) => n.properties.get(prop).cloned().unwrap_or(Value::Null),

@@ -194,6 +194,13 @@ pub enum Expr {
         projection: Option<Box<Expr>>,
     },
 
+    // Pattern comprehension [(a)-[:REL]->(b) WHERE pred | expr]
+    PatternComprehension {
+        pattern: PatternPath,
+        filter: Option<Box<Expr>>,
+        projection: Box<Expr>,
+    },
+
     // Existential subquery
     ExistsSubquery(Box<MatchClause>),
 

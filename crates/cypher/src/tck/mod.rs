@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::executor::CypherEngine;
 use crate::graph::PropertyGraph;
+#[allow(unused_imports)]
 use crate::value::Value;
 use feature_parser::{ExpectedResult, Feature, GraphSetup, Scenario};
 
@@ -108,55 +109,76 @@ fn build_graph(scenario: &Scenario) -> Result<PropertyGraph, crate::error::Error
 }
 
 fn build_named_graph(name: &str) -> PropertyGraph {
-    // Pre-defined named graphs from the TCK
-    match name {
-        "binary-tree-1" => build_binary_tree_1(),
-        "binary-tree-2" => build_binary_tree_2(),
-        _ => PropertyGraph::new(),
-    }
-}
+    let cypher = match name {
+        "binary-tree-1" => {
+            "CREATE (a:A {name: 'a'}),
+                    (b1:X {name: 'b1'}),
+                    (b2:X {name: 'b2'}),
+                    (b3:X {name: 'b3'}),
+                    (b4:X {name: 'b4'}),
+                    (c11:X {name: 'c11'}),
+                    (c12:X {name: 'c12'}),
+                    (c21:X {name: 'c21'}),
+                    (c22:X {name: 'c22'}),
+                    (c31:X {name: 'c31'}),
+                    (c32:X {name: 'c32'}),
+                    (c41:X {name: 'c41'}),
+                    (c42:X {name: 'c42'})
+             CREATE (a)-[:KNOWS]->(b1),
+                    (a)-[:KNOWS]->(b2),
+                    (a)-[:FOLLOWS]->(b3),
+                    (a)-[:FOLLOWS]->(b4)
+             CREATE (b1)-[:FRIEND]->(c11),
+                    (b1)-[:FRIEND]->(c12),
+                    (b2)-[:FRIEND]->(c21),
+                    (b2)-[:FRIEND]->(c22),
+                    (b3)-[:FRIEND]->(c31),
+                    (b3)-[:FRIEND]->(c32),
+                    (b4)-[:FRIEND]->(c41),
+                    (b4)-[:FRIEND]->(c42)
+             CREATE (b1)-[:FRIEND]->(b2),
+                    (b2)-[:FRIEND]->(b3),
+                    (b3)-[:FRIEND]->(b4),
+                    (b4)-[:FRIEND]->(b1)"
+        }
+        "binary-tree-2" => {
+            "CREATE (a:A {name: 'a'}),
+                    (b1:X {name: 'b1'}),
+                    (b2:X {name: 'b2'}),
+                    (b3:X {name: 'b3'}),
+                    (b4:X {name: 'b4'}),
+                    (c11:X {name: 'c11'}),
+                    (c12:Y {name: 'c12'}),
+                    (c21:X {name: 'c21'}),
+                    (c22:Y {name: 'c22'}),
+                    (c31:X {name: 'c31'}),
+                    (c32:Y {name: 'c32'}),
+                    (c41:X {name: 'c41'}),
+                    (c42:Y {name: 'c42'})
+             CREATE (a)-[:KNOWS]->(b1),
+                    (a)-[:KNOWS]->(b2),
+                    (a)-[:FOLLOWS]->(b3),
+                    (a)-[:FOLLOWS]->(b4)
+             CREATE (b1)-[:FRIEND]->(c11),
+                    (b1)-[:FRIEND]->(c12),
+                    (b2)-[:FRIEND]->(c21),
+                    (b2)-[:FRIEND]->(c22),
+                    (b3)-[:FRIEND]->(c31),
+                    (b3)-[:FRIEND]->(c32),
+                    (b4)-[:FRIEND]->(c41),
+                    (b4)-[:FRIEND]->(c42)
+             CREATE (b1)-[:FRIEND]->(b2),
+                    (b2)-[:FRIEND]->(b3),
+                    (b3)-[:FRIEND]->(b4),
+                    (b4)-[:FRIEND]->(b1)"
+        }
+        _ => return PropertyGraph::new(),
+    };
 
-fn build_binary_tree_1() -> PropertyGraph {
     let mut g = PropertyGraph::new();
-    // Root
-    let root = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("a".into()))]));
-    let b = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("b".into()))]));
-    let c = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("c".into()))]));
-    let d = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("d".into()))]));
-    let e = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("e".into()))]));
-    let f = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("f".into()))]));
-    let gg = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("g".into()))]));
-
-    g.add_relationship(root, b, "T".into(), BTreeMap::new());
-    g.add_relationship(root, c, "T".into(), BTreeMap::new());
-    g.add_relationship(b, d, "T".into(), BTreeMap::new());
-    g.add_relationship(b, e, "T".into(), BTreeMap::new());
-    g.add_relationship(c, f, "T".into(), BTreeMap::new());
-    g.add_relationship(c, gg, "T".into(), BTreeMap::new());
-    g
-}
-
-fn build_binary_tree_2() -> PropertyGraph {
-    let mut g = build_binary_tree_1();
-    // Add second level of children
-    let h = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("h".into()))]));
-    let i = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("i".into()))]));
-    let j = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("j".into()))]));
-    let k = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("k".into()))]));
-    let l = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("l".into()))]));
-    let m = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("m".into()))]));
-    let n = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("n".into()))]));
-    let o = g.add_node(vec![], BTreeMap::from([("name".into(), Value::String("o".into()))]));
-
-    // d=3, e=4, f=5, g=6
-    g.add_relationship(3, h, "T".into(), BTreeMap::new());
-    g.add_relationship(3, i, "T".into(), BTreeMap::new());
-    g.add_relationship(4, j, "T".into(), BTreeMap::new());
-    g.add_relationship(4, k, "T".into(), BTreeMap::new());
-    g.add_relationship(5, l, "T".into(), BTreeMap::new());
-    g.add_relationship(5, m, "T".into(), BTreeMap::new());
-    g.add_relationship(6, n, "T".into(), BTreeMap::new());
-    g.add_relationship(6, o, "T".into(), BTreeMap::new());
+    if let Err(e) = g.execute_cypher(cypher) {
+        eprintln!("Warning: failed to build named graph '{name}': {e}");
+    }
     g
 }
 

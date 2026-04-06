@@ -49,6 +49,7 @@ pub fn parse_feature(content: &str) -> Feature {
     let lines: Vec<&str> = content.lines().collect();
     let mut feature_name = String::new();
     let mut scenarios = Vec::new();
+    let mut background: Option<ScenarioSetup> = None;
     let mut i = 0;
 
     while i < lines.len() {
@@ -57,6 +58,13 @@ pub fn parse_feature(content: &str) -> Feature {
         if let Some(name) = line.strip_prefix("Feature:") {
             feature_name = name.trim().to_string();
             i += 1;
+            continue;
+        }
+
+        if line.starts_with("Background:") {
+            let (bg_setup, next_i) = parse_background(&lines, i);
+            background = Some(bg_setup);
+            i = next_i;
             continue;
         }
 
@@ -85,10 +93,68 @@ pub fn parse_feature(content: &str) -> Feature {
         i += 1;
     }
 
+    // Apply background setup to all scenarios
+    if let Some(ref bg) = background {
+        for scenario in &mut scenarios {
+            // Merge background graph setup (background takes precedence unless scenario overrides)
+            if matches!(scenario.setup.graph, GraphSetup::Empty) && !matches!(bg.graph, GraphSetup::Empty) {
+                scenario.setup.graph = match &bg.graph {
+                    GraphSetup::Empty => GraphSetup::Empty,
+                    GraphSetup::Any => GraphSetup::Any,
+                    GraphSetup::Named(n) => GraphSetup::Named(n.clone()),
+                };
+            }
+            // Prepend background setup queries
+            let mut combined_queries = bg.setup_queries.clone();
+            combined_queries.extend(scenario.setup.setup_queries.drain(..));
+            scenario.setup.setup_queries = combined_queries;
+        }
+    }
+
     Feature {
         name: feature_name,
         scenarios,
     }
+}
+
+/// Parse a Background: section, extracting setup information.
+fn parse_background(lines: &[&str], start: usize) -> (ScenarioSetup, usize) {
+    let mut i = start + 1; // Skip "Background:" line
+    let mut setup = ScenarioSetup::default();
+
+    while i < lines.len() {
+        let line = lines[i].trim();
+
+        // Stop at next scenario or background
+        if line.starts_with("Scenario:")
+            || line.starts_with("Scenario Outline:")
+            || line.starts_with("Background:")
+        {
+            break;
+        }
+
+        if line.starts_with("Given an empty graph") {
+            setup.graph = GraphSetup::Empty;
+            i += 1;
+        } else if line.starts_with("Given any graph") {
+            setup.graph = GraphSetup::Any;
+            i += 1;
+        } else if let Some(rest) = line.strip_prefix("Given the ") {
+            if let Some(name) = rest.strip_suffix(" graph") {
+                setup.graph = GraphSetup::Named(name.to_string());
+            }
+            i += 1;
+        } else if line.starts_with("And having executed:") {
+            i += 1;
+            let (block, next_i) = read_doc_string(lines, i);
+            setup.setup_queries.push(block);
+            i = next_i;
+        } else {
+            i += 1;
+        }
+    }
+
+    (setup, i)
 }
 
 fn parse_scenario(lines: &[&str], start: usize) -> (Scenario, usize) {

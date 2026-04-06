@@ -94,6 +94,15 @@ macro_rules! feature_test {
 /// Run all feature files and produce a summary report.
 #[test]
 fn tck_summary() {
+    // Ensure sufficient stack for deeply recursive pattern matching
+    let builder = std::thread::Builder::new().stack_size(16 * 1024 * 1024);
+    let handler = builder
+        .spawn(|| tck_summary_inner())
+        .expect("failed to spawn thread");
+    handler.join().expect("test thread panicked");
+}
+
+fn tck_summary_inner() {
     let features_dir = tck_features_dir();
     let files = discover_feature_files(&features_dir);
 

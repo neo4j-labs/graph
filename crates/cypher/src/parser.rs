@@ -393,28 +393,41 @@ impl Parser {
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, Error> {
-        let mut left = self.parse_add()?;
+        let mut left = self.parse_predicate()?;
 
         loop {
             if self.eat(&Token::Eq) {
-                let right = self.parse_add()?;
+                let right = self.parse_predicate()?;
                 left = Expr::Eq(Box::new(left), Box::new(right));
             } else if self.eat(&Token::Neq) {
-                let right = self.parse_add()?;
+                let right = self.parse_predicate()?;
                 left = Expr::Neq(Box::new(left), Box::new(right));
             } else if self.eat(&Token::Lt) {
-                let right = self.parse_add()?;
+                let right = self.parse_predicate()?;
                 left = Expr::Lt(Box::new(left), Box::new(right));
             } else if self.eat(&Token::Gt) {
-                let right = self.parse_add()?;
+                let right = self.parse_predicate()?;
                 left = Expr::Gt(Box::new(left), Box::new(right));
             } else if self.eat(&Token::Lte) {
-                let right = self.parse_add()?;
+                let right = self.parse_predicate()?;
                 left = Expr::Lte(Box::new(left), Box::new(right));
             } else if self.eat(&Token::Gte) {
-                let right = self.parse_add()?;
+                let right = self.parse_predicate()?;
                 left = Expr::Gte(Box::new(left), Box::new(right));
-            } else if self.check(&Token::Is) {
+            } else {
+                break;
+            }
+        }
+        Ok(left)
+    }
+
+    /// Parse predicates: IS NULL, IS NOT NULL, IN, STARTS WITH, ENDS WITH, CONTAINS, =~
+    /// These have higher precedence than comparison operators.
+    fn parse_predicate(&mut self) -> Result<Expr, Error> {
+        let mut left = self.parse_add()?;
+
+        loop {
+            if self.check(&Token::Is) {
                 self.advance();
                 if self.eat(&Token::Not) {
                     self.expect(&Token::Null)?;
@@ -612,25 +625,56 @@ impl Parser {
             }
             Token::Exists => {
                 self.advance();
-                self.expect(&Token::LParen)?;
-                // Could be EXISTS((pattern)) for subquery or exists(expr) for property existence
-                if self.check(&Token::LParen) || self.check(&Token::Match) {
-                    // Subquery-like: EXISTS { MATCH ... }
-                    // For now treat EXISTS((a)-[:REL]->(b)) as pattern
+                if self.check(&Token::LBrace) {
+                    // EXISTS { MATCH ... WHERE ... }
+                    self.advance();
+                    // Parse clauses inside braces until we find }
+                    // Supports: MATCH pattern WHERE pred, possibly with RETURN
+                    // Optional MATCH keyword
+                    self.eat(&Token::Match);
                     let patterns = self.parse_pattern_list()?;
-                    self.expect(&Token::RParen)?;
+                    let mut where_clause = None;
+                    if self.eat(&Token::Where) {
+                        where_clause = Some(Box::new(self.parse_expr()?));
+                    }
+                    // Skip any additional clauses (RETURN, WITH, etc.) inside the subquery
+                    // We only need the MATCH/WHERE for EXISTS evaluation
+                    let mut depth = 1;
+                    while depth > 0 && !self.check(&Token::Eof) {
+                        if self.check(&Token::RBrace) {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        } else if self.check(&Token::LBrace) {
+                            depth += 1;
+                        }
+                        self.advance();
+                    }
+                    self.expect(&Token::RBrace)?;
                     Ok(Expr::ExistsSubquery(Box::new(MatchClause {
                         patterns,
-                        where_clause: None,
+                        where_clause,
                     })))
                 } else {
-                    let arg = self.parse_expr()?;
-                    self.expect(&Token::RParen)?;
-                    Ok(Expr::FunctionCall {
-                        name: "exists".to_string(),
-                        distinct: false,
-                        args: vec![arg],
-                    })
+                    self.expect(&Token::LParen)?;
+                    // Could be EXISTS((pattern)) for subquery or exists(expr) for property existence
+                    if self.check(&Token::LParen) || self.check(&Token::Match) {
+                        let patterns = self.parse_pattern_list()?;
+                        self.expect(&Token::RParen)?;
+                        Ok(Expr::ExistsSubquery(Box::new(MatchClause {
+                            patterns,
+                            where_clause: None,
+                        })))
+                    } else {
+                        let arg = self.parse_expr()?;
+                        self.expect(&Token::RParen)?;
+                        Ok(Expr::FunctionCall {
+                            name: "exists".to_string(),
+                            distinct: false,
+                            args: vec![arg],
+                        })
+                    }
                 }
             }
             Token::Case => {
@@ -639,10 +683,28 @@ impl Parser {
             }
             Token::LBracket => {
                 self.advance();
-                // List literal or list comprehension
+                // List literal, list comprehension, or pattern comprehension
                 if self.check(&Token::RBracket) {
                     self.advance();
                     Ok(Expr::ListLiteral(Vec::new()))
+                } else if self.looks_like_pattern_comprehension() {
+                    // Pattern comprehension [(a)-[:R]->(b) WHERE pred | expr]
+                    // or [p = (a)-[:R]->(b) | p]
+                    let saved_pos = self.pos;
+                    match self.try_pattern_comprehension() {
+                        Ok(Some(comp)) => Ok(comp),
+                        _ => {
+                            self.pos = saved_pos;
+                            // Regular list literal
+                            let first = self.parse_expr()?;
+                            let mut items = vec![first];
+                            while self.eat(&Token::Comma) {
+                                items.push(self.parse_expr()?);
+                            }
+                            self.expect(&Token::RBracket)?;
+                            Ok(Expr::ListLiteral(items))
+                        }
+                    }
                 } else {
                     // Check if this is a list comprehension: [x IN list ...]
                     let maybe_comp = self.try_list_comprehension()?;
@@ -853,6 +915,42 @@ impl Parser {
         Ok(None)
     }
 
+    fn looks_like_pattern_comprehension(&self) -> bool {
+        // [(...)  or  [ident = (...)
+        if self.check(&Token::LParen) {
+            return true;
+        }
+        if matches!(self.peek(), Token::Ident(_))
+            && self.peek_at(1) == Some(&Token::Eq)
+            && self.peek_at(2) == Some(&Token::LParen)
+        {
+            return true;
+        }
+        false
+    }
+
+    fn try_pattern_comprehension(&mut self) -> Result<Option<Expr>, Error> {
+        // Pattern comprehension: (pattern) WHERE? filter | projection
+        // We're positioned right after the '[', next token should be '('
+        let pattern = self.parse_pattern_path()?;
+        // Must have a pipe
+        let filter = if self.eat(&Token::Where) {
+            Some(Box::new(self.parse_expr()?))
+        } else {
+            None
+        };
+        if !self.eat(&Token::Pipe) {
+            return Ok(None);
+        }
+        let projection = Box::new(self.parse_expr()?);
+        self.expect(&Token::RBracket)?;
+        Ok(Some(Expr::PatternComprehension {
+            pattern,
+            filter,
+            projection,
+        }))
+    }
+
     fn is_pattern_start(&self) -> bool {
         // After a '(', check if this looks like a node pattern
         // A node pattern starts with: identifier followed by : or ), or : directly, or )
@@ -963,27 +1061,45 @@ impl Parser {
                 self.advance();
                 Ok(name)
             }
-            // Some keywords can be used as identifiers
-            Token::Count => {
-                self.advance();
-                Ok("count".to_string())
-            }
-            Token::Exists => {
-                self.advance();
-                Ok("exists".to_string())
-            }
-            Token::All => {
-                self.advance();
-                Ok("all".to_string())
-            }
-            Token::Asc => {
-                self.advance();
-                Ok("asc".to_string())
-            }
-            Token::Desc => {
-                self.advance();
-                Ok("desc".to_string())
-            }
+            // Keywords that can be used as identifiers (property names, aliases, etc.)
+            // Excludes clause-starting keywords (MATCH, RETURN, WITH, WHERE, etc.)
+            // to avoid consuming them when they start a new clause.
+            Token::Count => { self.advance(); Ok("count".to_string()) }
+            Token::Exists => { self.advance(); Ok("exists".to_string()) }
+            Token::All => { self.advance(); Ok("all".to_string()) }
+            Token::Asc => { self.advance(); Ok("asc".to_string()) }
+            Token::Desc => { self.advance(); Ok("desc".to_string()) }
+            Token::End => { self.advance(); Ok("end".to_string()) }
+            Token::Null => { self.advance(); Ok("null".to_string()) }
+            Token::True => { self.advance(); Ok("true".to_string()) }
+            Token::False => { self.advance(); Ok("false".to_string()) }
+            Token::Not => { self.advance(); Ok("not".to_string()) }
+            Token::And => { self.advance(); Ok("and".to_string()) }
+            Token::Or => { self.advance(); Ok("or".to_string()) }
+            Token::Xor => { self.advance(); Ok("xor".to_string()) }
+            Token::On => { self.advance(); Ok("on".to_string()) }
+            Token::By => { self.advance(); Ok("by".to_string()) }
+            Token::Starts => { self.advance(); Ok("starts".to_string()) }
+            Token::Ends => { self.advance(); Ok("ends".to_string()) }
+            Token::Contains => { self.advance(); Ok("contains".to_string()) }
+            Token::When => { self.advance(); Ok("when".to_string()) }
+            Token::Then => { self.advance(); Ok("then".to_string()) }
+            Token::Else => { self.advance(); Ok("else".to_string()) }
+            Token::Case => { self.advance(); Ok("case".to_string()) }
+            Token::Ascending => { self.advance(); Ok("ascending".to_string()) }
+            Token::Descending => { self.advance(); Ok("descending".to_string()) }
+            Token::Distinct => { self.advance(); Ok("distinct".to_string()) }
+            Token::In => { self.advance(); Ok("in".to_string()) }
+            Token::Is => { self.advance(); Ok("is".to_string()) }
+            Token::Set => { self.advance(); Ok("set".to_string()) }
+            Token::Remove => { self.advance(); Ok("remove".to_string()) }
+            Token::Delete => { self.advance(); Ok("delete".to_string()) }
+            Token::Detach => { self.advance(); Ok("detach".to_string()) }
+            Token::Merge => { self.advance(); Ok("merge".to_string()) }
+            Token::Optional => { self.advance(); Ok("optional".to_string()) }
+            Token::Order => { self.advance(); Ok("order".to_string()) }
+            Token::Skip => { self.advance(); Ok("skip".to_string()) }
+            Token::Limit => { self.advance(); Ok("limit".to_string()) }
             tok => Err(Error::Parser(format!("expected identifier, found {tok}"))),
         }
     }

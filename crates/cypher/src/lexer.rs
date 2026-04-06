@@ -143,12 +143,17 @@ impl<'a> Lexer<'a> {
                 Ok(Token::Star)
             }
             b'.' => {
-                self.advance();
-                if self.peek() == Some(b'.') {
-                    self.advance();
-                    Ok(Token::DotDot)
+                if self.peek_at(1).is_some_and(|b| b.is_ascii_digit()) {
+                    // Float without integer part: .5, .123e4
+                    self.scan_float_from_dot()
                 } else {
-                    Ok(Token::Dot)
+                    self.advance();
+                    if self.peek() == Some(b'.') {
+                        self.advance();
+                        Ok(Token::DotDot)
+                    } else {
+                        Ok(Token::Dot)
+                    }
                 }
             }
             b'+' => {
@@ -367,6 +372,29 @@ impl<'a> Lexer<'a> {
                 Ok(Token::Integer(n))
             }
         }
+    }
+
+    fn scan_float_from_dot(&mut self) -> Result<Token, Error> {
+        let start = self.pos;
+        self.pos += 1; // skip '.'
+        while self.pos < self.input.len() && self.input[self.pos].is_ascii_digit() {
+            self.pos += 1;
+        }
+        // Scientific notation
+        if self.peek() == Some(b'e') || self.peek() == Some(b'E') {
+            self.pos += 1;
+            if self.peek() == Some(b'+') || self.peek() == Some(b'-') {
+                self.pos += 1;
+            }
+            while self.pos < self.input.len() && self.input[self.pos].is_ascii_digit() {
+                self.pos += 1;
+            }
+        }
+        let text = std::str::from_utf8(&self.input[start..self.pos]).unwrap();
+        let f: f64 = text
+            .parse()
+            .map_err(|_| Error::Lexer(format!("invalid float: {text}")))?;
+        Ok(Token::Float(f))
     }
 
     fn read_identifier(&mut self) -> Result<String, Error> {
