@@ -171,9 +171,7 @@ pub fn eval_expr(
                 (Value::String(s), Value::String(prefix)) => {
                     Ok(Value::Bool(s.starts_with(prefix.as_str())))
                 }
-                _ => Err(Error::Type(
-                    "STARTS WITH requires string arguments".to_string(),
-                )),
+                _ => Ok(Value::Null),
             }
         }
         Expr::EndsWith(l, r) => {
@@ -184,9 +182,7 @@ pub fn eval_expr(
                 (Value::String(s), Value::String(suffix)) => {
                     Ok(Value::Bool(s.ends_with(suffix.as_str())))
                 }
-                _ => Err(Error::Type(
-                    "ENDS WITH requires string arguments".to_string(),
-                )),
+                _ => Ok(Value::Null),
             }
         }
         Expr::Contains(l, r) => {
@@ -197,9 +193,7 @@ pub fn eval_expr(
                 (Value::String(s), Value::String(sub)) => {
                     Ok(Value::Bool(s.contains(sub.as_str())))
                 }
-                _ => Err(Error::Type(
-                    "CONTAINS requires string arguments".to_string(),
-                )),
+                _ => Ok(Value::Null),
             }
         }
         Expr::RegexMatch(l, r) => {
@@ -516,6 +510,11 @@ fn eval_add(l: &Value, r: &Value) -> Result<Value, Error> {
             result.push(b.clone());
             Ok(Value::List(result))
         }
+        (a, Value::List(b)) => {
+            let mut result = vec![a.clone()];
+            result.extend(b.iter().cloned());
+            Ok(Value::List(result))
+        }
         _ => Err(Error::Type(format!(
             "cannot add {l} and {r}"
         ))),
@@ -637,7 +636,11 @@ fn eval_index(base: &Value, idx: &Value) -> Result<Value, Error> {
         (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
         (Value::List(list), Value::Integer(i)) => {
             let idx = if *i < 0 {
-                (list.len() as i64 + i) as usize
+                let adjusted = list.len() as i64 + i;
+                if adjusted < 0 {
+                    return Ok(Value::Null);
+                }
+                adjusted as usize
             } else {
                 *i as usize
             };
@@ -645,6 +648,12 @@ fn eval_index(base: &Value, idx: &Value) -> Result<Value, Error> {
         }
         (Value::Map(map), Value::String(key)) => {
             Ok(map.get(key).cloned().unwrap_or(Value::Null))
+        }
+        (Value::Node(n), Value::String(key)) => {
+            Ok(n.properties.get(key).cloned().unwrap_or(Value::Null))
+        }
+        (Value::Relationship(r), Value::String(key)) => {
+            Ok(r.properties.get(key).cloned().unwrap_or(Value::Null))
         }
         _ => Ok(Value::Null),
     }

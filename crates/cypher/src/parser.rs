@@ -628,23 +628,34 @@ impl Parser {
                 Ok(Expr::Parameter(name))
             }
             Token::Count => {
-                self.advance();
-                self.expect(&Token::LParen)?;
-                if self.eat(&Token::Star) {
-                    self.expect(&Token::RParen)?;
-                    Ok(Expr::CountStar)
+                if self.peek_at(1) == Some(&Token::LParen) {
+                    self.advance();
+                    self.expect(&Token::LParen)?;
+                    if self.eat(&Token::Star) {
+                        self.expect(&Token::RParen)?;
+                        Ok(Expr::CountStar)
+                    } else {
+                        let distinct = self.eat(&Token::Distinct);
+                        let arg = self.parse_expr()?;
+                        self.expect(&Token::RParen)?;
+                        Ok(Expr::FunctionCall {
+                            name: "count".to_string(),
+                            distinct,
+                            args: vec![arg],
+                        })
+                    }
                 } else {
-                    let distinct = self.eat(&Token::Distinct);
-                    let arg = self.parse_expr()?;
-                    self.expect(&Token::RParen)?;
-                    Ok(Expr::FunctionCall {
-                        name: "count".to_string(),
-                        distinct,
-                        args: vec![arg],
-                    })
+                    // count used as variable name
+                    self.advance();
+                    Ok(Expr::Variable("count".to_string()))
                 }
             }
             Token::Exists => {
+                if !matches!(self.peek_at(1), Some(&Token::LParen) | Some(&Token::LBrace)) {
+                    // exists used as variable name
+                    self.advance();
+                    return Ok(Expr::Variable("exists".to_string()));
+                }
                 self.advance();
                 if self.check(&Token::LBrace) {
                     // EXISTS { MATCH ... WHERE ... }
@@ -825,7 +836,14 @@ impl Parser {
                 }
             }
             // Quantifier predicates: all/any/none/single(x IN list WHERE pred)
-            Token::All => self.parse_quantifier("all"),
+            Token::All => {
+                if self.peek_at(1) == Some(&Token::LParen) {
+                    self.parse_quantifier("all")
+                } else {
+                    self.advance();
+                    Ok(Expr::Variable("all".to_string()))
+                }
+            }
 
             // Keywords that can appear as identifiers or function-like
             Token::Not => {

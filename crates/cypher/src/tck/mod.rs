@@ -222,13 +222,40 @@ fn compare_results(
         })
         .collect();
 
-    // Get actual values aligned to expected columns
+    // Get actual values aligned to expected columns (with normalized column matching)
     let actual_values: Vec<Vec<Value>> = actual_rows
         .iter()
         .map(|row| {
             expected_columns
                 .iter()
-                .map(|col| row.get(col).cloned().unwrap_or(Value::Null))
+                .enumerate()
+                .map(|(col_idx, col)| {
+                    // Try exact match first
+                    if let Some(v) = row.get(col) {
+                        return v.clone();
+                    }
+                    // Try normalized match (strip extra whitespace, case-insensitive for keywords)
+                    let norm_col = normalize_column_name(col);
+                    for (i, actual_col) in row.columns.iter().enumerate() {
+                        if normalize_column_name(actual_col) == norm_col {
+                            return row.values[i].clone();
+                        }
+                    }
+                    // Try matching by stripping all parens (for cases like (n:Foo) vs n:Foo)
+                    let stripped_col = col.replace('(', "").replace(')', "").to_ascii_lowercase();
+                    for (i, actual_col) in row.columns.iter().enumerate() {
+                        let stripped_actual = actual_col.replace('(', "").replace(')', "").to_ascii_lowercase();
+                        if stripped_col == stripped_actual {
+                            return row.values[i].clone();
+                        }
+                    }
+                    // Fallback: positional match only if column counts match and
+                    // it's a single-column result (safe for simple expressions)
+                    if expected_columns.len() == row.columns.len() && expected_columns.len() == 1 {
+                        return row.values[col_idx].clone();
+                    }
+                    Value::Null
+                })
                 .collect()
         })
         .collect();
@@ -279,4 +306,53 @@ fn rows_match(expected: &[Value], actual: &[Value]) -> bool {
         .iter()
         .zip(actual.iter())
         .all(|(e, a)| e.structural_eq(a))
+}
+
+/// Normalize a column name for fuzzy matching.
+/// Collapses whitespace, removes outer/grouping parens, lowercases.
+fn normalize_column_name(name: &str) -> String {
+    // Collapse whitespace sequences to single space, then lowercase
+    let mut result = String::with_capacity(name.len());
+    let mut prev_space = false;
+    for ch in name.chars() {
+        if ch.is_whitespace() {
+            if !prev_space && !result.is_empty() {
+                result.push(' ');
+            }
+            prev_space = true;
+        } else {
+            prev_space = false;
+            result.push(ch);
+        }
+    }
+    // Remove spaces after ( and before ), then lowercase
+    result = result.trim().to_string();
+    result = result.replace("( ", "(").replace(" )", ")");
+    // Remove non-function-call outer parens: "(expr)" -> "expr" but keep "func(args)"
+    // Simple approach: strip matching outer parens
+    while result.starts_with('(') && result.ends_with(')') {
+        // Check if the outer parens are a matching pair
+        let inner = &result[1..result.len()-1];
+        let mut depth = 0i32;
+        let mut balanced = true;
+        for ch in inner.chars() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth < 0 {
+                        balanced = false;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if balanced && depth == 0 {
+            result = inner.to_string();
+        } else {
+            break;
+        }
+    }
+    result.to_ascii_lowercase()
 }

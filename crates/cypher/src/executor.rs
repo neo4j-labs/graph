@@ -219,21 +219,48 @@ impl<'g> CypherEngine<'g> {
         records: Vec<Record>,
         params: &Params,
     ) -> Result<Vec<Record>, Error> {
-        // Apply WHERE clause BEFORE projection (WHERE sees pre-projection variables)
-        let filtered = if let Some(ref where_expr) = with_clause.where_clause {
-            records
-                .into_iter()
-                .filter(|r| {
-                    eval_expr(where_expr, r, self.graph, params)
-                        .map(|v| v.is_truthy())
-                        .unwrap_or(false)
-                })
-                .collect()
-        } else {
-            records
-        };
+        // Project first
+        let projected = self.run_projection(&with_clause.return_body, records.clone(), params)?;
 
-        self.run_projection(&with_clause.return_body, filtered, params)
+        // Apply WHERE clause after projection, but with visibility into both
+        // pre-projection and post-projection variables (projected takes precedence)
+        if let Some(ref where_expr) = with_clause.where_clause {
+            let has_agg = match &with_clause.return_body.items {
+                ReturnItems::Star => false,
+                ReturnItems::Expressions(items) => items.iter().any(|item| crate::aggregation::is_aggregation(&item.expr)),
+            };
+            if has_agg || projected.len() != records.len() {
+                // After aggregation, only projected variables are visible
+                Ok(projected
+                    .into_iter()
+                    .filter(|r| {
+                        eval_expr(where_expr, r, self.graph, params)
+                            .map(|v| v.is_truthy())
+                            .unwrap_or(false)
+                    })
+                    .collect())
+            } else {
+                // Without aggregation, merge original + projected for WHERE evaluation
+                Ok(records
+                    .into_iter()
+                    .zip(projected.into_iter())
+                    .filter_map(|(orig, proj)| {
+                        let mut merged = orig;
+                        merged.extend(proj.iter().map(|(k, v)| (k.clone(), v.clone())));
+                        if eval_expr(where_expr, &merged, self.graph, params)
+                            .map(|v| v.is_truthy())
+                            .unwrap_or(false)
+                        {
+                            Some(proj)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect())
+            }
+        } else {
+            Ok(projected)
+        }
     }
 
     fn run_projection(

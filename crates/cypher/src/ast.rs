@@ -223,9 +223,13 @@ pub fn expr_to_string(expr: &Expr) -> String {
     match expr {
         Expr::Variable(name) => name.clone(),
         Expr::Property(base, prop) => format!("{}.{}", expr_to_string(base), prop),
-        Expr::FunctionCall { name, args, .. } => {
+        Expr::FunctionCall { name, distinct, args } => {
             let args_str: Vec<String> = args.iter().map(|a| expr_to_string(a)).collect();
-            format!("{}({})", name, args_str.join(", "))
+            if *distinct {
+                format!("{}(DISTINCT {})", name, args_str.join(", "))
+            } else {
+                format!("{}({})", name, args_str.join(", "))
+            }
         }
         Expr::CountStar => "count(*)".to_string(),
         Expr::Literal(v) => format!("{v}"),

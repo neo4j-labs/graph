@@ -9,7 +9,9 @@ use crate::value::Value;
 pub fn is_aggregation(expr: &Expr) -> bool {
     match expr {
         Expr::CountStar => true,
-        Expr::FunctionCall { name, .. } => is_aggregate_function(name),
+        Expr::FunctionCall { name, args, .. } => {
+            is_aggregate_function(name) || args.iter().any(is_aggregation)
+        }
         Expr::Add(l, r)
         | Expr::Sub(l, r)
         | Expr::Mul(l, r)
@@ -27,6 +29,12 @@ pub fn is_aggregation(expr: &Expr) -> bool {
         Expr::UnaryMinus(e) | Expr::UnaryPlus(e) | Expr::Not(e) => is_aggregation(e),
         Expr::Property(e, _) => is_aggregation(e),
         Expr::IsNull(e) | Expr::IsNotNull(e) => is_aggregation(e),
+        Expr::Index(base, idx) => is_aggregation(base) || is_aggregation(idx),
+        Expr::Case { operand, when_clauses, else_clause } => {
+            operand.as_ref().map_or(false, |e| is_aggregation(e))
+                || when_clauses.iter().any(|(w, t)| is_aggregation(w) || is_aggregation(t))
+                || else_clause.as_ref().map_or(false, |e| is_aggregation(e))
+        }
         _ => false,
     }
 }
@@ -152,6 +160,17 @@ fn compute_aggregate(
             args,
         } => {
             let lower = name.to_ascii_lowercase();
+
+            // If this is a non-aggregate function wrapping aggregate args,
+            // compute the inner aggregates first, then call the outer function
+            if !is_aggregate_function(name) {
+                let computed_args: Vec<Value> = args
+                    .iter()
+                    .map(|a| compute_or_eval(a, records, graph, params))
+                    .collect::<Result<Vec<_>, _>>()?;
+                return crate::functions::call_function(name, &computed_args);
+            }
+
             let mut values: Vec<Value> = records
                 .iter()
                 .map(|r| {
@@ -404,6 +423,19 @@ fn compute_aggregate(
             let v = compute_or_eval(base, records, graph, params)?;
             Ok(crate::expr::get_property(&v, prop))
         }
+        Expr::Index(base, idx) => {
+            let base_v = compute_or_eval(base, records, graph, params)?;
+            let idx_v = compute_or_eval(idx, records, graph, params)?;
+            crate::expr::eval_expr(
+                &Expr::Index(
+                    Box::new(Expr::Literal(base_v)),
+                    Box::new(Expr::Literal(idx_v)),
+                ),
+                &Record::new(),
+                graph,
+                params,
+            )
+        }
 
         // Fallback: evaluate against first record
         other => {
@@ -443,7 +475,8 @@ fn compute_or_eval(
     if is_aggregation(expr) {
         compute_aggregate(expr, records, graph, params)
     } else if records.is_empty() {
-        Ok(Value::Null)
+        // Even with no records, literals, parameters, and constant expressions can be evaluated
+        eval_expr(expr, &Record::new(), graph, params)
     } else {
         eval_expr(expr, &records[0], graph, params)
     }

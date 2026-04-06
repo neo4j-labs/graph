@@ -153,10 +153,14 @@ fn fn_keys(args: &[Value]) -> Result<Value, Error> {
     match &args[0] {
         Value::Null => Ok(Value::Null),
         Value::Node(n) => Ok(Value::List(
-            n.properties.keys().map(|k| Value::String(k.clone())).collect(),
+            n.properties.iter()
+                .filter(|(_, v)| !v.is_null())
+                .map(|(k, _)| Value::String(k.clone())).collect(),
         )),
         Value::Relationship(r) => Ok(Value::List(
-            r.properties.keys().map(|k| Value::String(k.clone())).collect(),
+            r.properties.iter()
+                .filter(|(_, v)| !v.is_null())
+                .map(|(k, _)| Value::String(k.clone())).collect(),
         )),
         Value::Map(m) => Ok(Value::List(
             m.keys().map(|k| Value::String(k.clone())).collect(),

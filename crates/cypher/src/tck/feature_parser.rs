@@ -404,6 +404,27 @@ fn read_doc_string(lines: &[&str], start: usize) -> (String, usize) {
     (content, i)
 }
 
+/// Unescape Gherkin table cell values.
+/// In Gherkin tables, \\ represents \ and \| represents |, and \n represents newline.
+fn unescape_gherkin_cell(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            match chars.next() {
+                Some('\\') => result.push('\\'),
+                Some('|') => result.push('|'),
+                Some('n') => result.push('\n'),
+                Some(other) => { result.push('\\'); result.push(other); }
+                None => result.push('\\'),
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
 /// Read a | col1 | col2 | table.
 fn read_table(lines: &[&str], start: usize) -> (Vec<Vec<String>>, usize) {
     let mut rows = Vec::new();
@@ -418,7 +439,7 @@ fn read_table(lines: &[&str], start: usize) -> (Vec<Vec<String>>, usize) {
         let cells: Vec<String> = line
             .split('|')
             .filter(|s| !s.is_empty())
-            .map(|s| s.trim().to_string())
+            .map(|s| unescape_gherkin_cell(s.trim()))
             .collect();
         rows.push(cells);
         i += 1;
