@@ -51,6 +51,7 @@ impl<'g> CypherEngine<'g> {
         let tokens = lexer.tokenize()?;
         let mut parser = Parser::new(tokens);
         let statement = parser.parse()?;
+        validate_statement(&statement)?;
         self.run_statement(&statement, params)
     }
 
@@ -364,10 +365,8 @@ impl<'g> CypherEngine<'g> {
             } else {
                 result_records.sort_by(|a, b| {
                     for sort_item in order_items {
-                        let va = eval_expr(&sort_item.expr, a, self.graph, params)
-                            .unwrap_or(Value::Null);
-                        let vb = eval_expr(&sort_item.expr, b, self.graph, params)
-                            .unwrap_or(Value::Null);
+                        let va = resolve_or_eval(&sort_item.expr, a, &items, self.graph, params);
+                        let vb = resolve_or_eval(&sort_item.expr, b, &items, self.graph, params);
                         let ord = va.order_cmp(&vb);
                         let ord = match sort_item.direction {
                             SortDirection::Asc => ord,
@@ -385,22 +384,39 @@ impl<'g> CypherEngine<'g> {
         // SKIP
         if let Some(ref skip_expr) = clause.skip {
             let skip_val = eval_expr(skip_expr, &Record::new(), self.graph, params)?;
-            if let Value::Integer(n) = skip_val {
-                let n = n.max(0) as usize;
-                if n >= result_records.len() {
-                    result_records.clear();
-                } else {
-                    result_records = result_records[n..].to_vec();
+            match skip_val {
+                Value::Integer(n) => {
+                    if n < 0 {
+                        return Err(Error::Runtime("SKIP: negative value".into()));
+                    }
+                    let n = n as usize;
+                    if n >= result_records.len() {
+                        result_records.clear();
+                    } else {
+                        result_records = result_records[n..].to_vec();
+                    }
                 }
+                Value::Float(_) => {
+                    return Err(Error::Runtime("SKIP: integer argument expected, got float".into()));
+                }
+                _ => {}
             }
         }
 
         // LIMIT
         if let Some(ref limit_expr) = clause.limit {
             let limit_val = eval_expr(limit_expr, &Record::new(), self.graph, params)?;
-            if let Value::Integer(n) = limit_val {
-                let n = n.max(0) as usize;
-                result_records.truncate(n);
+            match limit_val {
+                Value::Integer(n) => {
+                    if n < 0 {
+                        return Err(Error::Runtime("LIMIT: negative value".into()));
+                    }
+                    result_records.truncate(n as usize);
+                }
+                Value::Float(_) => {
+                    return Err(Error::Runtime("LIMIT: integer argument expected, got float".into()));
+                }
+                _ => {}
             }
         }
 
@@ -440,6 +456,34 @@ impl<'g> CypherEngine<'g> {
     }
 }
 
+/// Try to resolve an expression by looking up its column name in the record,
+/// falling back to eval_expr. This handles post-aggregation ORDER BY where
+/// aggregate expressions (e.g. count(*)) are already computed as column values.
+fn resolve_or_eval(
+    expr: &Expr,
+    record: &Record,
+    items: &[ReturnItem],
+    graph: &PropertyGraph,
+    params: &Params,
+) -> Value {
+    // Direct column name match
+    let col_name = expr_to_string(expr);
+    if let Some(v) = record.get(&col_name) {
+        return v.clone();
+    }
+    // Check if the sort expression matches a return item's expression
+    // (e.g., ORDER BY a.name when RETURN a.name AS name)
+    for item in items {
+        if expr_to_string(&item.expr) == col_name {
+            let item_col = item.column_name();
+            if let Some(v) = record.get(&item_col) {
+                return v.clone();
+            }
+        }
+    }
+    eval_expr(expr, record, graph, params).unwrap_or(Value::Null)
+}
+
 /// Add null bindings for all variables in a pattern (for OPTIONAL MATCH).
 fn add_null_bindings(record: &mut Record, pattern: &PatternPath) {
     if let Some(ref var) = pattern.variable {
@@ -456,4 +500,108 @@ fn add_null_bindings(record: &mut Record, pattern: &PatternPath) {
             record.entry(var.clone()).or_insert(Value::Null);
         }
     }
+}
+
+use std::collections::HashSet;
+
+/// Variable type in a pattern context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VarType {
+    Node,
+    Relationship,
+    Path,
+}
+
+/// Validate a statement for semantic errors before execution.
+fn validate_statement(statement: &Statement) -> Result<(), Error> {
+    validate_clauses(&statement.body)?;
+    for union in &statement.unions {
+        validate_clauses(&union.body)?;
+    }
+    Ok(())
+}
+
+fn validate_clauses(clauses: &[Clause]) -> Result<(), Error> {
+    // Track variable types across all MATCH clauses in the statement
+    let mut global_var_types: std::collections::HashMap<String, VarType> =
+        std::collections::HashMap::new();
+
+    for clause in clauses {
+        match clause {
+            Clause::Match(m) | Clause::OptionalMatch(m) => {
+                validate_match_patterns(&m.patterns, &mut global_var_types)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Check for variable type conflicts in MATCH patterns.
+/// A variable can only be used as one type (node, relationship, or path).
+/// Relationship variables cannot be reused within the same MATCH.
+fn validate_match_patterns(
+    patterns: &[PatternPath],
+    var_types: &mut std::collections::HashMap<String, VarType>,
+) -> Result<(), Error> {
+    let mut rel_vars_in_match: HashSet<String> = HashSet::new();
+
+    for pattern in patterns {
+        // Path variable
+        if let Some(ref var) = pattern.variable {
+            check_var_type(var_types, var, VarType::Path)?;
+        }
+
+        // Start node
+        if let Some(ref var) = pattern.start.variable {
+            check_var_type(var_types, var, VarType::Node)?;
+        }
+
+        for (rel_pat, node_pat) in &pattern.hops {
+            // Relationship variable
+            if let Some(ref var) = rel_pat.variable {
+                check_var_type(var_types, var, VarType::Relationship)?;
+                // Relationship variables must be unique within a MATCH
+                if !rel_vars_in_match.insert(var.clone()) {
+                    return Err(Error::Parser(format!(
+                        "Cannot use the same relationship variable '{var}' for multiple patterns"
+                    )));
+                }
+            }
+
+            // Node variable
+            if let Some(ref var) = node_pat.variable {
+                check_var_type(var_types, var, VarType::Node)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn check_var_type(
+    var_types: &mut std::collections::HashMap<String, VarType>,
+    var: &str,
+    expected: VarType,
+) -> Result<(), Error> {
+    if let Some(&existing) = var_types.get(var) {
+        if existing != expected {
+            let existing_str = match existing {
+                VarType::Node => "node",
+                VarType::Relationship => "relationship",
+                VarType::Path => "path",
+            };
+            let expected_str = match expected {
+                VarType::Node => "node",
+                VarType::Relationship => "relationship",
+                VarType::Path => "path",
+            };
+            return Err(Error::Parser(format!(
+                "Variable '{var}' already declared as {existing_str}, cannot be redeclared as {expected_str}"
+            )));
+        }
+    } else {
+        var_types.insert(var.to_string(), expected);
+    }
+    Ok(())
 }

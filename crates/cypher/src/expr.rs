@@ -27,7 +27,14 @@ pub fn eval_expr(
 
         Expr::Property(base, prop) => {
             let base_val = eval_expr(base, record, graph, params)?;
-            Ok(get_property(&base_val, prop))
+            match &base_val {
+                Value::Null | Value::Node(_) | Value::Relationship(_) | Value::Map(_) => {
+                    Ok(get_property(&base_val, prop))
+                }
+                _ => Err(Error::Type(format!(
+                    "Type mismatch: expected Node, Relationship, or Map for property access, got {base_val}"
+                ))),
+            }
         }
 
         // Arithmetic
@@ -115,20 +122,27 @@ pub fn eval_expr(
         Expr::And(l, r) => {
             let lv = eval_expr(l, record, graph, params)?;
             let rv = eval_expr(r, record, graph, params)?;
+            check_boolean_operand(&lv, "AND")?;
+            check_boolean_operand(&rv, "AND")?;
             Ok(eval_and(&lv, &rv))
         }
         Expr::Or(l, r) => {
             let lv = eval_expr(l, record, graph, params)?;
             let rv = eval_expr(r, record, graph, params)?;
+            check_boolean_operand(&lv, "OR")?;
+            check_boolean_operand(&rv, "OR")?;
             Ok(eval_or(&lv, &rv))
         }
         Expr::Xor(l, r) => {
             let lv = eval_expr(l, record, graph, params)?;
             let rv = eval_expr(r, record, graph, params)?;
+            check_boolean_operand(&lv, "XOR")?;
+            check_boolean_operand(&rv, "XOR")?;
             Ok(eval_xor(&lv, &rv))
         }
         Expr::Not(e) => {
             let v = eval_expr(e, record, graph, params)?;
+            check_boolean_operand(&v, "NOT")?;
             Ok(eval_not(&v))
         }
 
@@ -148,6 +162,7 @@ pub fn eval_expr(
             match &v {
                 Value::Null => Ok(Value::Null),
                 Value::Node(n) => Ok(Value::Bool(n.labels.contains(label))),
+                Value::Relationship(r) => Ok(Value::Bool(&r.rel_type == label)),
                 _ => Ok(Value::Bool(false)),
             }
         }
@@ -157,6 +172,9 @@ pub fn eval_expr(
                 Value::Null => Ok(Value::Null),
                 Value::Node(n) => Ok(Value::Bool(
                     labels.iter().all(|l| n.labels.contains(l)),
+                )),
+                Value::Relationship(r) => Ok(Value::Bool(
+                    labels.iter().all(|l| &r.rel_type == l),
                 )),
                 _ => Ok(Value::Bool(false)),
             }
@@ -581,6 +599,16 @@ fn eval_pow(l: &Value, r: &Value) -> Result<Value, Error> {
     }
 }
 
+/// Check that a value is boolean or null for boolean operators.
+fn check_boolean_operand(v: &Value, op: &str) -> Result<(), Error> {
+    match v {
+        Value::Bool(_) | Value::Null => Ok(()),
+        _ => Err(Error::Type(format!(
+            "Type mismatch: expected Boolean or Null but was {v} for {op}"
+        ))),
+    }
+}
+
 /// Three-valued AND
 fn eval_and(l: &Value, r: &Value) -> Value {
     match (l.as_bool(), r.as_bool()) {
@@ -657,7 +685,16 @@ fn eval_index(base: &Value, idx: &Value) -> Result<Value, Error> {
         (Value::Relationship(r), Value::String(key)) => {
             Ok(r.properties.get(key).cloned().unwrap_or(Value::Null))
         }
-        _ => Ok(Value::Null),
+        // Type errors for invalid indexing
+        (Value::List(_), _) => Err(Error::Type(format!(
+            "expected Integer index for List, got {idx}"
+        ))),
+        (Value::Map(_) | Value::Node(_) | Value::Relationship(_), _) => Err(Error::Type(format!(
+            "expected String key for Map/Node/Relationship, got {idx}"
+        ))),
+        _ => Err(Error::Type(format!(
+            "Type mismatch: cannot index {base} with {idx}"
+        ))),
     }
 }
 

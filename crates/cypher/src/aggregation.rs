@@ -35,6 +35,11 @@ pub fn is_aggregation(expr: &Expr) -> bool {
                 || when_clauses.iter().any(|(w, t)| is_aggregation(w) || is_aggregation(t))
                 || else_clause.as_ref().map_or(false, |e| is_aggregation(e))
         }
+        Expr::ListComprehension { source, filter, projection, .. } => {
+            is_aggregation(source)
+                || filter.as_ref().map_or(false, |e| is_aggregation(e))
+                || projection.as_ref().map_or(false, |e| is_aggregation(e))
+        }
         _ => false,
     }
 }
@@ -108,7 +113,7 @@ pub fn aggregate(
             k.len() == key.len()
                 && k.iter()
                     .zip(key.iter())
-                    .all(|(a, b)| a.structural_eq(b))
+                    .all(|(a, b)| a.grouping_eq(b))
         });
 
         if let Some((_, group_records)) = found {
@@ -303,6 +308,12 @@ fn compute_aggregate(
                         ));
                     };
 
+                    if !(0.0..=1.0).contains(&pct) {
+                        return Err(Error::Runtime(format!(
+                            "NumberOutOfRange: percentile value must be between 0.0 and 1.0, got {pct}"
+                        )));
+                    }
+
                     let mut nums: Vec<f64> = values
                         .iter()
                         .filter_map(|v| match v {
@@ -449,10 +460,23 @@ fn compute_aggregate(
             )
         }
 
+        Expr::ListComprehension { variable, source, filter, projection } => {
+            // Compute the source (which may contain aggregation like collect())
+            let source_val = compute_or_eval(source, records, graph, params)?;
+            // Build a synthetic expression with the resolved source
+            let synthetic = Expr::ListComprehension {
+                variable: variable.clone(),
+                source: Box::new(Expr::Literal(source_val)),
+                filter: filter.clone(),
+                projection: projection.clone(),
+            };
+            eval_expr(&synthetic, &Record::new(), graph, params)
+        }
+
         // Fallback: evaluate against first record
         other => {
             if records.is_empty() {
-                Ok(Value::Null)
+                eval_expr(other, &Record::new(), graph, params)
             } else {
                 eval_expr(other, &records[0], graph, params)
             }

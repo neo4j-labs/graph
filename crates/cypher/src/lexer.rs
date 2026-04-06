@@ -490,6 +490,12 @@ impl<'a> Lexer<'a> {
 
     fn read_ident_or_keyword(&mut self) -> Result<Token, Error> {
         let name = self.read_identifier()?;
+        // If the identifier is immediately followed by ':', keep it as an Ident
+        // to preserve case for map key contexts (e.g., {NULL: 'x', null: 'y'})
+        let next_is_colon = self.peek() == Some(b':');
+        if next_is_colon {
+            return Ok(Token::Ident(name));
+        }
         let upper = name.to_ascii_uppercase();
         let tok = match upper.as_str() {
             "MATCH" => Token::Match,

@@ -188,12 +188,32 @@ impl Value {
             _ => false,
         }
     }
+
+    /// Identity equality for grouping in aggregation.
+    /// Like structural_eq but compares nodes/relationships by ID.
+    pub fn grouping_eq(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Node(a), Value::Node(b)) => a.id == b.id,
+            (Value::Relationship(a), Value::Relationship(b)) => a.id == b.id,
+            _ => self.structural_eq(other),
+        }
+    }
 }
 
 fn map_structural_eq(a: &BTreeMap<String, Value>, b: &BTreeMap<String, Value>) -> bool {
     a.len() == b.len()
         && a.iter()
             .all(|(k, v)| b.get(k).map_or(false, |bv| v.structural_eq(bv)))
+}
+
+/// Compare floats with NaN sorting after normal numbers.
+fn float_order_cmp(a: f64, b: f64) -> Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => Ordering::Equal,
+        (true, false) => Ordering::Greater,
+        (false, true) => Ordering::Less,
+        (false, false) => a.partial_cmp(&b).unwrap_or(Ordering::Equal),
+    }
 }
 
 /// Cypher equality: null == anything => null (ternary logic).
@@ -251,6 +271,15 @@ impl Value {
             }
             (Value::Node(a), Value::Node(b)) => Value::Bool(a.id == b.id),
             (Value::Relationship(a), Value::Relationship(b)) => Value::Bool(a.id == b.id),
+            (Value::Path(a), Value::Path(b)) => {
+                // Paths are equal if they have the same nodes (by id) and relationships (by id)
+                Value::Bool(
+                    a.nodes.len() == b.nodes.len()
+                        && a.relationships.len() == b.relationships.len()
+                        && a.nodes.iter().zip(b.nodes.iter()).all(|(x, y)| x.id == y.id)
+                        && a.relationships.iter().zip(b.relationships.iter()).all(|(x, y)| x.id == y.id)
+                )
+            }
             // Different types => false (not null)
             _ => Value::Bool(false),
         }
@@ -380,13 +409,9 @@ impl Value {
         match (self, other) {
             (Value::Bool(a), Value::Bool(b)) => a.cmp(b),
             (Value::Integer(a), Value::Integer(b)) => a.cmp(b),
-            (Value::Float(a), Value::Float(b)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
-            (Value::Integer(a), Value::Float(b)) => {
-                (*a as f64).partial_cmp(b).unwrap_or(Ordering::Equal)
-            }
-            (Value::Float(a), Value::Integer(b)) => {
-                a.partial_cmp(&(*b as f64)).unwrap_or(Ordering::Equal)
-            }
+            (Value::Float(a), Value::Float(b)) => float_order_cmp(*a, *b),
+            (Value::Integer(a), Value::Float(b)) => float_order_cmp(*a as f64, *b),
+            (Value::Float(a), Value::Integer(b)) => float_order_cmp(*a, *b as f64),
             (Value::String(a), Value::String(b)) => a.cmp(b),
             (Value::List(a), Value::List(b)) => {
                 for (x, y) in a.iter().zip(b.iter()) {
