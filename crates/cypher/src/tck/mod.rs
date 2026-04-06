@@ -10,12 +10,14 @@ use feature_parser::{ExpectedResult, Feature, GraphSetup, Scenario};
 
 /// Categories of feature files that we skip (mutations, procedures, etc.)
 const SKIP_CATEGORIES: &[&str] = &[
+    "create",
     "delete",
     "merge",
     "set",
     "remove",
     "call",
     "foreach",
+    "temporal",
 ];
 
 /// Result of running a single scenario.

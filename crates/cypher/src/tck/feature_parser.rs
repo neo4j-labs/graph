@@ -60,7 +60,22 @@ pub fn parse_feature(content: &str) -> Feature {
             continue;
         }
 
-        if line.starts_with("Scenario:") || line.starts_with("Scenario Outline:") {
+        if line.starts_with("Scenario Outline:") {
+            let (template, examples, next_i) = parse_scenario_outline(&lines, i);
+            // Expand outline with each example row
+            if examples.is_empty() {
+                scenarios.push(template);
+            } else {
+                for example_row in &examples {
+                    let expanded = expand_outline(&template, example_row);
+                    scenarios.push(expanded);
+                }
+            }
+            i = next_i;
+            continue;
+        }
+
+        if line.starts_with("Scenario:") {
             let (scenario, next_i) = parse_scenario(&lines, i);
             scenarios.push(scenario);
             i = next_i;
@@ -199,6 +214,106 @@ fn parse_scenario(lines: &[&str], start: usize) -> (Scenario, usize) {
         },
         i,
     )
+}
+
+/// Parse a Scenario Outline, returning the template scenario and the Examples rows.
+fn parse_scenario_outline(
+    lines: &[&str],
+    start: usize,
+) -> (Scenario, Vec<Vec<(String, String)>>, usize) {
+    let (template, end_i) = parse_scenario(lines, start);
+
+    // Look for Examples: section within the already-consumed range or just after
+    let mut i = start + 1;
+    let mut examples = Vec::new();
+
+    while i < lines.len() {
+        let line = lines[i].trim();
+
+        // Stop at next scenario
+        if (line.starts_with("Scenario:") || line.starts_with("Scenario Outline:")) && i > start {
+            break;
+        }
+
+        if line.starts_with("Examples:") {
+            i += 1;
+            let (table, next_i) = read_table(lines, i);
+            if let Some((header, rows)) = table.split_first() {
+                for row in rows {
+                    let pairs: Vec<(String, String)> = header
+                        .iter()
+                        .zip(row.iter())
+                        .map(|(h, v)| (h.clone(), v.clone()))
+                        .collect();
+                    examples.push(pairs);
+                }
+            }
+            i = next_i;
+        } else {
+            i += 1;
+        }
+    }
+
+    (template, examples, i.max(end_i))
+}
+
+/// Expand a Scenario Outline template with example values.
+fn expand_outline(template: &Scenario, example: &[(String, String)]) -> Scenario {
+    let substitute = |s: &str| -> String {
+        let mut result = s.to_string();
+        for (key, value) in example {
+            result = result.replace(&format!("<{key}>"), value);
+        }
+        result
+    };
+
+    Scenario {
+        name: substitute(&template.name),
+        tags: template.tags.clone(),
+        setup: ScenarioSetup {
+            graph: match &template.setup.graph {
+                GraphSetup::Empty => GraphSetup::Empty,
+                GraphSetup::Any => GraphSetup::Any,
+                GraphSetup::Named(n) => GraphSetup::Named(substitute(n)),
+            },
+            setup_queries: template
+                .setup
+                .setup_queries
+                .iter()
+                .map(|q| substitute(q))
+                .collect(),
+        },
+        query: substitute(&template.query),
+        parameters: template
+            .parameters
+            .iter()
+            .map(|(k, v)| (substitute(k), substitute(v)))
+            .collect(),
+        expected: match &template.expected {
+            ExpectedResult::Success {
+                columns,
+                rows,
+                ordered,
+            } => ExpectedResult::Success {
+                columns: columns.iter().map(|c| substitute(c)).collect(),
+                rows: rows
+                    .iter()
+                    .map(|row| row.iter().map(|cell| substitute(cell)).collect())
+                    .collect(),
+                ordered: *ordered,
+            },
+            ExpectedResult::Error {
+                error_type,
+                phase,
+                detail,
+            } => ExpectedResult::Error {
+                error_type: substitute(error_type),
+                phase: substitute(phase),
+                detail: substitute(detail),
+            },
+            ExpectedResult::NoResult => ExpectedResult::NoResult,
+        },
+    }
 }
 
 /// Read a """ doc string """ block.

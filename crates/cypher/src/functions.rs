@@ -62,6 +62,33 @@ pub fn call_function(name: &str, args: &[Value]) -> Result<Value, Error> {
         // Existence check
         "exists" => fn_exists(args),
 
+        // Quantifier predicates: all(x IN list WHERE pred)
+        // These are parsed as FunctionCall with args: [Variable(x), list, pred]
+        // The expr evaluator handles the iteration
+        "all" => fn_all(args),
+        "any" => fn_any(args),
+        "none" => fn_none(args),
+        "single" => fn_single(args),
+
+        // Aggregation functions called outside of aggregation context
+        "count" | "sum" | "avg" | "min" | "max" | "collect" | "stdev" | "stdevp" => {
+            // These are handled by the aggregation module; if called here it's
+            // an error or a non-aggregation context
+            Err(Error::Runtime(format!(
+                "{name}() is an aggregation function and cannot be used here"
+            )))
+        }
+
+        // Temporal (stub)
+        "date" | "datetime" | "time" | "localtime" | "localdatetime" | "duration" => {
+            Err(Error::Unsupported(format!("temporal function: {name}")))
+        }
+
+        // Spatial (stub)
+        "point" | "distance" => {
+            Err(Error::Unsupported(format!("spatial function: {name}")))
+        }
+
         _ => Err(Error::Unsupported(format!("unknown function: {name}"))),
     }
 }
@@ -623,4 +650,58 @@ fn fn_relationships(args: &[Value]) -> Result<Value, Error> {
 fn fn_exists(args: &[Value]) -> Result<Value, Error> {
     expect_args("exists", args, 1)?;
     Ok(Value::Bool(!args[0].is_null()))
+}
+
+/// Quantifier: all(x IN list WHERE pred)
+/// Args are [Variable(x), list_value, pred_value_per_element]
+/// But since we can't evaluate the predicate here (we don't have the expr),
+/// the quantifier is handled in expr.rs instead.
+/// These stubs handle the pre-evaluated case.
+fn fn_all(args: &[Value]) -> Result<Value, Error> {
+    // When called with a single list argument (pre-evaluated)
+    if args.len() == 1 {
+        match &args[0] {
+            Value::List(list) => Ok(Value::Bool(list.iter().all(|v| v.is_truthy()))),
+            _ => Ok(Value::Null),
+        }
+    } else {
+        // Quantifier form - handled by expr evaluator
+        Ok(Value::Null)
+    }
+}
+
+fn fn_any(args: &[Value]) -> Result<Value, Error> {
+    if args.len() == 1 {
+        match &args[0] {
+            Value::List(list) => Ok(Value::Bool(list.iter().any(|v| v.is_truthy()))),
+            _ => Ok(Value::Null),
+        }
+    } else {
+        Ok(Value::Null)
+    }
+}
+
+fn fn_none(args: &[Value]) -> Result<Value, Error> {
+    if args.len() == 1 {
+        match &args[0] {
+            Value::List(list) => Ok(Value::Bool(!list.iter().any(|v| v.is_truthy()))),
+            _ => Ok(Value::Null),
+        }
+    } else {
+        Ok(Value::Null)
+    }
+}
+
+fn fn_single(args: &[Value]) -> Result<Value, Error> {
+    if args.len() == 1 {
+        match &args[0] {
+            Value::List(list) => {
+                let count = list.iter().filter(|v| v.is_truthy()).count();
+                Ok(Value::Bool(count == 1))
+            }
+            _ => Ok(Value::Null),
+        }
+    } else {
+        Ok(Value::Null)
+    }
 }

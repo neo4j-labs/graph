@@ -680,6 +680,39 @@ impl Parser {
                 }
             }
             Token::Ident(name) => {
+                // Check for quantifier predicates: any/none/single(x IN list WHERE pred)
+                let lower = name.to_ascii_lowercase();
+                if matches!(lower.as_str(), "any" | "none" | "single")
+                    && self.peek_at(1) == Some(&Token::LParen)
+                {
+                    // Check if this is a quantifier pattern (has IN inside)
+                    let saved = self.pos;
+                    self.advance(); // consume ident
+                    self.advance(); // consume (
+                    // Try to parse as quantifier
+                    if self.is_ident() {
+                        let var = self.expect_ident()?;
+                        if self.eat(&Token::In) {
+                            let source = self.parse_expr()?;
+                            let pred = if self.eat(&Token::Where) {
+                                self.parse_expr()?
+                            } else {
+                                Expr::Literal(Value::Bool(true))
+                            };
+                            self.expect(&Token::RParen)?;
+                            return Ok(Expr::FunctionCall {
+                                name: lower,
+                                distinct: false,
+                                args: vec![Expr::Variable(var), source, pred],
+                            });
+                        }
+                        // Not a quantifier, backtrack
+                        self.pos = saved;
+                    } else {
+                        self.pos = saved;
+                    }
+                }
+
                 self.advance();
                 // Function call?
                 if self.check(&Token::LParen) {
@@ -708,32 +741,55 @@ impl Parser {
                     Ok(Expr::Variable(name))
                 }
             }
-            // Some keywords can be used as identifiers in certain contexts
-            Token::All => {
+            // Quantifier predicates: all/any/none/single(x IN list WHERE pred)
+            Token::All => self.parse_quantifier("all"),
+
+            // Keywords that can appear as identifiers or function-like
+            Token::Not => {
                 self.advance();
-                if self.check(&Token::LParen) {
-                    self.advance();
-                    let var = self.expect_ident()?;
-                    self.expect(&Token::In)?;
-                    let source = self.parse_expr()?;
-                    self.expect(&Token::Where)?;
-                    let pred = self.parse_expr()?;
-                    self.expect(&Token::RParen)?;
-                    Ok(Expr::FunctionCall {
-                        name: "all".to_string(),
-                        distinct: false,
-                        args: vec![
-                            Expr::Variable(var),
-                            source,
-                            pred,
-                        ],
-                    })
-                } else {
-                    Ok(Expr::Variable("all".to_string()))
-                }
+                let e = self.parse_not()?;
+                Ok(Expr::Not(Box::new(e)))
             }
-            tok => Err(Error::Parser(format!("unexpected token in expression: {tok}"))),
+
+            tok => {
+                // Try to handle some keywords as identifiers for function calls
+                let name = match &tok {
+                    Token::Starts => Some("starts"),
+                    Token::Ends => Some("ends"),
+                    Token::Contains => Some("contains"),
+                    Token::In => Some("in"),
+                    Token::Is => Some("is"),
+                    Token::On => Some("on"),
+                    Token::By => Some("by"),
+                    _ => None,
+                };
+                if let Some(name) = name {
+                    self.advance();
+                    Ok(Expr::Variable(name.to_string()))
+                } else {
+                    Err(Error::Parser(format!("unexpected token in expression: {tok}")))
+                }
+            },
         }
+    }
+
+    fn parse_quantifier(&mut self, name: &str) -> Result<Expr, Error> {
+        self.advance(); // consume ALL/etc keyword
+        self.expect(&Token::LParen)?;
+        let var = self.expect_ident()?;
+        self.expect(&Token::In)?;
+        let source = self.parse_expr()?;
+        let pred = if self.eat(&Token::Where) {
+            self.parse_expr()?
+        } else {
+            Expr::Literal(Value::Bool(true))
+        };
+        self.expect(&Token::RParen)?;
+        Ok(Expr::FunctionCall {
+            name: name.to_string(),
+            distinct: false,
+            args: vec![Expr::Variable(var), source, pred],
+        })
     }
 
     fn parse_case(&mut self) -> Result<Expr, Error> {

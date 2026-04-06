@@ -290,6 +290,80 @@ pub fn eval_expr(
             distinct: _,
             args,
         } => {
+            let lower = name.to_ascii_lowercase();
+
+            // Handle quantifier predicates: all/any/none/single(x IN list WHERE pred)
+            // These have args: [Variable(var), list_expr, predicate_expr]
+            if matches!(lower.as_str(), "all" | "any" | "none" | "single")
+                && args.len() == 3
+            {
+                if let Expr::Variable(var_name) = &args[0] {
+                    let list_val = eval_expr(&args[1], record, graph, params)?;
+                    match list_val {
+                        Value::List(items) => {
+                            let mut true_count = 0;
+                            let mut has_null = false;
+                            for item in &items {
+                                let mut inner = record.clone();
+                                inner.insert(var_name.clone(), item.clone());
+                                let pred_val = eval_expr(&args[2], &inner, graph, params)?;
+                                match pred_val {
+                                    Value::Bool(true) => true_count += 1,
+                                    Value::Bool(false) => {}
+                                    Value::Null => has_null = true,
+                                    _ => {}
+                                }
+                            }
+                            return Ok(match lower.as_str() {
+                                "all" => {
+                                    if true_count == items.len() && !has_null {
+                                        Value::Bool(true)
+                                    } else if items.len() - true_count > 0 && !has_null {
+                                        Value::Bool(false)
+                                    } else if has_null {
+                                        Value::Null
+                                    } else {
+                                        Value::Bool(true)
+                                    }
+                                }
+                                "any" => {
+                                    if true_count > 0 {
+                                        Value::Bool(true)
+                                    } else if has_null {
+                                        Value::Null
+                                    } else {
+                                        Value::Bool(false)
+                                    }
+                                }
+                                "none" => {
+                                    if true_count > 0 {
+                                        Value::Bool(false)
+                                    } else if has_null {
+                                        Value::Null
+                                    } else {
+                                        Value::Bool(true)
+                                    }
+                                }
+                                "single" => {
+                                    if true_count == 1 && !has_null {
+                                        Value::Bool(true)
+                                    } else if true_count > 1 {
+                                        Value::Bool(false)
+                                    } else if has_null {
+                                        Value::Null
+                                    } else {
+                                        Value::Bool(false)
+                                    }
+                                }
+                                _ => Value::Null,
+                            });
+                        }
+                        Value::Null => return Ok(Value::Null),
+                        _ => {}
+                    }
+                }
+            }
+
             // Note: aggregation functions (count, sum, avg, min, max, collect)
             // are handled specially by the executor, not here.
             let arg_values: Result<Vec<Value>, Error> = args
