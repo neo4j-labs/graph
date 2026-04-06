@@ -492,14 +492,7 @@ pub fn get_property(value: &Value, prop: &str) -> Value {
 
 fn eval_add(l: &Value, r: &Value) -> Result<Value, Error> {
     match (l, r) {
-        (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
-        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a.wrapping_add(*b))),
-        (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
-        (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
-        (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a + *b as f64)),
-        (Value::String(a), Value::String(b)) => Ok(Value::String(format!("{a}{b}"))),
-        (Value::String(a), other) => Ok(Value::String(format!("{a}{other}"))),
-        (other, Value::String(b)) => Ok(Value::String(format!("{other}{b}"))),
+        // List operations: null is treated as an element, not as null propagation
         (Value::List(a), Value::List(b)) => {
             let mut result = a.clone();
             result.extend(b.iter().cloned());
@@ -515,6 +508,15 @@ fn eval_add(l: &Value, r: &Value) -> Result<Value, Error> {
             result.extend(b.iter().cloned());
             Ok(Value::List(result))
         }
+        // Null propagation for non-list types
+        (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
+        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a.wrapping_add(*b))),
+        (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+        (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
+        (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a + *b as f64)),
+        (Value::String(a), Value::String(b)) => Ok(Value::String(format!("{a}{b}"))),
+        (Value::String(a), other) => Ok(Value::String(format!("{a}{other}"))),
+        (other, Value::String(b)) => Ok(Value::String(format!("{other}{b}"))),
         _ => Err(Error::Type(format!(
             "cannot add {l} and {r}"
         ))),
