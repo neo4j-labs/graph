@@ -8,11 +8,6 @@ fn tck_features_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("TCK_FEATURES_DIR") {
         return PathBuf::from(dir);
     }
-    // Fallback: check relative to the project
-    let fallback = PathBuf::from("/home/s1ck/Devel/Neo/openCypher/tck/features");
-    if fallback.exists() {
-        return fallback;
-    }
     panic!("TCK features directory not found. Set TCK_FEATURES_DIR env var.");
 }
 
@@ -135,7 +130,10 @@ fn tck_summary_inner() {
     }
 
     eprintln!("\n=== TCK Summary ===");
-    eprintln!("Feature files: {} run, {} skipped", total_files, skipped_files);
+    eprintln!(
+        "Feature files: {} run, {} skipped",
+        total_files, skipped_files
+    );
     eprintln!(
         "Scenarios: {} passed, {} failed, {} skipped",
         total_pass, total_fail, total_skip
