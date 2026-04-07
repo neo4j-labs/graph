@@ -1,10 +1,83 @@
 use std::collections::{BTreeMap, HashMap};
 
+use graph_builder::prelude::*;
+
 use crate::ast::{Clause, Direction, Expr, PatternPath, Statement};
 use crate::error::Error;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::value::{NodeValue, RelValue, Value};
+
+/// Adjacency storage for the property graph.
+///
+/// During graph construction (e.g., from CREATE statements), mutable adjacency
+/// lists are used. After construction, or when created from a
+/// [`DirectedCsrGraph`], the adjacency can be backed by a CSR (Compressed
+/// Sparse Row) index for cache-friendly, contiguous neighbor lookups.
+enum Adjacency {
+    /// Mutable adjacency lists mapping each node to its outgoing/incoming
+    /// relationship IDs. Used during incremental graph construction.
+    Lists {
+        outgoing: Vec<Vec<usize>>,
+        incoming: Vec<Vec<usize>>,
+    },
+    /// Immutable CSR-backed adjacency. The CSR stores `(source, target,
+    /// rel_id)` triples, enabling O(1) offset lookups and contiguous memory
+    /// traversal for neighbor iteration.
+    Csr {
+        csr: DirectedCsrGraph<usize, (), usize>,
+    },
+}
+
+impl std::fmt::Debug for Adjacency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Adjacency::Lists { outgoing, incoming } => f
+                .debug_struct("Lists")
+                .field("outgoing", outgoing)
+                .field("incoming", incoming)
+                .finish(),
+            Adjacency::Csr { csr } => f
+                .debug_struct("Csr")
+                .field("node_count", &Graph::<usize>::node_count(csr))
+                .field("edge_count", &Graph::<usize>::edge_count(csr))
+                .finish(),
+        }
+    }
+}
+
+impl Clone for Adjacency {
+    fn clone(&self) -> Self {
+        match self {
+            Adjacency::Lists { outgoing, incoming } => Adjacency::Lists {
+                outgoing: outgoing.clone(),
+                incoming: incoming.clone(),
+            },
+            // CSR doesn't implement Clone — rebuild from a fresh edge list.
+            Adjacency::Csr { csr } => {
+                let node_count = Graph::<usize>::node_count(csr);
+                let mut edges = Vec::new();
+                for src in 0..node_count {
+                    for t in csr.out_neighbors_with_values(src) {
+                        edges.push((src, t.target, t.value));
+                    }
+                }
+                if node_count == 0 {
+                    Adjacency::Lists {
+                        outgoing: Vec::new(),
+                        incoming: Vec::new(),
+                    }
+                } else {
+                    let edge_list =
+                        EdgeList::with_max_node_id(edges, node_count.saturating_sub(1));
+                    Adjacency::Csr {
+                        csr: DirectedCsrGraph::from((edge_list, CsrLayout::Unsorted)),
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// Node data stored in the property graph.
 #[derive(Debug, Clone)]
@@ -26,12 +99,15 @@ pub struct RelData {
 
 /// A property graph supporting labels, relationship types, and property maps.
 /// Used as the execution target for Cypher queries.
+///
+/// The adjacency structure can be backed by either mutable adjacency lists
+/// (during construction) or an immutable [`DirectedCsrGraph`] index for
+/// cache-friendly neighbor lookups on large graphs.
 #[derive(Debug, Clone)]
 pub struct PropertyGraph {
     pub nodes: Vec<NodeData>,
     pub relationships: Vec<RelData>,
-    outgoing: Vec<Vec<usize>>,
-    incoming: Vec<Vec<usize>>,
+    adjacency: Adjacency,
 }
 
 impl PropertyGraph {
@@ -39,8 +115,10 @@ impl PropertyGraph {
         PropertyGraph {
             nodes: Vec::new(),
             relationships: Vec::new(),
-            outgoing: Vec::new(),
-            incoming: Vec::new(),
+            adjacency: Adjacency::Lists {
+                outgoing: Vec::new(),
+                incoming: Vec::new(),
+            },
         }
     }
 
@@ -52,6 +130,8 @@ impl PropertyGraph {
         self.relationships.len()
     }
 
+    /// Add a node. Only available when using list-based adjacency (i.e.,
+    /// during graph construction). Panics if the graph uses a CSR index.
     pub fn add_node(&mut self, labels: Vec<String>, properties: BTreeMap<String, Value>) -> usize {
         let id = self.nodes.len();
         self.nodes.push(NodeData {
@@ -59,11 +139,22 @@ impl PropertyGraph {
             labels,
             properties,
         });
-        self.outgoing.push(Vec::new());
-        self.incoming.push(Vec::new());
+        match &mut self.adjacency {
+            Adjacency::Lists {
+                outgoing, incoming, ..
+            } => {
+                outgoing.push(Vec::new());
+                incoming.push(Vec::new());
+            }
+            Adjacency::Csr { .. } => {
+                panic!("cannot add nodes to a CSR-backed property graph");
+            }
+        }
         id
     }
 
+    /// Add a relationship. Only available when using list-based adjacency.
+    /// Panics if the graph uses a CSR index.
     pub fn add_relationship(
         &mut self,
         source: usize,
@@ -79,8 +170,17 @@ impl PropertyGraph {
             rel_type,
             properties,
         });
-        self.outgoing[source].push(id);
-        self.incoming[target].push(id);
+        match &mut self.adjacency {
+            Adjacency::Lists {
+                outgoing, incoming, ..
+            } => {
+                outgoing[source].push(id);
+                incoming[target].push(id);
+            }
+            Adjacency::Csr { .. } => {
+                panic!("cannot add relationships to a CSR-backed property graph");
+            }
+        }
         id
     }
 
@@ -92,12 +192,90 @@ impl PropertyGraph {
         &self.relationships[id]
     }
 
-    pub fn out_relationships(&self, node: usize) -> &[usize] {
-        &self.outgoing[node]
+    /// Return outgoing relationship IDs for a node.
+    ///
+    /// When backed by a CSR index, this iterates the CSR's contiguous target
+    /// array, which is more cache-friendly than chasing `Vec` pointers.
+    pub fn out_relationships(&self, node: usize) -> Vec<usize> {
+        match &self.adjacency {
+            Adjacency::Lists { outgoing, .. } => outgoing[node].clone(),
+            Adjacency::Csr { csr } => csr
+                .out_neighbors_with_values(node)
+                .map(|t| t.value)
+                .collect(),
+        }
     }
 
-    pub fn in_relationships(&self, node: usize) -> &[usize] {
-        &self.incoming[node]
+    /// Return incoming relationship IDs for a node.
+    ///
+    /// When backed by a CSR index, this iterates the CSR's contiguous target
+    /// array for the incoming direction.
+    pub fn in_relationships(&self, node: usize) -> Vec<usize> {
+        match &self.adjacency {
+            Adjacency::Lists { incoming, .. } => incoming[node].clone(),
+            Adjacency::Csr { csr } => csr
+                .in_neighbors_with_values(node)
+                .map(|t| t.value)
+                .collect(),
+        }
+    }
+
+    /// Replace the mutable adjacency lists with a CSR index for faster
+    /// neighbor lookups. This freezes the topology — further `add_node` /
+    /// `add_relationship` calls will panic.
+    pub fn build_csr_index(&mut self) {
+        if matches!(self.adjacency, Adjacency::Csr { .. }) {
+            return; // already indexed
+        }
+        let edges: Vec<(usize, usize, usize)> = self
+            .relationships
+            .iter()
+            .map(|r| (r.source, r.target, r.id))
+            .collect();
+
+        let csr = if self.nodes.is_empty() {
+            // Empty graph — build a trivial CSR
+            GraphBuilder::new()
+                .csr_layout(CsrLayout::Unsorted)
+                .edges_with_values(edges)
+                .build()
+        } else {
+            let edge_list =
+                EdgeList::with_max_node_id(edges, self.nodes.len().saturating_sub(1));
+            DirectedCsrGraph::from((edge_list, CsrLayout::Unsorted))
+        };
+        self.adjacency = Adjacency::Csr { csr };
+    }
+
+    /// Build a [`DirectedCsrGraph`] representing this graph's topology.
+    ///
+    /// The returned CSR has `EV = usize` where each edge value is the
+    /// corresponding relationship ID, allowing fast topology traversal
+    /// while still being able to look up relationship metadata.
+    pub fn to_csr(&self) -> DirectedCsrGraph<usize, (), usize> {
+        let edges: Vec<(usize, usize, usize)> = self
+            .relationships
+            .iter()
+            .map(|r| (r.source, r.target, r.id))
+            .collect();
+        if self.nodes.is_empty() {
+            GraphBuilder::new()
+                .csr_layout(CsrLayout::Unsorted)
+                .edges_with_values(edges)
+                .build()
+        } else {
+            let edge_list =
+                EdgeList::with_max_node_id(edges, self.nodes.len().saturating_sub(1));
+            DirectedCsrGraph::from((edge_list, CsrLayout::Unsorted))
+        }
+    }
+
+    /// Return a reference to the underlying CSR index, if one has been built.
+    pub fn csr_index(&self) -> Option<&DirectedCsrGraph<usize, (), usize>> {
+        match &self.adjacency {
+            Adjacency::Csr { csr } => Some(csr),
+            _ => None,
+        }
     }
 
     /// Convert a node to a CypherValue.
@@ -340,6 +518,76 @@ impl PropertyGraph {
 impl Default for PropertyGraph {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Create a [`PropertyGraph`] from a topology-only [`DirectedCsrGraph`].
+///
+/// Each node becomes a label-free, property-free node. Each edge becomes a
+/// relationship with an empty type and no properties. The resulting graph is
+/// CSR-backed, so neighbor lookups use the cache-friendly CSR layout.
+///
+/// ```ignore
+/// use graph_builder::prelude::*;
+/// use graph_cypher::PropertyGraph;
+///
+/// let csr: DirectedCsrGraph<usize> = GraphBuilder::new()
+///     .edges(vec![(0, 1), (1, 2), (2, 0)])
+///     .build();
+///
+/// let pg = PropertyGraph::from(csr);
+/// assert_eq!(pg.node_count(), 3);
+/// assert_eq!(pg.relationship_count(), 3);
+/// ```
+impl From<DirectedCsrGraph<usize>> for PropertyGraph {
+    fn from(csr: DirectedCsrGraph<usize>) -> Self {
+        let node_count = Graph::<usize>::node_count(&csr);
+
+        let nodes: Vec<NodeData> = (0..node_count)
+            .map(|id| NodeData {
+                id,
+                labels: Vec::new(),
+                properties: BTreeMap::new(),
+            })
+            .collect();
+
+        // Enumerate all edges from the outgoing CSR to create relationships.
+        let mut relationships = Vec::new();
+        let mut edges_with_values = Vec::new();
+
+        for source in 0..node_count {
+            for &target in csr.out_neighbors(source) {
+                let rel_id = relationships.len();
+                relationships.push(RelData {
+                    id: rel_id,
+                    source,
+                    target,
+                    rel_type: String::new(),
+                    properties: BTreeMap::new(),
+                });
+                edges_with_values.push((source, target, rel_id));
+            }
+        }
+
+        // Build a new CSR with relationship IDs as edge values.
+        let adjacency = if node_count == 0 {
+            Adjacency::Lists {
+                outgoing: Vec::new(),
+                incoming: Vec::new(),
+            }
+        } else {
+            let edge_list =
+                EdgeList::with_max_node_id(edges_with_values, node_count.saturating_sub(1));
+            Adjacency::Csr {
+                csr: DirectedCsrGraph::from((edge_list, CsrLayout::Unsorted)),
+            }
+        };
+
+        PropertyGraph {
+            nodes,
+            relationships,
+            adjacency,
+        }
     }
 }
 

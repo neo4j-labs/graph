@@ -105,6 +105,10 @@ fn build_graph(scenario: &Scenario) -> Result<PropertyGraph, crate::error::Error
         graph.execute_cypher(query)?;
     }
 
+    // Freeze the adjacency into a CSR index so that all queries run against
+    // the cache-friendly CSR layout, exercising the CSR code path.
+    graph.build_csr_index();
+
     Ok(graph)
 }
 

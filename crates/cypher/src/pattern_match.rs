@@ -313,25 +313,25 @@ fn get_edges(graph: &PropertyGraph, node: usize, direction: &Direction) -> Vec<(
 
     match direction {
         Direction::Outgoing => {
-            for &rel_id in graph.out_relationships(node) {
+            for rel_id in graph.out_relationships(node) {
                 let rel = graph.relationship(rel_id);
                 edges.push((rel_id, rel.target));
             }
         }
         Direction::Incoming => {
-            for &rel_id in graph.in_relationships(node) {
+            for rel_id in graph.in_relationships(node) {
                 let rel = graph.relationship(rel_id);
                 edges.push((rel_id, rel.source));
             }
         }
         Direction::Both => {
             let mut seen = HashSet::new();
-            for &rel_id in graph.out_relationships(node) {
+            for rel_id in graph.out_relationships(node) {
                 let rel = graph.relationship(rel_id);
                 seen.insert(rel_id);
                 edges.push((rel_id, rel.target));
             }
-            for &rel_id in graph.in_relationships(node) {
+            for rel_id in graph.in_relationships(node) {
                 if seen.contains(&rel_id) {
                     // Self-loop already seen from outgoing side
                     continue;
