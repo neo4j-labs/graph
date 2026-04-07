@@ -292,6 +292,21 @@ impl<'g> CypherEngine<'g> {
         // Check for aggregation
         let has_agg = items.iter().any(|item| crate::aggregation::is_aggregation(&item.expr));
 
+        // Validate: ORDER BY must not contain aggregation unless the projection also aggregates
+        if let Some(ref order_items) = clause.order_by {
+            if !has_agg {
+                for sort_item in order_items {
+                    if crate::aggregation::is_aggregation(&sort_item.expr) {
+                        return Err(Error::Parser(
+                            "In a WITH/RETURN with no aggregation, \
+                             it is not possible to use aggregation in ORDER BY"
+                                .into(),
+                        ));
+                    }
+                }
+            }
+        }
+
         // Keep original records for ORDER BY (which can reference pre-projection vars)
         let need_originals = clause.order_by.is_some();
 
