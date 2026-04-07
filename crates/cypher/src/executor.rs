@@ -563,6 +563,19 @@ fn validate_statement(statement: &Statement) -> Result<(), Error> {
     Ok(())
 }
 
+fn check_duplicate_columns(items: &[ReturnItem]) -> Result<(), Error> {
+    let mut seen = HashSet::new();
+    for item in items {
+        let col = item.column_name();
+        if !seen.insert(col.clone()) {
+            return Err(Error::Parser(format!(
+                "Multiple result columns with the same name '{col}' are not supported"
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn get_return_column_count(clauses: &[Clause]) -> Option<usize> {
     for clause in clauses.iter().rev() {
         if let Clause::Return(ret) = clause {
@@ -604,6 +617,20 @@ fn validate_clauses(clauses: &[Clause]) -> Result<(), Error> {
                             )));
                         }
                     }
+                    check_duplicate_columns(items)?;
+                }
+                // WHERE in WITH must not contain aggregation
+                if let Some(ref where_expr) = w.where_clause {
+                    if crate::aggregation::is_aggregation(where_expr) {
+                        return Err(Error::Parser(
+                            "Cannot use aggregation in WHERE".into(),
+                        ));
+                    }
+                }
+            }
+            Clause::Return(r) => {
+                if let ReturnItems::Expressions(items) = &r.items {
+                    check_duplicate_columns(items)?;
                 }
             }
             _ => {}
