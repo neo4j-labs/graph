@@ -533,7 +533,46 @@ fn validate_statement(statement: &Statement) -> Result<(), Error> {
     for union in &statement.unions {
         validate_clauses(&union.body)?;
     }
+
+    // Validate UNION: all parts must have same columns, and cannot mix UNION/UNION ALL
+    if !statement.unions.is_empty() {
+        // Check for mixing UNION and UNION ALL
+        let has_all = statement.unions.iter().any(|u| u.all);
+        let has_distinct = statement.unions.iter().any(|u| !u.all);
+        if has_all && has_distinct {
+            return Err(Error::Parser(
+                "Cannot mix UNION and UNION ALL in the same query".into(),
+            ));
+        }
+
+        // Check column counts match (we can't easily check names before execution,
+        // but we can validate RETURN clauses have matching column counts)
+        let main_cols = get_return_column_count(&statement.body);
+        for union in &statement.unions {
+            let union_cols = get_return_column_count(&union.body);
+            if let (Some(m), Some(u)) = (main_cols, union_cols) {
+                if m != u {
+                    return Err(Error::Parser(
+                        "All sub queries in a UNION must have the same column names".into(),
+                    ));
+                }
+            }
+        }
+    }
+
     Ok(())
+}
+
+fn get_return_column_count(clauses: &[Clause]) -> Option<usize> {
+    for clause in clauses.iter().rev() {
+        if let Clause::Return(ret) = clause {
+            return match &ret.items {
+                ReturnItems::Star => None,
+                ReturnItems::Expressions(items) => Some(items.len()),
+            };
+        }
+    }
+    None
 }
 
 fn validate_clauses(clauses: &[Clause]) -> Result<(), Error> {
@@ -545,6 +584,27 @@ fn validate_clauses(clauses: &[Clause]) -> Result<(), Error> {
         match clause {
             Clause::Match(m) | Clause::OptionalMatch(m) => {
                 validate_match_patterns(&m.patterns, &mut global_var_types)?;
+                // WHERE clause must not contain aggregation
+                if let Some(ref where_expr) = m.where_clause {
+                    if crate::aggregation::is_aggregation(where_expr) {
+                        return Err(Error::Parser(
+                            "Cannot use aggregation in WHERE".into(),
+                        ));
+                    }
+                }
+            }
+            Clause::With(w) => {
+                // WITH requires aliases for non-variable expressions
+                if let ReturnItems::Expressions(items) = &w.return_body.items {
+                    for item in items {
+                        if item.alias.is_none() && !matches!(&item.expr, Expr::Variable(_)) {
+                            return Err(Error::Parser(format!(
+                                "Expression in WITH must be aliased (use AS): {}",
+                                expr_to_string(&item.expr)
+                            )));
+                        }
+                    }
+                }
             }
             _ => {}
         }
