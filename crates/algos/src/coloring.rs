@@ -21,7 +21,6 @@ use std::thread::available_parallelism;
 ///      Concurrency: Pract. Exper., 12: 1131-1146.
 ///      https://doi.org/10.1002/1096-9128(200010)12:12<1131::AID-CPE528>3.0.CO;2-2
 /// [2] [Java] (https://github.com/neo4j/graph-data-science/blob/2dd419ed5a55d43bbaf0575d4bc34e517768d69f/algo/src/main/java/org/neo4j/gds/k1coloring/K1Coloring.java)
-
 const CHUNK_SIZE: usize = 16384;
 
 #[derive(Copy, Clone, Debug)]
@@ -32,11 +31,8 @@ pub struct ColoringConfig {
     #[cfg_attr(feature = "clap", clap(long, default_value_t = ColoringConfig::DEFAULT_CHUNK_SIZE))]
     pub chunk_size: usize,
 
-    /// Number of samples to draw from the DSS to find the largest component.
-    // #[cfg_attr(feature = "clap", clap(long, default_value_t = WccConfig::DEFAULT_SAMPLING_SIZE))]
-    // pub sampling_size: usize,
-
-    /// Number of samples to draw from the DSS to find the largest component.
+    /// Maximum number of colors, will be rounded up to nearest multiple of 64. Impacts memory
+    /// usage.
     #[cfg_attr(feature = "clap", clap(long, default_value_t = ColoringConfig::DEFAULT_MAX_COLORS))]
     pub max_colors: usize,
 }
@@ -55,7 +51,7 @@ impl ColoringConfig {
     pub const DEFAULT_MAX_COLORS: usize = 1024;
 
     pub fn new(chunk_size: usize, max_colors: usize) -> Self {
-        let max_colors = (max_colors + 63) / 64 * 64; // round up to next multiple of 64
+        let max_colors = max_colors.div_ceil(64) * 64; // round up to next multiple of 64
         Self {
             chunk_size,
             max_colors,
@@ -85,7 +81,6 @@ impl BitField {
     }
 
     fn is_set(&self, idx: usize) -> bool {
-        // self.data[idx / 64].load(Relaxed) >> (idx % 64) & 1 != 0
         self.data[idx >> 6].load(Relaxed) >> (idx & 63) & 1 != 0
     }
 
@@ -95,7 +90,7 @@ impl BitField {
 
     fn trailing_zeros(&self) -> Option<usize> {
         for (big_idx, bit_field_ref) in self.data.iter().enumerate() {
-            let bit_field = bit_field_ref.load(Acquire).clone();
+            let bit_field = bit_field_ref.load(Acquire);
             if bit_field != u64::MAX {
                 return Some((big_idx << 6) + ((!bit_field).trailing_zeros() as usize));
             }
@@ -104,7 +99,6 @@ impl BitField {
     }
 }
 
-#[inline(never)]
 pub fn coloring<NI, G>(graph: &G, config: ColoringConfig) -> Result<Vec<usize>, String>
 where
     NI: Idx,
@@ -114,15 +108,15 @@ where
     let node_count = graph.node_count().index();
     let mut colors: Vec<usize> = vec![0; node_count];
     let colors_ptr = SharedMut::new(colors.as_mut_ptr());
-    let mut color_forbidden = (0..node_count)
+    let mut color_forbidden: Vec<BitField> = (0..node_count)
         .into_par_iter()
         .map(|_| BitField::new(max_colors))
         .collect();
     let mut nodes_to_color: Vec<NI> = (0..node_count).map(NI::new).collect();
-    _ = assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)?;
+    assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)?;
     nodes_to_color = find_incorrect_nodes(nodes_to_color, &colors_ptr, &color_forbidden);
     while !nodes_to_color.is_empty() {
-        _ = assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)?;
+        assign_colors_in_parallel(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden)?;
         update_forbidden_colors(graph, &nodes_to_color, &colors_ptr, &mut color_forbidden);
         nodes_to_color = find_incorrect_nodes(nodes_to_color, &colors_ptr, &color_forbidden);
     }
@@ -133,9 +127,9 @@ where
 #[inline(never)]
 fn assign_colors_in_parallel<NI, G>(
     graph: &G,
-    nodes: &Vec<NI>,
+    nodes: &[NI],
     colors_ptr: &SharedMut<usize>,
-    color_forbidden: &mut Vec<BitField>,
+    color_forbidden: &mut [BitField],
 ) -> Result<(), String>
 where
     NI: Idx,
@@ -153,8 +147,7 @@ where
                 }
                 let end = (start + CHUNK_SIZE).min(nodes.len());
 
-                for i in start..end {
-                    let u = nodes[i];
+                for &u in nodes.iter().take(end).skip(start) {
                     if let Some(color) = color_forbidden[u.index()].trailing_zeros() {
                         for v in graph.neighbors(u) {
                             color_forbidden[v.index()].set(color);
@@ -178,7 +171,7 @@ where
 fn find_incorrect_nodes<NI>(
     nodes: Vec<NI>,
     colors_ptr: &SharedMut<usize>,
-    color_forbidden: &Vec<BitField>,
+    color_forbidden: &[BitField],
 ) -> Vec<NI>
 where
     NI: Idx,
@@ -193,7 +186,7 @@ fn update_forbidden_colors<G, NI>(
     graph: &G,
     nodes_to_color: &Vec<NI>,
     colors_ptr: &SharedMut<usize>,
-    color_forbidden: &mut Vec<BitField>,
+    color_forbidden: &mut [BitField],
 ) where
     G: Graph<NI> + UndirectedNeighbors<NI> + UndirectedDegrees<NI> + Sync,
     NI: Idx,
@@ -225,13 +218,14 @@ fn make_consecutive(mut colors: Vec<usize>) -> Vec<usize> {
     colors
 }
 
+#[cfg(test)]
 pub mod tests {
     use crate::coloring::{coloring, ColoringConfig};
     use graph_builder::prelude::*;
 
     pub fn check_correct<NI: Idx, G: Graph<NI> + UndirectedNeighbors<NI>>(
         graph: &G,
-        color: &Vec<usize>,
+        color: &[usize],
     ) -> bool {
         for node in NI::zero().range(graph.node_count()) {
             for neighbor in graph.neighbors(node) {
@@ -254,5 +248,21 @@ pub mod tests {
 
         let coloring = coloring(&graph, ColoringConfig::default()).ok().unwrap();
         assert!(check_correct(&graph, &coloring));
+        assert_eq!(*coloring.iter().max().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_cycle() {
+        let gdl = "(a)-->()-->()-->()-->(a)";
+
+        let graph: UndirectedCsrGraph<usize> = GraphBuilder::new()
+            .csr_layout(CsrLayout::Deduplicated)
+            .gdl_str::<usize, _>(gdl)
+            .build()
+            .unwrap();
+
+        let coloring = coloring(&graph, ColoringConfig::default()).ok().unwrap();
+        assert!(check_correct(&graph, &coloring));
+        assert_eq!(*coloring.iter().max().unwrap(), 1);
     }
 }
