@@ -9,7 +9,7 @@ use numpy::{PyArray1, PyArray2};
 use pyo3::{prelude::*, types::PyList};
 use std::path::PathBuf;
 
-pub(crate) fn register(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn register(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DiGraph>()?;
     Ok(())
 }
@@ -32,7 +32,7 @@ impl DiGraph {
 impl DiGraph {
     /// Load a graph in the provided format
     #[staticmethod]
-    #[args(layout = "None", file_format = "FileFormat::Graph500")]
+    #[pyo3(signature = (path, layout = None, file_format = FileFormat::Graph500))]
     pub fn load(
         py: Python<'_>,
         path: PathBuf,
@@ -45,16 +45,16 @@ impl DiGraph {
 
     /// Convert a numpy 2d-array into a graph.
     #[staticmethod]
-    #[args(layout = "None")]
-    pub fn from_numpy(np: &PyArray2<u32>, layout: Option<Layout>) -> PyResult<Self> {
+    #[pyo3(signature = (np, layout = None))]
+    pub fn from_numpy(np: &Bound<'_, PyArray2<u32>>, layout: Option<Layout>) -> PyResult<Self> {
         let g = PyGraph::from_numpy(np, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
 
     /// Convert a pandas dataframe into a graph.
     #[staticmethod]
-    #[args(layout = "None")]
-    pub fn from_pandas(py: Python<'_>, data: PyObject, layout: Option<Layout>) -> PyResult<Self> {
+    #[pyo3(signature = (data, layout = None))]
+    pub fn from_pandas(py: Python<'_>, data: Py<PyAny>, layout: Option<Layout>) -> PyResult<Self> {
         let g = PyGraph::from_pandas(py, data, layout)?;
         Ok(Self::new(g.load_micros, g))
     }
@@ -84,7 +84,11 @@ impl DiGraph {
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    pub fn out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
+    pub fn out_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: u32,
+    ) -> PyResult<Bound<'py, PyArray1<u32>>> {
         self.inner.out_neighbors(py, node)
     }
 
@@ -93,7 +97,11 @@ impl DiGraph {
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    pub fn in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> PyResult<&'py PyArray1<u32>> {
+    pub fn in_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: u32,
+    ) -> PyResult<Bound<'py, PyArray1<u32>>> {
         self.inner.in_neighbors(py, node)
     }
 
@@ -101,7 +109,11 @@ impl DiGraph {
     /// i.e., the given node is the source node of the connecting edge.
     ///
     /// This function returns a copy of the data as a Python list.
-    pub fn copy_out_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
+    pub fn copy_out_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: u32,
+    ) -> PyResult<Bound<'py, PyList>> {
         self.inner.copy_out_neighbors(py, node)
     }
 
@@ -109,7 +121,11 @@ impl DiGraph {
     /// i.e., the given node is the target node of theconnecting edge.
     ///
     /// This function returns a copy of the data as a Python list.
-    pub fn copy_in_neighbors<'py>(&self, py: Python<'py>, node: u32) -> &'py PyList {
+    pub fn copy_in_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: u32,
+    ) -> PyResult<Bound<'py, PyList>> {
         self.inner.copy_in_neighbors(py, node)
     }
 
@@ -117,19 +133,19 @@ impl DiGraph {
         self.inner.__repr__()
     }
 
-    #[args(layout = "None")]
+    #[pyo3(signature = (layout = None))]
     pub fn to_undirected(&self, layout: Option<Layout>) -> Graph {
         let g = self.inner.to_undirected(layout.map(CsrLayout::from));
         Graph::new(g.load_micros, g)
     }
 
     /// Run Page Rank on this graph.
-    #[args(
-        "*",
-        max_iterations = "PageRankConfig::DEFAULT_MAX_ITERATIONS",
-        tolerance = "PageRankConfig::DEFAULT_TOLERANCE",
-        damping_factor = "PageRankConfig::DEFAULT_DAMPING_FACTOR"
-    )]
+    #[pyo3(signature = (
+        *,
+        max_iterations = PageRankConfig::DEFAULT_MAX_ITERATIONS,
+        tolerance = PageRankConfig::DEFAULT_TOLERANCE,
+        damping_factor = PageRankConfig::DEFAULT_DAMPING_FACTOR,
+    ))]
     pub fn page_rank(
         &self,
         py: Python<'_>,
@@ -142,12 +158,12 @@ impl DiGraph {
     }
 
     /// Run Weakly Connected Compontents on this graph.
-    #[args(
-        "*",
-        chunk_size = "WccConfig::DEFAULT_CHUNK_SIZE",
-        neighbor_rounds = "WccConfig::DEFAULT_NEIGHBOR_ROUNDS",
-        sampling_size = "WccConfig::DEFAULT_SAMPLING_SIZE"
-    )]
+    #[pyo3(signature = (
+        *,
+        chunk_size = WccConfig::DEFAULT_CHUNK_SIZE,
+        neighbor_rounds = WccConfig::DEFAULT_NEIGHBOR_ROUNDS,
+        sampling_size = WccConfig::DEFAULT_SAMPLING_SIZE,
+    ))]
     pub fn wcc(
         &self,
         py: Python<'_>,

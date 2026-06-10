@@ -9,7 +9,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
-pub(crate) fn register(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+pub(crate) fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<WccResult>()?;
     Ok(())
 }
@@ -20,7 +20,7 @@ where
     G: GraphTrait<NI> + DirectedDegrees<NI> + DirectedNeighbors<NI> + Sync,
     C: Into<Option<WccConfig>> + Send,
 {
-    py.allow_threads(move || inner_wcc(graph, config))
+    py.detach(move || inner_wcc(graph, config))
 }
 
 fn inner_wcc<NI, G>(graph: &G, config: impl Into<Option<WccConfig>>) -> WccRes<NI>
@@ -46,7 +46,7 @@ pub struct WccRes<NI> {
     _phantom: PhantomData<NI>,
 }
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct WccResult {
     components: SharedSlice,
@@ -77,7 +77,7 @@ impl std::fmt::Debug for WccResult {
 
 #[pymethods]
 impl WccResult {
-    pub fn components<'py>(&self, py: Python<'py>) -> PyResult<&'py PyArray1<u32>> {
+    pub fn components<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u32>>> {
         self.components.clone().into_numpy(py)
     }
 

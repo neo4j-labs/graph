@@ -7,7 +7,7 @@ use ::graph::prelude::{
 };
 use numpy::{
     ndarray::{iter::AxisIter, ArrayView2, Ix1},
-    Element, PyArray1, PyArray2,
+    Element, PyArray1, PyArray2, PyArrayMethods,
 };
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
@@ -29,7 +29,7 @@ mod shared_slice;
 pub(crate) use self::graph::Graph;
 pub(crate) use self::shared_slice::{NumpyType, SharedSlice};
 
-pub(crate) fn register(py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn register(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Layout>()?;
     m.add_class::<FileFormat>()?;
 
@@ -41,8 +41,8 @@ pub(crate) fn register(py: Python, m: &PyModule) -> PyResult<()> {
 
 /// Defines how the neighbor list of individual nodes are organized within the
 /// CSR target array.
-#[derive(Clone, Copy, Debug)]
-#[pyclass]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[pyclass(eq, eq_int, from_py_object)]
 pub enum Layout {
     /// Neighbor lists are sorted and may contain duplicate target ids.
     Sorted,
@@ -55,8 +55,8 @@ pub enum Layout {
 }
 
 /// Defines the file format of an input file.
-#[derive(Clone, Copy, Debug)]
-#[pyclass]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[pyclass(eq, eq_int, from_py_object)]
 pub enum FileFormat {
     /// The input in a binary Graph500 format.
     Graph500,
@@ -142,7 +142,7 @@ where
         GraphError: From<G::Error>,
     {
         let (graph, took) = py
-            .allow_threads(move || {
+            .detach(move || {
                 let (graph, load_micros) = time(move || {
                     let mut b = GraphBuilder::new();
                     if let Some(layout) = layout {
@@ -166,7 +166,7 @@ impl<NI, G> PyGraph<NI, G>
 where
     NI: Idx,
 {
-    fn from_numpy(np: &PyArray2<NI>, layout: Option<Layout>) -> PyResult<Self>
+    fn from_numpy(np: &Bound<'_, PyArray2<NI>>, layout: Option<Layout>) -> PyResult<Self>
     where
         NI: Element,
         for<'a> G: From<(ArrayEdgeList<'a, NI>, CsrLayout)>,
@@ -177,15 +177,17 @@ where
         Ok(Self::from_edge_list(el, layout))
     }
 
-    fn from_pandas(py: Python<'_>, data: PyObject, layout: Option<Layout>) -> PyResult<Self>
+    fn from_pandas(py: Python<'_>, data: Py<PyAny>, layout: Option<Layout>) -> PyResult<Self>
     where
         NI: Element,
         for<'a> G: From<(ArrayEdgeList<'a, NI>, CsrLayout)>,
     {
+        use pyo3::types::IntoPyDict;
         let to_numpy = data.getattr(py, "to_numpy")?;
-        let np = to_numpy.call0(py)?;
-        let np = unsafe { PyArray2::from_owned_ptr(py, np.into_ptr()) };
-        Self::from_numpy(np, layout)
+        let kwargs = [("dtype", NI::get_dtype(py))].into_py_dict(py)?;
+        let np = to_numpy.call(py, (), Some(&kwargs))?;
+        let np = np.bind(py).cast::<PyArray2<NI>>()?.clone();
+        Self::from_numpy(&np, layout)
     }
 
     /// Load a graph from an edge list
@@ -296,7 +298,7 @@ where
         &self,
         py: Python<'py>,
         node: NI,
-    ) -> PyResult<&'py PyArray1<NI>>
+    ) -> PyResult<Bound<'py, PyArray1<NI>>>
     where
         for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>,
     {
@@ -309,7 +311,11 @@ where
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    pub(crate) fn in_neighbors<'py>(&self, py: Python<'py>, node: NI) -> PyResult<&'py PyArray1<NI>>
+    pub(crate) fn in_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: NI,
+    ) -> PyResult<Bound<'py, PyArray1<NI>>>
     where
         for<'a> G: DirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>,
     {
@@ -321,7 +327,11 @@ where
     ///
     /// This functions returns a numpy array that directly references this graph without
     /// making a copy of the data.
-    pub(crate) fn neighbors<'py>(&self, py: Python<'py>, node: NI) -> PyResult<&'py PyArray1<NI>>
+    pub(crate) fn neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: NI,
+    ) -> PyResult<Bound<'py, PyArray1<NI>>>
     where
         for<'a> G: UndirectedNeighbors<NI, NeighborsIterator<'a> = std::slice::Iter<'a, NI>>,
     {
@@ -332,43 +342,55 @@ where
 
 impl<NI, G> PyGraph<NI, G>
 where
-    NI: Idx + ToPyObject,
+    NI: Idx + for<'py> IntoPyObject<'py>,
     G: GraphTrait<NI>,
 {
     /// Returns all nodes which are connected in outgoing direction to the given node,
     /// i.e., the given node is the source node of the connecting edge.
     ///
     /// This function returns a copy of the data as a Python list.
-    pub(crate) fn copy_out_neighbors<'py>(&self, py: Python<'py>, node: NI) -> &'py PyList
+    pub(crate) fn copy_out_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: NI,
+    ) -> PyResult<Bound<'py, PyList>>
     where
         G: DirectedNeighbors<NI>,
         for<'a> G::NeighborsIterator<'a>: ExactSizeIterator,
     {
-        PyList::new(py, self.g.out_neighbors(node))
+        PyList::new(py, self.g.out_neighbors(node).copied())
     }
 
     /// Returns all nodes which are connected in incoming direction to the given node,
     /// i.e., the given node is the target node of theconnecting edge.
     ///
     /// This function returns a copy of the data as a Python list.
-    pub(crate) fn copy_in_neighbors<'py>(&self, py: Python<'py>, node: NI) -> &'py PyList
+    pub(crate) fn copy_in_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: NI,
+    ) -> PyResult<Bound<'py, PyList>>
     where
         G: DirectedNeighbors<NI>,
         for<'a> G::NeighborsIterator<'a>: ExactSizeIterator,
     {
-        PyList::new(py, self.g.in_neighbors(node))
+        PyList::new(py, self.g.in_neighbors(node).copied())
     }
 
     /// Returns all nodes which are connected in incoming direction to the given node,
     /// i.e., the given node is the target node of theconnecting edge.
     ///
     /// This function returns a copy of the data as a Python list.
-    pub(crate) fn copy_neighbors<'py>(&self, py: Python<'py>, node: NI) -> &'py PyList
+    pub(crate) fn copy_neighbors<'py>(
+        &self,
+        py: Python<'py>,
+        node: NI,
+    ) -> PyResult<Bound<'py, PyList>>
     where
         G: UndirectedNeighbors<NI>,
         for<'a> G::NeighborsIterator<'a>: ExactSizeIterator,
     {
-        PyList::new(py, self.g.neighbors(node))
+        PyList::new(py, self.g.neighbors(node).copied())
     }
 }
 

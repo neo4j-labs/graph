@@ -2,7 +2,7 @@ use graph::prelude::{global_triangle_count as tc, Graph as GraphTrait, Idx, Undi
 use pyo3::prelude::*;
 use std::time::{Duration, Instant};
 
-pub(crate) fn register(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+pub(crate) fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TriangleCountResult>()?;
     Ok(())
 }
@@ -12,7 +12,7 @@ where
     NI: Idx,
     G: GraphTrait<NI> + UndirectedNeighbors<NI> + Sync,
 {
-    py.allow_threads(move || inner_triangle_count(graph))
+    py.detach(move || inner_triangle_count(graph))
 }
 
 fn inner_triangle_count<NI, G>(graph: &G) -> TriangleCountResult
@@ -26,7 +26,7 @@ where
     TriangleCountResult { triangles, micros }
 }
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct TriangleCountResult {
     #[pyo3(get)]

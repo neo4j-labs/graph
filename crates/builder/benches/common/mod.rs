@@ -42,7 +42,7 @@ pub fn create_graph_500(scale: usize) -> Result<PathBuf> {
 
 async fn download_and_decompress<P: AsRef<Path>>(url: &str, download: P) -> Result<()> {
     let response = reqwest::get(url).await?.bytes_stream();
-    let response = response.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+    let response = response.map_err(std::io::Error::other);
     let bufread = tokio_util::io::StreamReader::new(response);
     let bufread = async_compression::tokio::bufread::ZstdDecoder::new(bufread);
     let bufread = tokio::io::BufReader::new(bufread);
@@ -99,8 +99,8 @@ where
 
     (0..edge_count)
         .map(|_| {
-            let source = NI::new(rng.gen_range(0..node_count));
-            let target = NI::new(rng.gen_range(0..node_count));
+            let source = NI::new(rng.random_range(0..node_count));
+            let target = NI::new(rng.random_range(0..node_count));
 
             (source, target, edge_value(source, target))
         })

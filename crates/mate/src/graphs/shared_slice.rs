@@ -1,7 +1,7 @@
 use graph::prelude::{DirectedNeighbors, Idx, UndirectedNeighbors};
 use numpy::{
     npyffi::{types::NPY_TYPES, NpyTypes, NPY_ARRAY_DEFAULT, NPY_ARRAY_WRITEABLE},
-    PyArray, PyArray1, PY_ARRAY_API,
+    PyArray1, PY_ARRAY_API,
 };
 use pyo3::{prelude::*, types::PyCapsule};
 use std::{ffi::CString, fmt::Debug, os::raw::c_void, sync::Arc};
@@ -106,7 +106,10 @@ impl SharedSlice {
         self.len
     }
 
-    pub fn into_numpy<NI: NumpyType>(mut self, py: Python<'_>) -> PyResult<&PyArray1<NI>> {
+    pub fn into_numpy<NI: NumpyType>(
+        mut self,
+        py: Python<'_>,
+    ) -> PyResult<Bound<'_, PyArray1<NI>>> {
         assert_eq!(
             NI::NP_TYPE,
             self.np_tpe,
@@ -157,7 +160,10 @@ impl SharedSlice {
             PY_ARRAY_API.PyArray_SetBaseObject(py, arr.cast(), capsule.into_ptr());
         }
 
-        unsafe { Ok(PyArray::from_owned_ptr(py, arr)) }
+        let arr = unsafe { Bound::from_owned_ptr(py, arr) };
+        // SAFETY: the array was created above with the numpy type matching `NI`,
+        // which is asserted at the top of this function.
+        Ok(unsafe { arr.cast_into_unchecked::<PyArray1<NI>>() })
     }
 }
 
@@ -204,3 +210,7 @@ impl SharedConst {
 }
 
 unsafe impl Send for SharedConst {}
+
+// SAFETY: the pointer refers to immutable data that is kept alive by the
+// `owner` field of `SharedSlice` and is only ever read from.
+unsafe impl Sync for SharedConst {}

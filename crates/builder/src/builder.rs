@@ -322,7 +322,7 @@ impl GraphBuilder<Uninitialized> {
     /// ```
     #[cfg(feature = "gdl")]
     #[cfg_attr(all(feature = "gdl", has_doc_cfg), doc(cfg(feature = "gdl")))]
-    pub fn gdl_graph<NI>(self, gdl_graph: &::gdl::Graph) -> GraphBuilder<FromGdlGraph<NI>>
+    pub fn gdl_graph<NI>(self, gdl_graph: &::gdl::Graph) -> GraphBuilder<FromGdlGraph<'_, NI>>
     where
         NI: Idx,
     {
