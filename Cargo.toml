@@ -59,7 +59,7 @@ tap = "1.0.1"
 tempfile = "3.27.0"
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["full"], default-features = true }
-tokio-tar = "0.3.1"
+astral-tokio-tar = "0.6.2"
 tokio-util = { version = "0.7.18", features = ["io"] }
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
