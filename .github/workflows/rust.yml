@@ -25,7 +25,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   PY_PACKAGE_NAME: "graph_mate"
-  PYTHON_VERSION: "3.8" # to build abi3 wheels
+  PYTHON_VERSION: "3.10" # to build abi3 wheels
   MATURIN_ARGS: "--features extension-module --manifest-path crates/mate/Cargo.toml --release --out dist"
 
 jobs:

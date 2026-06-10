@@ -29,7 +29,7 @@ rayon.workspace = true
 
 [dependencies.pyo3]
 workspace = true
-features = ["macros", "auto-initialize", "abi3", "abi3-py38"]
+features = ["macros", "auto-initialize", "abi3", "abi3-py310"]
 default-features = false
 
 [[package.metadata.release.pre-release-replacements]]
