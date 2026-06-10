@@ -95,16 +95,11 @@ pub enum CsrLayoutRef {
     Deduplicated,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Default, Deserialize, Debug)]
 pub enum Orientation {
+    #[default]
     Directed,
     Undirected,
-}
-
-impl Default for Orientation {
-    fn default() -> Self {
-        Self::Directed
-    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -142,15 +137,15 @@ impl TryFrom<FlightDescriptor> for CreateGraphCommand {
     type Error = Status;
 
     fn try_from(descriptor: FlightDescriptor) -> Result<Self, Self::Error> {
-        match DescriptorType::from_i32(descriptor.r#type) {
-            None => Err(Status::invalid_argument(format!(
+        match DescriptorType::try_from(descriptor.r#type) {
+            Err(_) => Err(Status::invalid_argument(format!(
                 "unsupported descriptor type: {}",
                 descriptor.r#type
             ))),
-            Some(DescriptorType::Cmd) => {
+            Ok(DescriptorType::Cmd) => {
                 serde_json::from_slice::<Self>(&descriptor.cmd).map_err(from_json_error)
             }
-            Some(descriptor_type) => Err(Status::invalid_argument(format!(
+            Ok(descriptor_type) => Err(Status::invalid_argument(format!(
                 "Expected command, got {descriptor_type:?}"
             ))),
         }

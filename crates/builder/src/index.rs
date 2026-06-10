@@ -3,8 +3,9 @@ use std::iter::Sum;
 use std::ops::{Range, RangeInclusive};
 use std::sync::atomic::Ordering;
 
-use atoi::FromRadix10;
+use atoi::{FromRadix10, FromRadix10Signed};
 use atomic::Atomic;
+use bytemuck::NoUninit;
 
 pub trait Idx:
     Copy
@@ -19,6 +20,7 @@ pub trait Idx:
     + Sum
     + Sync
     + Sized
+    + NoUninit
     + 'static
 {
     fn new(idx: usize) -> Self;
@@ -46,6 +48,9 @@ pub trait Idx:
 
 macro_rules! impl_idx {
     ($TYPE:ty) => {
+        impl_idx!($TYPE, $TYPE, FromRadix10::from_radix_10);
+    };
+    ($TYPE:ty, $PARSE:ty, $parse_fn:path) => {
         impl Idx for $TYPE {
             #[inline]
             fn new(idx: usize) -> Self {
@@ -79,7 +84,8 @@ macro_rules! impl_idx {
 
             #[inline]
             fn parse(bytes: &[u8]) -> (Self, usize) {
-                FromRadix10::from_radix_10(bytes)
+                let (value, len): ($PARSE, usize) = $parse_fn(bytes);
+                (value as $TYPE, len)
             }
 
             #[inline]
@@ -94,10 +100,10 @@ impl_idx!(u8);
 impl_idx!(u16);
 impl_idx!(u32);
 impl_idx!(u64);
-impl_idx!(usize);
+impl_idx!(usize, u64, FromRadix10::from_radix_10);
 
-impl_idx!(i8);
-impl_idx!(i16);
-impl_idx!(i32);
-impl_idx!(i64);
-impl_idx!(isize);
+impl_idx!(i8, i8, FromRadix10Signed::from_radix_10_signed);
+impl_idx!(i16, i16, FromRadix10Signed::from_radix_10_signed);
+impl_idx!(i32, i32, FromRadix10Signed::from_radix_10_signed);
+impl_idx!(i64, i64, FromRadix10Signed::from_radix_10_signed);
+impl_idx!(isize, i64, FromRadix10Signed::from_radix_10_signed);

@@ -2,8 +2,7 @@
 
 use ::graph::prelude::Error as GError;
 use pyo3::{
-    exceptions::PyValueError,
-    prelude::{pymodule, IntoPy, PyErr, PyModule, PyObject, PyResult, Python},
+    exceptions::PyValueError, prelude::*, types::PyModule, Bound, IntoPyObjectExt, Py, PyAny,
     PyErrArguments,
 };
 use pyo3_log::{Caching, Logger};
@@ -16,8 +15,11 @@ mod wcc;
 struct GraphError(GError);
 
 impl PyErrArguments for GraphError {
-    fn arguments(self, py: Python) -> PyObject {
-        self.0.to_string().into_py(py)
+    fn arguments(self, py: Python<'_>) -> Py<PyAny> {
+        self.0
+            .to_string()
+            .into_py_any(py)
+            .expect("converting a string to a Python object is infallible")
     }
 }
 
@@ -29,7 +31,8 @@ impl From<GraphError> for PyErr {
 
 /// Python API for the graph crate
 #[pymodule]
-fn graph_mate(py: Python, m: &PyModule) -> PyResult<()> {
+fn graph_mate(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = m.py();
     Logger::new(py, Caching::LoggersAndLevels)?
         .install()
         .unwrap();

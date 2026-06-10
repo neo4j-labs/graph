@@ -80,15 +80,18 @@ macro_rules! impl_parse_value {
     };
 }
 
-impl_parse_value!(
-    ::atoi::FromRadix10::from_radix_10,
-    u8,
-    u16,
-    u32,
-    u64,
-    u128,
-    usize,
-);
+impl_parse_value!(::atoi::FromRadix10::from_radix_10, u8, u16, u32, u64, u128,);
+
+impl ParseValue for usize {
+    fn parse(bytes: &[u8]) -> (Self, usize) {
+        if bytes.is_empty() {
+            (0, 0)
+        } else {
+            let (value, len): (u64, usize) = ::atoi::FromRadix10::from_radix_10(bytes);
+            (value as usize, len)
+        }
+    }
+}
 
 impl_parse_value!(
     ::atoi::FromRadix10Signed::from_radix_10_signed,
@@ -97,8 +100,18 @@ impl_parse_value!(
     i32,
     i64,
     i128,
-    isize,
 );
+
+impl ParseValue for isize {
+    fn parse(bytes: &[u8]) -> (Self, usize) {
+        if bytes.is_empty() {
+            (0, 0)
+        } else {
+            let (value, len): (i64, usize) = ::atoi::FromRadix10Signed::from_radix_10_signed(bytes);
+            (value as isize, len)
+        }
+    }
+}
 
 impl_parse_value!(parse_float, f32, f64);
 

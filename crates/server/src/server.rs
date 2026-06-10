@@ -16,8 +16,8 @@ use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions};
 use arrow_flight::utils::flight_data_to_arrow_batch;
 use arrow_flight::{
     flight_service_server::FlightService, Action, ActionType, Criteria, Empty, FlightData,
-    FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc,
-    SchemaResult, Ticket,
+    FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PollInfo, PutResult,
+    SchemaAsIpc, SchemaResult, Ticket,
 };
 use futures::stream::BoxStream;
 use futures::StreamExt;
@@ -80,13 +80,19 @@ impl FlightService for FlightServiceImpl {
         // Imho, there is no need to implement lazy batch computation.
         let data_gen = writer::IpcDataGenerator::default();
         let mut dictionary_tracker = writer::DictionaryTracker::new(false);
+        let mut compression_context = writer::CompressionContext::default();
 
         let record_batches = property_entry
             .batches
             .iter()
             .map(|batch| {
                 let (_, encoded_batch) = data_gen
-                    .encoded_batch(batch, &mut dictionary_tracker, &ipc_write_options)
+                    .encode(
+                        batch,
+                        &mut dictionary_tracker,
+                        &ipc_write_options,
+                        &mut compression_context,
+                    )
                     .expect("DictionaryTracker configured above to not error on replacement");
                 encoded_batch.into()
             })
@@ -275,6 +281,13 @@ impl FlightService for FlightServiceImpl {
         &self,
         _request: Request<FlightDescriptor>,
     ) -> FlightResult<Response<FlightInfo>> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn poll_flight_info(
+        &self,
+        _request: Request<FlightDescriptor>,
+    ) -> FlightResult<Response<PollInfo>> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 

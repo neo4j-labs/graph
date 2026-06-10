@@ -1,8 +1,9 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
+use criterion::{criterion_group, criterion_main, Criterion, SamplingMode};
 use graph_builder::prelude::*;
+use std::hint::black_box;
 
 use graph_builder::input::dotgraph::{LabelStats, NodeLabelIndex};
-use rand::Rng;
+use rand::RngExt;
 
 mod common;
 use common::*;
@@ -20,7 +21,7 @@ fn label_stats(c: &mut Criterion) {
 }
 
 fn bench_label_stats(b: &mut criterion::Bencher, Input { node_count, .. }: Input) {
-    let labels = node_values(node_count, |_node, rng| rng.gen_range(0..42));
+    let labels = node_values(node_count, |_node, rng| rng.random_range(0..42));
     let graph: UndirectedCsrGraph<usize, usize> = GraphBuilder::new()
         .edges([(0, node_count - 1)])
         .node_values(labels.clone())
@@ -41,7 +42,7 @@ fn node_label_index(c: &mut Criterion) {
 }
 
 fn bench_node_label_index(b: &mut criterion::Bencher, Input { node_count, .. }: Input) {
-    let labels = node_values(node_count, |_node, rng| rng.gen_range(0..42));
+    let labels = node_values(node_count, |_node, rng| rng.random_range(0..42));
     let graph: UndirectedCsrGraph<usize, usize> = GraphBuilder::new()
         .edges([(0, node_count - 1)])
         .node_values(labels.clone())
