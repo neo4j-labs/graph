@@ -39,7 +39,7 @@ rand.workspace = true
 reqwest.workspace = true
 tap.workspace = true
 tempfile.workspace = true
-tokio-tar.workspace = true
+astral-tokio-tar.workspace = true
 tokio-util.workspace = true
 tokio.workspace = true
 
