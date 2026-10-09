@@ -1,5 +1,7 @@
 # graph &emsp; [![GitHub Actions workflow status]][actions] [![Latest version on crates.io]][crates.io] [![Latest version on PyPI]][pypi.org] [![License: MIT]][license]
 
+> This is an experimental Neo4j Labs project and not part of Neo4j's supported product lineup. See the [Neo4j Labs disclaimer](./LABS_DISCLAIMER.txt).
+
 [GitHub Actions workflow status]: https://img.shields.io/github/actions/workflow/status/neo4j-labs/graph/rust.yml?branch=main&label=CI&style=flat-square
 [actions]: https://github.com/neo4j-labs/graph/actions/workflows/rust.yml?query=branch%3Amain
 [Latest version on crates.io]: https://img.shields.io/crates/v/graph?style=flat-square
